@@ -22,7 +22,7 @@ export default function LoginPage() {
 
     setLoading(false)
     if (error) {
-      setError(error.message)
+      setError(error.message || 'Sign-in failed. Please try again.')
       return
     }
     router.push('/company')
@@ -42,7 +42,7 @@ export default function LoginPage() {
             Verdikt
           </h1>
           <p className="text-sm text-center" style={{ color: '#6B7280' }}>
-            Binary prediction markets · iGaming operator platform
+            Test your instinct, Participate in free Contests
           </p>
         </div>
 
@@ -115,6 +115,10 @@ export default function LoginPage() {
 
         <p className="text-center text-xs" style={{ color: '#374151' }}>
           Demo: demo@verdikt.io · verdikt2025
+        </p>
+
+        <p className="text-center text-xs px-2" style={{ color: '#4B5563' }}>
+          For research and education purposes only. No real money involved.
         </p>
       </div>
     </div>
