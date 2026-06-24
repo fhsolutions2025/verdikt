@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { PositionsClient } from '@/components/player/PositionsClient'
 import { PlayerTabBar } from '@/components/player/PlayerTabBar'
-import type { Wallet } from '@/lib/types'
+import type { Wallet, Position, Market } from '@/lib/types'
+
+type PositionWithMarket = Position & { markets: Pick<Market, 'id' | 'question' | 'yes_price' | 'no_price' | 'status' | 'closes_at' | 'category'> }
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +49,7 @@ export default async function PositionsPage() {
         </div>
 
         <PositionsClient
-          initialPositions={(positions ?? []) as any}
+          initialPositions={(positions ?? []) as PositionWithMarket[]}
           playerId={user.id}
         />
       </div>

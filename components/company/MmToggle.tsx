@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { MmConfig } from '@/lib/types'
 
 const MM_CONFIG_ID = '20000000-0000-0000-0000-000000000001'
 

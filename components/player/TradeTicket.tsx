@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Market, FeeConfig } from '@/lib/types'
 import { tradePreview } from '@/lib/calculations'
 import { createClient } from '@/lib/supabase/client'
