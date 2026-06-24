@@ -55,6 +55,10 @@ export function MmDeskClient({ initialLiveMarkets, initialAiMarkets, mmId }: Pro
     setAi(prev => prev.filter(m => m.id !== id))
   }
 
+  function handleRejected(id: string) {
+    setAi(prev => prev.filter(m => m.id !== id))
+  }
+
   return (
     <div className="space-y-4">
       {/* Tab bar — Open Book is default/primary per DESIGN_SYSTEM §7.2 */}
@@ -93,6 +97,7 @@ export function MmDeskClient({ initialLiveMarkets, initialAiMarkets, mmId }: Pro
               market={m}
               mmId={mmId}
               onApproved={handleApproved}
+              onRejected={handleRejected}
             />
           ))}
           {aiMarkets.length === 0 && (

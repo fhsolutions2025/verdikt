@@ -8,15 +8,17 @@ import { formatVolume } from '@/lib/calculations'
 import { useToast } from '@/components/shared/Toast'
 
 interface Props {
-  market:    Market
-  mmId:      string
+  market:     Market
+  mmId:       string
   onApproved: (id: string) => void
+  onRejected: (id: string) => void
 }
 
-export function AiReadyMarketCard({ market, mmId, onApproved }: Props) {
-  const [loading, setLoading] = useState(false)
-  const supabase              = createClient()
-  const { toast }             = useToast()
+export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Props) {
+  const [loading, setLoading]   = useState(false)
+  const [rejecting, setRejecting] = useState(false)
+  const supabase                = createClient()
+  const { toast }               = useToast()
 
   const confidenceColor =
     (market.ai_confidence ?? 0) >= 85 ? '#00A844' :
@@ -35,6 +37,22 @@ export function AiReadyMarketCard({ market, mmId, onApproved }: Props) {
     } else {
       toast('Market approved and seeded', 'success')
       onApproved(market.id)
+    }
+  }
+
+  async function reject() {
+    setRejecting(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc('reject_ai_market', {
+      p_market_id: market.id,
+      p_mm_id:     mmId,
+    })
+    setRejecting(false)
+    if (error) {
+      toast(`Rejection failed: ${error.message}`, 'error')
+    } else {
+      toast('Market rejected', 'success')
+      onRejected(market.id)
     }
   }
 
@@ -137,15 +155,17 @@ export function AiReadyMarketCard({ market, mmId, onApproved }: Props) {
           {loading ? 'Approving…' : 'Approve & Seed'}
         </button>
         <button
-          className="px-4 py-2.5 rounded-xl text-sm font-bold"
+          onClick={reject}
+          disabled={rejecting || loading}
+          className="px-4 py-2.5 rounded-xl text-sm font-bold transition-all"
           style={{
             backgroundColor: 'transparent',
             border: '1px solid #E5E7EB',
-            color: '#374151',
-            cursor: 'pointer',
+            color: rejecting ? '#9CA3AF' : '#374151',
+            cursor: rejecting ? 'wait' : 'pointer',
           }}
         >
-          Reject
+          {rejecting ? 'Rejecting…' : 'Reject'}
         </button>
       </div>
     </div>

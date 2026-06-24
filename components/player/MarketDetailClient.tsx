@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Market } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 
@@ -12,6 +12,9 @@ export function MarketDetailClient({ market: initial }: Props) {
   const [market, setMarket]   = useState(initial)
   const [flash, setFlash]     = useState<'yes-up' | 'yes-down' | 'no-up' | 'no-down' | null>(null)
   const supabase              = createClient()
+  const marketRef             = useRef(market)
+
+  useEffect(() => { marketRef.current = market }, [market])
 
   useEffect(() => {
     const channel = supabase
@@ -26,7 +29,7 @@ export function MarketDetailClient({ market: initial }: Props) {
         },
         payload => {
           const updated = payload.new as Market
-          const prevYes = market.yes_price
+          const prevYes = marketRef.current.yes_price
 
           if (updated.yes_price > prevYes) setFlash('yes-up')
           else if (updated.yes_price < prevYes) setFlash('yes-down')

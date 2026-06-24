@@ -38,7 +38,7 @@ export function PositionsClient({ initialPositions, playerId }: Props) {
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'positions' },
+        { event: 'UPDATE', schema: 'public', table: 'positions', filter: `player_id=eq.${playerId}` },
         payload => {
           const updated = payload.new as Position
           if (updated.status !== 'open') {
