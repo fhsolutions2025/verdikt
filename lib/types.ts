@@ -7,14 +7,14 @@ export type UserRole      = 'admin' | 'player'
 export type BundleStatus  = 'draft' | 'live' | 'resolved' | 'voided'
 export type MarketCategory = 'sports' | 'finance' | 'politics' | 'current_affairs' | 'custom'
 export type FeeCategory   = 'sports' | 'finance' | 'politics' | 'current_affairs' | 'custom' | 'user_created' | 'bundle'
-export type MarketStatus  = 'ai_ready' | 'pending_mm_review' | 'pending_compliance' | 'live' | 'resolved' | 'voided'
+export type MarketStatus  = 'pending_ai' | 'ai_ready' | 'pending_mm_review' | 'pending_compliance' | 'live' | 'resolved' | 'voided'
 export type CreatorType   = 'institutional_mm' | 'player_mm' | 'ai_system'
 export type MarketOutcome = 'yes' | 'no' | 'void'
 export type OrderSide     = 'yes' | 'no'
 export type OrderStatus   = 'open' | 'partially_filled' | 'filled' | 'cancelled'
 export type PositionStatus = 'open' | 'sold' | 'resolved_won' | 'resolved_lost' | 'voided'
 export type TransactionType = 'deposit' | 'withdrawal' | 'trade' | 'sell' | 'payout' | 'fee' | 'maker_rebate' | 'maker_spread' | 'holding_reward' | 'creator_royalty'
-export type AuditType     = 'trade' | 'seed' | 'resolve' | 'fee' | 'operator_sync' | 'config_change'
+export type AuditType     = 'trade' | 'seed' | 'resolve' | 'fee' | 'operator_sync' | 'config_change' | 'market_submission'
 
 export interface Profile {
   id:           string
@@ -204,6 +204,7 @@ export type Database = {
       approve_ai_market:  { Args: { p_market_id: string; p_mm_id: string }; Returns: { status: MarketStatus; capital_deployed: number; capital_at_risk: number } }
       resolve_market:     { Args: { p_market_id: string; p_outcome: MarketOutcome }; Returns: { outcome: MarketOutcome; positions_settled: number } }
       sell_position:      { Args: { p_position_id: string; p_player_id: string }; Returns: { realized_pnl: number; sale_value: number; new_balance: number } }
+      submit_player_market: { Args: { p_player_id: string; p_question: string; p_category: MarketCategory; p_closes_at: string; p_gut_yes_price?: number }; Returns: { market_id: string; status: MarketStatus } }
     }
   }
 }
