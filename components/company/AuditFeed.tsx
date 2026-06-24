@@ -11,6 +11,7 @@ const TYPE_COLORS: Record<string, string> = {
   fee:          '#E05C20',
   operator_sync:'#374151',
   config_change:'#DC2626',
+  market_submission:'#4338CA',
 }
 
 interface Props {
