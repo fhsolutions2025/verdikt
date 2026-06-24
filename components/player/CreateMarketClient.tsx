@@ -188,7 +188,7 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
           <input
             type="date"
             value={closesAt}
-            min={defaultCloseDate.length ? new Date().toISOString().slice(0, 10) : undefined}
+            min={new Date().toISOString().slice(0, 10)}
             onChange={e => setClosesAt(e.target.value)}
             className="w-full px-4 py-3 rounded-xl text-sm outline-none"
             style={{
