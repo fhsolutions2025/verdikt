@@ -11,12 +11,25 @@ export async function POST() {
   // Player must have an active Vega config
   const { data: cfg } = await supabase
     .from('autonomous_agent_configs')
-    .select('is_active')
+    .select('is_active, last_run_at')
     .eq('player_id', user.id)
     .single()
 
   if (!cfg?.is_active) {
     return NextResponse.json({ error: 'Vega is not active. Enable it first.' }, { status: 400 })
+  }
+
+  // Cooldown: a manual run triggers Haiku calls + trades, so rate-limit it.
+  const COOLDOWN_MS = 30_000
+  if (cfg.last_run_at) {
+    const elapsed = Date.now() - new Date(cfg.last_run_at).getTime()
+    if (elapsed < COOLDOWN_MS) {
+      const wait = Math.ceil((COOLDOWN_MS - elapsed) / 1000)
+      return NextResponse.json(
+        { error: `Vega ran recently. Try again in ${wait}s.` },
+        { status: 429 },
+      )
+    }
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

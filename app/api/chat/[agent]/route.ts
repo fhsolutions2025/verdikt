@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getAuthContext } from '@/lib/auth'
 
 const ALLOWED_AGENTS = ['player', 'company', 'mm_desk'] as const
 type AgentType = (typeof ALLOWED_AGENTS)[number]
@@ -210,13 +211,21 @@ export async function POST(
 ) {
   // ── Auth ──────────────────────────────────────────────────────────────────
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user, role } = await getAuthContext()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // ── Validate agent type ───────────────────────────────────────────────────
   const agentType = params.agent as AgentType
   if (!ALLOWED_AGENTS.includes(agentType)) {
     return NextResponse.json({ error: 'Unknown agent' }, { status: 400 })
+  }
+
+  // ── Authorization: the company & MM-desk agents (with platform/ops tools)
+  // are admin-only. Players may only talk to the player agent. Without this,
+  // the agent type is just a URL param and any player could exfiltrate
+  // platform metrics or other users' data via /api/chat/company.
+  if (agentType !== 'player' && role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // ── Parse body ────────────────────────────────────────────────────────────
@@ -233,6 +242,23 @@ export async function POST(
 
   if (messages.length === 0) {
     return NextResponse.json({ error: 'No messages' }, { status: 400 })
+  }
+
+  // ── Validate message shape (reject forged/malformed turns) ─────────────────
+  // The client controls the full history; only allow well-formed user/assistant
+  // turns with string content, cap the count, and require the last turn to be
+  // from the user. Tool/forged content blocks are rejected before they reach
+  // the model.
+  if (messages.length > 40) {
+    return NextResponse.json({ error: 'Conversation too long' }, { status: 400 })
+  }
+  for (const m of messages) {
+    if (!m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.content !== 'string') {
+      return NextResponse.json({ error: 'Malformed message' }, { status: 400 })
+    }
+  }
+  if (messages[messages.length - 1].role !== 'user') {
+    return NextResponse.json({ error: 'Last message must be from the user' }, { status: 400 })
   }
 
   // ── Rate limiting (per user per agent, 1-min window) ─────────────────────

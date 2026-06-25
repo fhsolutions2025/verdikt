@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { getAuthContext } from '@/lib/auth'
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user, role } = await getAuthContext()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // Get feedback + latency stats grouped by agent_type
-  const { data: feedback } = await supabase
+  // Platform-wide stats (service client) — RLS would otherwise limit an admin
+  // to only their own feedback rows.
+  const service = await createServiceClient()
+  const { data: feedback } = await service
     .from('agent_feedback')
     .select('rating, message_id, chat_messages!inner(agent_type, latency_ms)')
 

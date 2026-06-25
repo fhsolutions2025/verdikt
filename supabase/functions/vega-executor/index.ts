@@ -144,7 +144,7 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
   if (vegaPositionIds.length > 0) {
     const { data: positions } = await supabase
       .from('positions')
-      .select('id, market_id, side, entry_price, shares')
+      .select('id, market_id, side, entry_price, entry_value, shares')
       .in('id', vegaPositionIds)
       .eq('status', 'open')
 
@@ -177,11 +177,17 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
             realized_pnl: realized,
             rationale:    `Stop-loss triggered at ${pnlPct.toFixed(1)}% (limit ${cfg.stop_loss_pct}%)`,
           })
+          // Release the capital this position tied up so budget_cap reflects
+          // OPEN exposure, not lifetime deployed. Without this the cap is
+          // permanently consumed and Vega stops trading after a few exits.
+          const released = Number(pos.entry_value ?? 0)
+          const newDeployed = Math.max(0, cfg.total_deployed - released)
           await supabase
             .from('autonomous_agent_configs')
-            .update({ total_pnl: cfg.total_pnl + realized })
+            .update({ total_pnl: cfg.total_pnl + realized, total_deployed: newDeployed })
             .eq('id', cfg.id)
           cfg.total_pnl += realized
+          cfg.total_deployed = newDeployed
         }
       }
     }
