@@ -9,16 +9,6 @@ export async function POST(req: NextRequest) {
 
   const service = await createServiceClient()
 
-  // Use service role to bypass RLS for role check — JWT already validated above
-  const { data: profile } = await service
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-  if (profile?.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
   // ── Parse and validate body ───────────────────────────────────
   let body: Record<string, unknown>
   try {
