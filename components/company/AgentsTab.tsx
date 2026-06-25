@@ -167,6 +167,7 @@ export function AgentsTab() {
   const [evalStats, setEvalStats] = useState<Record<string, EvalStats>>({})
   const [auto, setAuto]           = useState<AutonomousOverview | null>(null)
   const [togglingKill, setTogglingKill] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState<string | null>(null)
 
   const loadAutonomous = () => {
     fetch('/api/agents/autonomous')
@@ -369,13 +370,19 @@ export function AgentsTab() {
           </p>
           {Object.entries(AGENT_LABELS).map(([type, m]) => {
             const isSel = selected === type
-            const active = configs.find(c => c.agent_type === type)?.is_active
+            const agentCfg = configs.find(c => c.agent_type === type)
+            const active = agentCfg?.is_active
+            // Tools this agent has deployed = enabled tools available to its type
+            const deployed = ALL_TOOLS.filter(t =>
+              t.agents.includes(type) && (agentCfg?.tools_enabled?.includes(t.id) ?? false)
+            )
+            const isToolsOpen = toolsOpen === type
             return (
-              <button
+              <div
                 key={type}
                 onClick={() => selectAgent(type)}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 11,
+                  display: 'flex', flexDirection: 'column', gap: 9,
                   width: '100%', padding: '11px 13px',
                   cursor: 'pointer', textAlign: 'left',
                   background: isSel ? `linear-gradient(135deg, ${m.color}1A, ${m.color}08)` : CARD_BG,
@@ -384,32 +391,80 @@ export function AgentsTab() {
                   transition: 'all 0.15s',
                 }}
               >
-                <div style={{
-                  width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-                  backgroundColor: m.color + (isSel ? '22' : '12'),
-                  color: isSel ? m.color : '#7B8794',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <AgentGlyph type={type} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: isSel ? '#E6EDF3' : '#9CA3AF', fontSize: 13, fontWeight: isSel ? 700 : 600 }}>
-                    {m.label}
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                   <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 3,
+                    width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                    backgroundColor: m.color + (isSel ? '22' : '12'),
+                    color: isSel ? m.color : '#7B8794',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <span style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      backgroundColor: active ? m.color : '#374151',
-                      boxShadow: active ? `0 0 6px ${m.color}` : 'none',
-                    }} />
-                    <span style={{ color: active ? m.color : '#4B5563', fontSize: 10, fontWeight: 600 }}>
-                      {active ? 'Live' : 'Off'}
-                    </span>
+                    <AgentGlyph type={type} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: isSel ? '#E6EDF3' : '#9CA3AF', fontSize: 13, fontWeight: isSel ? 700 : 600 }}>
+                      {m.label}
+                    </div>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        backgroundColor: active ? m.color : '#374151',
+                        boxShadow: active ? `0 0 6px ${m.color}` : 'none',
+                      }} />
+                      <span style={{ color: active ? m.color : '#4B5563', fontSize: 10, fontWeight: 600 }}>
+                        {active ? 'Live' : 'Off'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </button>
+
+                {/* Tools affordance */}
+                <div
+                  onClick={e => { e.stopPropagation(); setToolsOpen(isToolsOpen ? null : type) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 8px', borderRadius: 8,
+                    backgroundColor: isToolsOpen ? m.color + '14' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${isToolsOpen ? m.color + '40' : 'rgba(255,255,255,0.05)'}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M7.5 1.5C8.5 1.5 9.5 2.5 9.5 3.5C9.5 4 9.3 4.4 9 4.8L10.5 6.3L9 7.8L7.5 6.3C7.1 6.6 6.7 6.8 6.2 6.8C5.2 6.8 4.2 5.8 4.2 4.8L1.8 7.2L2.5 7.9L1.5 8.9L3.1 10.5L4.1 9.5L4.8 10.2L7.2 7.8" stroke={isToolsOpen ? m.color : '#7B8794'} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span style={{ flex: 1, color: isToolsOpen ? m.color : '#7B8794', fontSize: 10.5, fontWeight: 600 }}>
+                    Tools
+                  </span>
+                  <span style={{
+                    fontSize: 9.5, fontWeight: 700, fontFamily: 'monospace',
+                    color: m.color, backgroundColor: m.color + '1A',
+                    padding: '1px 6px', borderRadius: 999,
+                  }}>
+                    {deployed.length}
+                  </span>
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none" style={{ transform: isToolsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                    <path d="M2 3.5L4.5 6L7 3.5" stroke={isToolsOpen ? m.color : '#7B8794'} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+
+                {/* Tools list */}
+                {isToolsOpen && (
+                  <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 2 }}>
+                    {deployed.length === 0 ? (
+                      <span style={{ color: '#4B5563', fontSize: 11, padding: '4px 6px' }}>No tools deployed.</span>
+                    ) : deployed.map(t => (
+                      <div key={t.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 7,
+                        padding: '5px 8px', borderRadius: 7,
+                        backgroundColor: 'rgba(255,255,255,0.03)',
+                      }}>
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: m.color, flexShrink: 0 }} />
+                        <span style={{ color: '#C9D1D9', fontSize: 11, fontWeight: 500, flex: 1 }}>{t.label}</span>
+                        <span style={{ color: '#4B5563', fontSize: 9, fontFamily: 'monospace' }}>{t.id}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )
           })}
         </div>

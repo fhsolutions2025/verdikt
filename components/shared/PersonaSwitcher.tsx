@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { VerdiktLogo } from './VerdiktLogo'
+import { ThemeToggle } from './ThemeToggle'
 
 const PORTALS = [
   { label: 'Company',  href: '/company',  key: '/company'  },
@@ -65,6 +66,8 @@ export function PersonaSwitcher() {
             </Link>
           )
         })}
+        <span className="mx-1" style={{ width: 1, height: 18, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E5E7EB' }} />
+        <ThemeToggle compact />
       </nav>
     </header>
   )

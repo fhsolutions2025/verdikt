@@ -8,8 +8,19 @@ interface AiStats {
   calls_today:    number
   avg_latency_ms: number | null
   cost_today_usd: number
+  cost_30d_usd?:   number
+  input_tokens_today?:  number
+  output_tokens_today?: number
   cache_hit_rate: number
   last_error:     string | null
+}
+
+// Format a USD cost so sub-cent values are still legible (never a flat "$0.0000")
+function fmtCost(usd: number): string {
+  if (usd <= 0)     return '$0.00'
+  if (usd < 0.01)   return `$${usd.toFixed(4)}`
+  if (usd < 1)      return `$${usd.toFixed(3)}`
+  return `$${usd.toFixed(2)}`
 }
 
 interface Props {
@@ -76,7 +87,7 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats, defaultOpen = f
       </button>
 
       {open && (
-      <div className="px-5 pb-4 space-y-5">
+      <div className="px-5 pb-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, alignItems: 'start' }}>
 
         {/* External Data Sources */}
         <section className="space-y-2">
@@ -166,6 +177,22 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats, defaultOpen = f
               </span>
             </div>
 
+            {/* Cost spotlight */}
+            <div className="flex gap-2">
+              <div className="flex-1 rounded-lg px-3 py-2.5" style={{ backgroundColor: '#6C3FC512', border: '1px solid #6C3FC528' }}>
+                <p className="text-xs" style={{ color: '#6B7280', margin: 0 }}>Est. cost today</p>
+                <p className="font-mono font-bold" style={{ color: '#9B6FF5', fontSize: 18, margin: '2px 0 0' }}>
+                  {fmtCost(aiStats.cost_today_usd)}
+                </p>
+              </div>
+              <div className="flex-1 rounded-lg px-3 py-2.5" style={{ backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-xs" style={{ color: '#6B7280', margin: 0 }}>Cost (30d)</p>
+                <p className="font-mono font-bold" style={{ color: '#D1D5DB', fontSize: 18, margin: '2px 0 0' }}>
+                  {fmtCost(aiStats.cost_30d_usd ?? 0)}
+                </p>
+              </div>
+            </div>
+
             <div
               className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs"
               style={{ color: '#6B7280' }}
@@ -182,9 +209,11 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats, defaultOpen = f
                   : '—'}
               </span>
 
-              <span>Est. cost today</span>
+              <Tooltip content="Haiku 4.5 pricing: $0.80 / 1M input tokens, $4.00 / 1M output tokens." position="top">
+                <span style={{ cursor: 'default' }}>Tokens today (in / out)</span>
+              </Tooltip>
               <span className="font-mono text-right" style={{ color: '#D1D5DB' }}>
-                ${aiStats.cost_today_usd.toFixed(4)}
+                {(aiStats.input_tokens_today ?? 0).toLocaleString()} / {(aiStats.output_tokens_today ?? 0).toLocaleString()}
               </span>
 
               <Tooltip content="% of AI calls served from in-memory cache. Higher = fewer Anthropic API calls = lower cost." position="top">

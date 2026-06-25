@@ -16,6 +16,7 @@ import { AgentsTab } from '@/components/company/AgentsTab'
 import { PlayersTab } from '@/components/company/PlayersTab'
 import { MarketingTab } from '@/components/company/MarketingTab'
 import { ChatWidget } from '@/components/shared/ChatWidget'
+import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
 import { formatVolume } from '@/lib/calculations'
 import type {
@@ -29,6 +30,9 @@ interface AiStats {
   calls_today:    number
   avg_latency_ms: number | null
   cost_today_usd: number
+  cost_30d_usd?:   number
+  input_tokens_today?:  number
+  output_tokens_today?: number
   cache_hit_rate: number
   last_error:     string | null
 }
@@ -248,6 +252,8 @@ export function CompanyDashboard({
         </Link>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ThemeToggle compact />
+          <span style={{ width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
           <Link href="/mm-desk" style={{
             padding: '5px 12px',
             borderRadius: 8,

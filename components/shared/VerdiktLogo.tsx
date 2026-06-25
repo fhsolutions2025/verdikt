@@ -14,6 +14,7 @@ export function VerdiktLogo({ size = 28, className = '' }: Props) {
       height={size}
       className={className}
       aria-label="Verdikt"
+      data-keep-color
     >
       <polygon
         points="22,4 38,34 6,34"

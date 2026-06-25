@@ -39,7 +39,14 @@ export async function GET(req: Request) {
     .neq('campaign_tag', '')
   const tags = Array.from(new Set((tagRows ?? []).map(r => r.campaign_tag))).sort()
 
-  return NextResponse.json({ assets: data ?? [], tags })
+  // Lifetime aggregate spend across ALL assets (ignores filters)
+  const { data: costRows } = await service
+    .from('marketing_assets')
+    .select('cost_usd')
+  const totalCount = costRows?.length ?? 0
+  const totalSpend = (costRows ?? []).reduce((s, r) => s + Number(r.cost_usd ?? 0), 0)
+
+  return NextResponse.json({ assets: data ?? [], tags, totalCount, totalSpend })
 }
 
 // ── Save to gallery (persist Ideogram image to Storage) ─────────────────────────

@@ -803,6 +803,8 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
   const [activeTag, setActiveTag] = useState('')
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<GalleryAsset | null>(null)
+  const [totalSpend, setTotalSpend] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -811,7 +813,11 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
       if (search) params.set('search', search)
       if (activeTag) params.set('tag', activeTag)
       const res = await fetch(`/api/company/marketing/gallery?${params}`)
-      if (res.ok) { const data = await res.json(); setAssets(data.assets ?? []); setTags(data.tags ?? []) }
+      if (res.ok) {
+        const data = await res.json()
+        setAssets(data.assets ?? []); setTags(data.tags ?? [])
+        setTotalSpend(data.totalSpend ?? 0); setTotalCount(data.totalCount ?? 0)
+      }
     } finally { setLoading(false) }
   }, [search, activeTag])
 
@@ -822,8 +828,26 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
     setSelected(null); load()
   }
 
+  const avgCost = totalCount > 0 ? totalSpend / totalCount : 0
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Running spend counter */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
+        {[
+          { label: 'Total Ideogram spend', value: `$${totalSpend.toFixed(2)}`, color: '#9B72E8', sub: 'lifetime, all saved assets' },
+          { label: 'Images generated',     value: String(totalCount),          color: '#00C853', sub: 'saved to gallery' },
+          { label: 'Avg cost / image',     value: `$${avgCost.toFixed(3)}`,    color: '#E05C20', sub: 'Ideogram V_2' },
+          { label: 'Showing',              value: String(assets.length),       color: '#9CA3AF', sub: search || activeTag ? 'filtered' : 'all' },
+        ].map(s => (
+          <div key={s.label} style={{ backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 18px' }}>
+            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 10, color: '#4B5563', marginTop: 1 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Controls */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by title, prompt, alt text…" style={{ flex: 1, minWidth: 200, padding: '9px 14px', backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#E6EDF3', fontSize: 13, outline: 'none' }} />

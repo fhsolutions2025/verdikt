@@ -63,6 +63,38 @@ body {
   background: #FFFFFF;
 }
 
+/* ─── Theme toggle chrome variables ──────────────────────────
+   Default (dark) values; overridden under light below.        */
+:root {
+  --tt-bg:     rgba(255,255,255,0.03);
+  --tt-border: rgba(255,255,255,0.1);
+  --tt-fg:     #6B7280;
+}
+
+/* ─── Light mode ─────────────────────────────────────────────
+   The app is built dark-first with hardcoded inline colors, so
+   light mode is delivered via a tuned inversion on the body.
+   invert(1) hue-rotate(180deg) flips lightness while keeping
+   hues (brand green/purple) roughly intact. Raster media and
+   anything marked [data-keep-color] are counter-inverted so
+   they render with their true colors.                          */
+html[data-theme='light'] body {
+  filter: invert(1) hue-rotate(180deg);
+  background: #0D1117; /* inverts to a light surface */
+}
+html[data-theme='light'] img,
+html[data-theme='light'] video,
+html[data-theme='light'] [data-keep-color] {
+  filter: invert(1) hue-rotate(180deg);
+}
+html[data-theme='light'] {
+  --tt-bg:     rgba(0,0,0,0.04);
+  --tt-border: rgba(0,0,0,0.12);
+  --tt-fg:     #6B7280;
+}
+/* Keep scrollbar subtle in light mode */
+html[data-theme='light'] ::-webkit-scrollbar-thumb { background: #C7CDD4; }
+
 a { color: inherit; text-decoration: none; }
 
 button { font-family: inherit; }

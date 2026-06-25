@@ -32,6 +32,7 @@ export default async function CompanyPage() {
     aiCallsRes,
     rateLimitsRes,
     spreadRes,
+    aiCalls30dRes,
   ] = await Promise.all([
     supabase.from('v_platform_totals').select('*').single(),
     supabase.from('mm_config').select('*').eq('id', '20000000-0000-0000-0000-000000000001').single(),
@@ -46,6 +47,9 @@ export default async function CompanyPage() {
     supabase.from('api_rate_limits').select('api_name, call_count').gte('window_start', todayISO),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).rpc('get_realized_spread_income'),
+    supabase.from('ai_call_log')
+      .select('input_tokens, output_tokens')
+      .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString()),
   ])
 
   const totals      = totalsRes.data      as PlatformTotals | null
@@ -90,6 +94,13 @@ export default async function CompanyPage() {
   const costToday  = (totalInputTokens  / 1_000_000) * HAIKU_INPUT_PRICE_PER_M
                    + (totalOutputTokens / 1_000_000) * HAIKU_OUTPUT_PRICE_PER_M
 
+  // 30-day cumulative cost
+  const rows30 = (aiCalls30dRes.data ?? []) as { input_tokens: number | null; output_tokens: number | null }[]
+  let in30 = 0, out30 = 0
+  for (const r of rows30) { in30 += r.input_tokens ?? 0; out30 += r.output_tokens ?? 0 }
+  const cost30d = (in30 / 1_000_000) * HAIKU_INPUT_PRICE_PER_M
+                + (out30 / 1_000_000) * HAIKU_OUTPUT_PRICE_PER_M
+
   const callsToday = rateLimitRows.reduce<Record<string, number>>((acc, row) => {
     acc[row.api_name] = (acc[row.api_name] ?? 0) + row.call_count
     return acc
@@ -99,6 +110,9 @@ export default async function CompanyPage() {
     calls_today:    rows.length,
     avg_latency_ms: avgLatency,
     cost_today_usd: costToday,
+    cost_30d_usd:   cost30d,
+    input_tokens_today:  totalInputTokens,
+    output_tokens_today: totalOutputTokens,
     cache_hit_rate: rows.length > 0 ? cachedCount / rows.length : 0,
     last_error:     lastError,
   }
