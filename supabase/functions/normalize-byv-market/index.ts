@@ -177,6 +177,18 @@ async function fetchPriceContext(
     return 'unavailable — no matching football competition found in question'
   }
 
+  if (category === 'current_affairs') {
+    return (
+      'Current affairs market — no price data applies. ' +
+      'Evaluate based on: (1) Is the outcome binary and objectively verifiable from public record? ' +
+      '(2) Is the outcome genuinely uncertain (not already resolved or near-certain)? ' +
+      '(3) Is the resolution timeframe realistic (1–18 months)? ' +
+      'Score 65–85 for well-formed verifiable questions with genuine uncertainty. ' +
+      'Score 40–64 for questions that are verifiable but harder to resolve clearly. ' +
+      'Score < 40 only if the question is unresolvable, already settled, or purely subjective.'
+    )
+  }
+
   if (category !== 'finance') return 'unavailable — not a finance or sports market'
 
   // ── Crypto: CoinGecko ────────────────────────────────────────────────────
