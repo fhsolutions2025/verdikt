@@ -56,14 +56,6 @@ function IconUsers() {
   )
 }
 
-function IconStar() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <path d="M9 2L11 7H16L12.5 10.5L13.5 15.5L9 13L4.5 15.5L5.5 10.5L2 7H7L9 2Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
 // ── Tab button ─────────────────────────────────────────────────────────────────
 
 function TabBtn({
