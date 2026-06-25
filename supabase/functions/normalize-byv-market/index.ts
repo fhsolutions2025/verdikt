@@ -5,13 +5,13 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const SUPABASE_URL             = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ANTHROPIC_API_KEY        = Deno.env.get('ANTHROPIC_API_KEY')!
-const ALPHA_VANTAGE_KEY        = Deno.env.get('ALPHA_VANTAGE_KEY') ?? ''
+const ANTHROPIC_API_KEY         = Deno.env.get('ANTHROPIC_API_KEY')!
+const ALPHA_VANTAGE_KEY         = Deno.env.get('ALPHA_VANTAGE_KEY') ?? ''
+const FOOTBALL_DATA_KEY         = Deno.env.get('FOOTBALL_DATA_KEY') ?? ''
 
 // ─── Price context fetching ───────────────────────────────────────────────────
-// Only runs for finance markets; fails gracefully in all cases (2s timeout).
 
 const CRYPTO_IDS: Record<string, string> = {
   bitcoin: 'bitcoin', btc: 'bitcoin',
@@ -25,25 +25,72 @@ const COMMODITY_SYMBOLS: Record<string, string> = {
   silver: 'XAG', xag: 'XAG',
 }
 
-async function safeFetch(url: string, timeoutMs = 2000): Promise<Response | null> {
+// football-data.org free-tier competitions
+const FOOTBALL_COMPETITIONS: Record<string, { code: string; name: string }> = {
+  'premier league': { code: 'PL',  name: 'Premier League' },
+  'epl':            { code: 'PL',  name: 'Premier League' },
+  'champions league': { code: 'CL', name: 'Champions League' },
+  'ucl':            { code: 'CL',  name: 'Champions League' },
+  'la liga':        { code: 'PD',  name: 'La Liga' },
+  'bundesliga':     { code: 'BL1', name: 'Bundesliga' },
+  'serie a':        { code: 'SA',  name: 'Serie A' },
+  'ligue 1':        { code: 'FL1', name: 'Ligue 1' },
+  'world cup':      { code: 'WC',  name: 'FIFA World Cup' },
+  'euros':          { code: 'EC',  name: 'UEFA European Championship' },
+}
+
+async function safeFetch(url: string, options: RequestInit = {}, timeoutMs = 2000): Promise<Response | null> {
   try {
-    return await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) })
   } catch {
     return null
   }
 }
 
-async function fetchPriceContext(category: string, question: string): Promise<string> {
-  if (category !== 'finance') return 'unavailable — not a finance market'
-
+async function fetchPriceContext(
+  supabase: ReturnType<typeof createClient>,
+  category: string,
+  question: string,
+): Promise<string> {
   const q = question.toLowerCase()
 
-  // Crypto → CoinGecko (no API key required)
+  // ── Sports: football-data.org standings ────────────────────────────────────
+  if (category === 'sports') {
+    if (!FOOTBALL_DATA_KEY) return 'unavailable — football-data.org key not configured'
+
+    for (const [keyword, comp] of Object.entries(FOOTBALL_COMPETITIONS)) {
+      if (q.includes(keyword)) {
+        const res = await safeFetch(
+          `https://api.football-data.org/v4/competitions/${comp.code}/standings`,
+          { headers: { 'X-Auth-Token': FOOTBALL_DATA_KEY } },
+        )
+        await trackCall(supabase, 'football-data.org')
+        if (res?.ok) {
+          const data = await res.json()
+          const table = data?.standings?.[0]?.table ?? []
+          const top5 = (table as Array<{ position: number; team: { name: string }; points: number; playedGames: number }>)
+            .slice(0, 5)
+            .map(r => `${r.position}. ${r.team.name} — ${r.points}pts (${r.playedGames}g)`)
+            .join('; ')
+          return top5
+            ? `${comp.name} top 5 standings: ${top5}`
+            : 'unavailable — standings data empty'
+        }
+        return 'unavailable — football-data.org fetch failed'
+      }
+    }
+    return 'unavailable — no matching football competition found in question'
+  }
+
+  if (category !== 'finance') return 'unavailable — not a finance or sports market'
+
+  // ── Crypto: CoinGecko ──────────────────────────────────────────────────────
   for (const [keyword, coinId] of Object.entries(CRYPTO_IDS)) {
     if (q.includes(keyword)) {
       const res = await safeFetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`
+        `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
       )
+      await trackCall(supabase, 'CoinGecko')
       if (res?.ok) {
         const data = await res.json()
         const price = data[coinId]?.usd
@@ -53,13 +100,14 @@ async function fetchPriceContext(category: string, question: string): Promise<st
     }
   }
 
-  // Commodities (gold, silver) → Alpha Vantage CURRENCY_EXCHANGE_RATE
+  // ── Commodities (gold/silver): Alpha Vantage ───────────────────────────────
   for (const [keyword, symbol] of Object.entries(COMMODITY_SYMBOLS)) {
     if (q.includes(keyword)) {
       if (!ALPHA_VANTAGE_KEY) return 'unavailable — Alpha Vantage key not configured'
       const res = await safeFetch(
-        `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${symbol}&to_currency=USD&apikey=${ALPHA_VANTAGE_KEY}`
+        `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${symbol}&to_currency=USD&apikey=${ALPHA_VANTAGE_KEY}`,
       )
+      await trackCall(supabase, 'Alpha Vantage')
       if (res?.ok) {
         const data = await res.json()
         const rate = data['Realtime Currency Exchange Rate']?.['5. Exchange Rate']
@@ -69,9 +117,10 @@ async function fetchPriceContext(category: string, question: string): Promise<st
     }
   }
 
-  // Forex → Frankfurter (no key, already registered in api_sources)
+  // ── Forex: Frankfurter ─────────────────────────────────────────────────────
   if (/\b(usd|eur|gbp|kes|dollar|euro|pound|shilling|forex|currency|exchange rate)\b/i.test(q)) {
     const res = await safeFetch('https://api.frankfurter.app/latest?base=USD')
+    await trackCall(supabase, 'Frankfurter')
     if (res?.ok) {
       const data = await res.json()
       const rates = data.rates as Record<string, number>
@@ -85,6 +134,16 @@ async function fetchPriceContext(category: string, question: string): Promise<st
   }
 
   return 'unavailable — no matching price source for this question'
+}
+
+// Fire-and-forget call tracker — never throws, never blocks the main flow
+async function trackCall(supabase: ReturnType<typeof createClient>, apiName: string): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).rpc('track_api_call', { p_api_name: apiName })
+  } catch {
+    // tracking failure must not break normalization
+  }
 }
 
 // ─── Haiku prompt ─────────────────────────────────────────────────────────────
@@ -146,7 +205,7 @@ Deno.serve(async (_req) => {
       (new Date(market.closes_at).getTime() - Date.now()) / 86_400_000
     )
 
-    const priceContext = await fetchPriceContext(market.category, market.question)
+    const priceContext = await fetchPriceContext(supabase, market.category, market.question)
     const prompt       = buildPrompt(market, daysToClose, priceContext)
 
     const callStart   = Date.now()
@@ -183,8 +242,8 @@ Deno.serve(async (_req) => {
         let rawText = body.content[0].text.trim()
         const fenceMatch = rawText.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/)
         if (fenceMatch) rawText = fenceMatch[1].trim()
-        aiJson       = JSON.parse(rawText)
-        aiSuccess    = true
+        aiJson    = JSON.parse(rawText)
+        aiSuccess = true
       } else {
         errorMessage = body.error?.message ?? `HTTP ${res.status}`
       }
@@ -228,7 +287,6 @@ Deno.serve(async (_req) => {
       }
       auditDesc = `AI normalized (conf ${confidence}%): "${aiJson.cleaned_question}" — via ${aiJson.resolution_source}`
     } else if (confidence >= 40) {
-      // Question stays as-is; human review needed for pricing
       marketUpdate = {
         status:                   'ai_ready',
         ai_confidence:            confidence,
