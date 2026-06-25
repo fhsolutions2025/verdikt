@@ -13,6 +13,8 @@ import { DataSourcesSection } from '@/components/company/DataSourcesSection'
 import { ApiHealthMonitor } from '@/components/company/ApiHealthMonitor'
 import { AuditFeed } from '@/components/company/AuditFeed'
 import { AgentsTab } from '@/components/company/AgentsTab'
+import { PlayersTab } from '@/components/company/PlayersTab'
+import { MarketingTab } from '@/components/company/MarketingTab'
 import { ChatWidget } from '@/components/shared/ChatWidget'
 import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
 import { formatVolume } from '@/lib/calculations'
@@ -21,7 +23,7 @@ import type {
   RiskMarket, ApiSource, Market,
 } from '@/lib/types'
 
-type Tab = 'overview' | 'markets' | 'review' | 'news' | 'sources' | 'health' | 'activity' | 'agents'
+type Tab = 'overview' | 'markets' | 'review' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing'
 
 interface AiStats {
   calls_today:    number
@@ -114,6 +116,25 @@ function IconBot() {
       <circle cx="5.5" cy="9" r="1" fill="currentColor"/>
       <circle cx="9.5" cy="9" r="1" fill="currentColor"/>
       <path d="M7.5 1V4M6 4H9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function IconUsers() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M1 14C1 11.2 3.3 9 6 9C8.7 9 11 11.2 11 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M11 6C11.8 6 12.5 6.7 12.5 7.5C12.5 8.3 11.8 9 11 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M13 12C13.8 12.5 14 13.5 14 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function IconMegaphone() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <path d="M2 6H5.5L11 2.5V12.5L5.5 9H2V6Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+      <path d="M5.5 9V12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M13 5.5C13.6 6.3 13.6 8.7 13 9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
     </svg>
   )
 }
@@ -312,6 +333,23 @@ export function CompanyDashboard({
           <NavItem icon={<IconList />}     label="Activity"      active={tab === 'activity'} onClick={() => setTab('activity')} />
           <NavItem icon={<IconBot />}      label="Agents"        active={tab === 'agents'}   onClick={() => setTab('agents')} />
 
+          {/* Divider */}
+          <div style={{ margin: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }} />
+
+          {/* Growth nav */}
+          <p style={{
+            color: '#4B5563',
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            padding: '0 14px 10px',
+          }}>
+            Growth
+          </p>
+          <NavItem icon={<IconUsers />}    label="Players (PAM)" active={tab === 'players'}   onClick={() => setTab('players')} />
+          <NavItem icon={<IconMegaphone />} label="Marketing"    active={tab === 'marketing'} onClick={() => setTab('marketing')} />
+
           {/* Bottom: MM status */}
           <div style={{ marginTop: 'auto', padding: '12px 14px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 0' }}>
@@ -494,6 +532,26 @@ export function CompanyDashboard({
               subtitle="Configure system prompts, tools, rate limits, and guardrails for each assistant"
             >
               <AgentsTab />
+            </TabSection>
+          )}
+
+          {/* Players (PAM) */}
+          {tab === 'players' && (
+            <TabSection
+              title="Player Account Management"
+              subtitle="Monitor player activity, balances, P&L, and risk flags across all segments"
+            >
+              <PlayersTab />
+            </TabSection>
+          )}
+
+          {/* Marketing */}
+          {tab === 'marketing' && (
+            <TabSection
+              title="Marketing"
+              subtitle="AI campaign generator · Ideogram media studio · Audience segments"
+            >
+              <MarketingTab />
             </TabSection>
           )}
 
