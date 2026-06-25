@@ -120,17 +120,19 @@ async function fetchPriceContext(
   }
 
   // ── Forex: Frankfurter ─────────────────────────────────────────────────────
-  if (/\b(usd|eur|gbp|kes|dollar|euro|pound|shilling|forex|currency|exchange rate)\b/i.test(q)) {
+  if (/\b(usd|eur|gbp|jpy|cad|aud|chf|cny|inr|mxn|brl|dollar|euro|pound|yen|franc|forex|currency|exchange rate)\b/i.test(q)) {
     const res = await safeFetch('https://api.frankfurter.app/latest?base=USD')
     await trackCall(supabase, 'Frankfurter')
     if (res?.ok) {
       const data = await res.json()
       const rates = data.rates as Record<string, number>
-      const summary = ['EUR', 'GBP', 'KES']
+      // Top globally-traded pairs available from Frankfurter (ECB data)
+      const priority = ['EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY', 'INR', 'MXN', 'BRL']
+      const summary = priority
         .filter(c => rates[c])
         .map(c => `${c}: ${rates[c]}`)
         .join(', ')
-      return `Forex rates (USD base): ${summary || JSON.stringify(rates).slice(0, 150)}`
+      return `Forex rates (USD base, ${data.date}): ${summary}`
     }
     return 'unavailable — Frankfurter fetch failed'
   }
