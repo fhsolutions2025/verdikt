@@ -44,9 +44,9 @@ export function PriceChart({ marketId, initial }: Props) {
     return (
       <div
         className="w-full rounded-2xl flex items-center justify-center"
-        style={{ height: 180, backgroundColor: '#F3F4F6' }}
+        style={{ height: 180, backgroundColor: 'var(--bg-inset)' }}
       >
-        <span className="text-sm" style={{ color: '#9CA3AF' }}>No price data yet</span>
+        <span className="text-sm" style={{ color: 'var(--text-faint)' }}>No price data yet</span>
       </div>
     )
   }
@@ -85,12 +85,12 @@ export function PriceChart({ marketId, initial }: Props) {
     >
       {/* Price labels */}
       <div className="absolute left-2 top-2 space-y-1">
-        <span className="font-mono text-xs font-bold" style={{ color: '#6B7280' }}>
+        <span className="font-mono text-xs font-bold" style={{ color: 'var(--text-dim)' }}>
           {Math.round(maxP)}¢
         </span>
       </div>
       <div className="absolute left-2 bottom-2">
-        <span className="font-mono text-xs font-bold" style={{ color: '#6B7280' }}>
+        <span className="font-mono text-xs font-bold" style={{ color: 'var(--text-dim)' }}>
           {Math.round(minP)}¢
         </span>
       </div>

@@ -56,13 +56,13 @@ export function TradeTicket({ market, feeConfig, playerId, onTraded }: Props) {
     <div
       className="sticky bottom-0 p-4 space-y-3"
       style={{
-        backgroundColor: '#FFFFFF',
-        borderTop: '2px solid #E5E7EB',
+        backgroundColor: 'var(--bg-surface)',
+        borderTop: '2px solid var(--border)',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.06)',
       }}
     >
       {/* Side toggle */}
-      <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid #E5E7EB' }}>
+      <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
         <SideButton
           label="YES"
           active={side === 'yes'}
@@ -80,7 +80,7 @@ export function TradeTicket({ market, feeConfig, playerId, onTraded }: Props) {
       {/* Amount input */}
       <div
         className="rounded-xl px-4 py-3 flex items-center"
-        style={{ backgroundColor: '#F9FAFB' }}
+        style={{ backgroundColor: 'var(--bg-base)' }}
       >
         <input
           type="number"
@@ -89,7 +89,7 @@ export function TradeTicket({ market, feeConfig, playerId, onTraded }: Props) {
           value={amount}
           onChange={e => setAmount(e.target.value)}
           className="flex-1 bg-transparent font-mono font-bold text-2xl text-center outline-none"
-          style={{ color: '#111A11', minWidth: 0 }}
+          style={{ color: 'var(--text-strong)', minWidth: 0 }}
           min={0}
         />
       </div>
@@ -98,11 +98,11 @@ export function TradeTicket({ market, feeConfig, playerId, onTraded }: Props) {
       {preview && (
         <div
           className="rounded-xl px-4 py-3 space-y-2"
-          style={{ backgroundColor: '#F9FAFB' }}
+          style={{ backgroundColor: 'var(--bg-base)' }}
         >
           <CalcRow label="Shares received"    value={preview.shares.toFixed(2)}      mono />
           <CalcRow label="Potential payout"   value={preview.potentialPayout.toFixed(2)} mono />
-          <div className="border-t pt-2" style={{ borderColor: '#E5E7EB' }} />
+          <div className="border-t pt-2" style={{ borderColor: 'var(--border)' }} />
           <CalcRow
             label="Fee"
             value={preview.fee.toFixed(2)}
@@ -124,8 +124,8 @@ export function TradeTicket({ market, feeConfig, playerId, onTraded }: Props) {
         disabled={!preview || loading || amountNum <= 0}
         className="w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
         style={{
-          backgroundColor: !preview || amountNum <= 0 ? '#E5E7EB' : '#00C853',
-          color:            !preview || amountNum <= 0 ? '#9CA3AF' : '#FFFFFF',
+          backgroundColor: !preview || amountNum <= 0 ? 'var(--border)' : '#00C853',
+          color:            !preview || amountNum <= 0 ? 'var(--text-faint)' : '#FFFFFF',
           cursor:           !preview || amountNum <= 0 ? 'not-allowed' : loading ? 'wait' : 'pointer',
           border: 'none',
         }}
@@ -134,7 +134,7 @@ export function TradeTicket({ market, feeConfig, playerId, onTraded }: Props) {
       </button>
 
       {/* Safe-bet disclosure */}
-      <p className="text-center text-xs" style={{ color: '#9CA3AF' }}>
+      <p className="text-center text-xs" style={{ color: 'var(--text-faint)' }}>
         Fee: {(feeRate * 100).toFixed(2)}% · Payout per winning share: 1.00
       </p>
     </div>
@@ -176,11 +176,11 @@ function CalcRow({
 }) {
   return (
     <div className="flex justify-between items-center">
-      <span className="text-xs" style={{ color: '#6B7280' }}>{label}</span>
+      <span className="text-xs" style={{ color: 'var(--text-dim)' }}>{label}</span>
       <span
         className={mono ? 'font-mono text-sm' : 'text-sm'}
         style={{
-          color:      color ?? '#111A11',
+          color:      color ?? 'var(--text-strong)',
           fontWeight: bold ? 700 : 600,
         }}
       >

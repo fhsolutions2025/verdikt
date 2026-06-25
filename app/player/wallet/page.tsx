@@ -29,24 +29,24 @@ export default async function WalletPage() {
   }
 
   return (
-    <main className="min-h-screen pb-24" style={{ backgroundColor: '#F9FAFB' }}>
+    <main className="min-h-screen pb-24" style={{ backgroundColor: 'var(--bg-base)' }}>
       <div className="max-w-[420px] mx-auto px-4 pt-4 space-y-4">
 
         {/* Balance card */}
         <div
           className="rounded-2xl p-5 text-center"
-          style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
+          style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
         >
           <p
             className="text-xs font-bold uppercase tracking-widest mb-2"
-            style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+            style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
           >
             Available Balance
           </p>
-          <p className="font-mono font-bold" style={{ fontSize: 40, color: '#111A11' }}>
+          <p className="font-mono font-bold" style={{ fontSize: 40, color: 'var(--text-strong)' }}>
             {wallet?.balance.toFixed(2) ?? '—'}
           </p>
-          <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
             Demo account · for illustration only
           </p>
         </div>
@@ -54,12 +54,12 @@ export default async function WalletPage() {
         {/* Transaction list */}
         <div
           className="rounded-2xl overflow-hidden"
-          style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
+          style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
         >
-          <div className="px-4 py-3 border-b" style={{ borderColor: '#E5E7EB' }}>
+          <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
             <h2
               className="text-xs font-bold uppercase tracking-widest"
-              style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+              style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
             >
               Recent Activity
             </h2>
@@ -69,13 +69,13 @@ export default async function WalletPage() {
             <div
               key={tx.id}
               className="px-4 py-3 flex items-center justify-between border-b"
-              style={{ borderColor: '#F3F4F6' }}
+              style={{ borderColor: 'var(--bg-inset)' }}
             >
               <div>
-                <p className="text-sm font-medium" style={{ color: '#374151' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
                   {tx.description}
                 </p>
-                <p className="text-xs" style={{ color: '#9CA3AF' }}>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
                   {new Date(tx.created_at).toLocaleDateString('en-GB', {
                     day: 'numeric',
                     month: 'short',
@@ -92,7 +92,7 @@ export default async function WalletPage() {
           ))}
 
           {txs.length === 0 && (
-            <p className="px-4 py-8 text-sm text-center" style={{ color: '#9CA3AF' }}>
+            <p className="px-4 py-8 text-sm text-center" style={{ color: 'var(--text-faint)' }}>
               No transactions yet.
             </p>
           )}

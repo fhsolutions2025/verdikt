@@ -116,10 +116,10 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
     <div className="max-w-[420px] mx-auto px-4 pt-6 space-y-6">
       {/* Header */}
       <div className="space-y-1">
-        <h1 className="font-bold text-xl" style={{ color: '#111A11' }}>
+        <h1 className="font-bold text-xl" style={{ color: 'var(--text-strong)' }}>
           Bring Your Verdikt
         </h1>
-        <p className="text-sm" style={{ color: '#6B7280' }}>
+        <p className="text-sm" style={{ color: 'var(--text-dim)' }}>
           Submit any yes/no question. Our engine drafts it into a tradeable
           market, then a market maker reviews it before it goes live.
         </p>
@@ -128,11 +128,11 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
       {/* Form */}
       <div
         className="rounded-2xl p-5 space-y-5"
-        style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
       >
         {/* Question */}
         <div className="space-y-1.5">
-          <label className="text-xs font-bold uppercase tracking-wide" style={{ color: '#6B7280' }}>
+          <label className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-dim)' }}>
             Your question
           </label>
           <textarea
@@ -142,13 +142,13 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
             placeholder="Will Arsenal win the Premier League this season?"
             className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
             style={{
-              backgroundColor: '#F9FAFB',
-              border: '1px solid #E5E7EB',
-              color: '#111A11',
+              backgroundColor: 'var(--bg-base)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-strong)',
               fontFamily: 'inherit',
             }}
           />
-          <p className="text-xs" style={{ color: trimmed.length >= 10 ? '#9CA3AF' : '#E05C20' }}>
+          <p className="text-xs" style={{ color: trimmed.length >= 10 ? 'var(--text-faint)' : '#E05C20' }}>
             {trimmed.length < 10
               ? `Add at least ${10 - trimmed.length} more character${10 - trimmed.length === 1 ? '' : 's'}`
               : 'Must resolve to a clear yes or no.'}
@@ -157,7 +157,7 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
 
         {/* Category */}
         <div className="space-y-1.5">
-          <label className="text-xs font-bold uppercase tracking-wide" style={{ color: '#6B7280' }}>
+          <label className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-dim)' }}>
             Category
           </label>
           <div className="flex flex-wrap gap-2">
@@ -169,8 +169,8 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
                   onClick={() => setCategory(c.key)}
                   className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
                   style={{
-                    backgroundColor: active ? '#00C853' : '#F3F4F6',
-                    color:           active ? '#FFFFFF' : '#6B7280',
+                    backgroundColor: active ? '#00C853' : 'var(--bg-inset)',
+                    color:           active ? '#FFFFFF' : 'var(--text-dim)',
                     border: 'none',
                     cursor: 'pointer',
                   }}
@@ -184,7 +184,7 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
 
         {/* Close date */}
         <div className="space-y-1.5">
-          <label className="text-xs font-bold uppercase tracking-wide" style={{ color: '#6B7280' }}>
+          <label className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-dim)' }}>
             Closes on
           </label>
           <input
@@ -194,9 +194,9 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
             onChange={e => setClosesAt(e.target.value)}
             className="w-full px-4 py-3 rounded-xl text-sm outline-none"
             style={{
-              backgroundColor: '#F9FAFB',
-              border: '1px solid #E5E7EB',
-              color: '#111A11',
+              backgroundColor: 'var(--bg-base)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-strong)',
               fontFamily: 'inherit',
             }}
           />
@@ -205,7 +205,7 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
         {/* Gut probability */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold uppercase tracking-wide" style={{ color: '#6B7280' }}>
+            <label className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-dim)' }}>
               Your gut: chance of YES
             </label>
             <span className="font-mono font-bold text-sm" style={{ color: '#00A844' }}>
@@ -221,7 +221,7 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
             className="w-full"
             style={{ accentColor: '#00C853' }}
           />
-          <p className="text-xs" style={{ color: '#9CA3AF' }}>
+          <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
             This sets the market&apos;s opening price. The engine may adjust it.
           </p>
         </div>
@@ -232,8 +232,8 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
           disabled={!canSubmit}
           className="w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
           style={{
-            backgroundColor: canSubmit ? '#00C853' : '#E5E7EB',
-            color:           canSubmit ? '#FFFFFF' : '#9CA3AF',
+            backgroundColor: canSubmit ? '#00C853' : 'var(--border)',
+            color:           canSubmit ? '#FFFFFF' : 'var(--text-faint)',
             border: 'none',
             cursor:          canSubmit ? (loading ? 'wait' : 'pointer') : 'not-allowed',
           }}
@@ -244,15 +244,15 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
 
       {/* My submissions */}
       <div className="space-y-3">
-        <h2 className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6B7280' }}>
+        <h2 className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-dim)' }}>
           My Submissions
         </h2>
         {submissions.length === 0 ? (
           <div
             className="rounded-2xl p-6 text-center"
-            style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
           >
-            <p className="text-sm" style={{ color: '#9CA3AF' }}>
+            <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
               Nothing submitted yet. Your markets will appear here.
             </p>
           </div>
@@ -262,19 +262,19 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
               <div
                 key={m.id}
                 className="rounded-2xl p-4 space-y-2"
-                style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
+                style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
               >
-                <p className="text-sm font-medium leading-snug" style={{ color: '#111A11' }}>
+                <p className="text-sm font-medium leading-snug" style={{ color: 'var(--text-strong)' }}>
                   {m.player_original_question ?? m.question}
                 </p>
                 <div className="flex items-center justify-between">
                   <StatusPill status={m.status} />
-                  <span className="text-xs" style={{ color: '#9CA3AF' }}>
+                  <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
                     Closes {new Date(m.closes_at).toLocaleDateString()}
                   </span>
                 </div>
                 {m.status === 'voided' && m.rejection_reason && (
-                  <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEE2E2', color: '#B91C1C' }}>
+                  <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(220,38,38,0.10)', color: '#DC2626' }}>
                     {m.rejection_reason}
                   </p>
                 )}
@@ -288,13 +288,13 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
 }
 
 const STATUS_META: Record<MarketStatus, { label: string; bg: string; fg: string; pulse?: boolean }> = {
-  pending_ai:         { label: 'AI Reviewing…',           bg: '#EEF2FF', fg: '#4338CA', pulse: true },
-  ai_ready:           { label: 'Awaiting Company Review', bg: '#FEF3C7', fg: '#92400E' },
-  pending_mm_review:  { label: 'Awaiting MM Approval',   bg: '#FEF3C7', fg: '#92400E' },
-  pending_compliance: { label: 'In compliance',           bg: '#FEF3C7', fg: '#92400E' },
-  live:               { label: 'Live ✓',                  bg: '#DCFCE7', fg: '#15803D' },
-  resolved:           { label: 'Resolved',                bg: '#F3F4F6', fg: '#6B7280' },
-  voided:             { label: 'Not accepted',            bg: '#FEE2E2', fg: '#B91C1C' },
+  pending_ai:         { label: 'AI Reviewing…',           bg: 'rgba(99,102,241,0.10)', fg: '#4338CA', pulse: true },
+  ai_ready:           { label: 'Awaiting Company Review', bg: 'rgba(245,158,11,0.14)', fg: '#D29922' },
+  pending_mm_review:  { label: 'Awaiting MM Approval',   bg: 'rgba(245,158,11,0.14)', fg: '#D29922' },
+  pending_compliance: { label: 'In compliance',           bg: 'rgba(245,158,11,0.14)', fg: '#D29922' },
+  live:               { label: 'Live ✓',                  bg: 'rgba(0,200,83,0.16)', fg: '#16A34A' },
+  resolved:           { label: 'Resolved',                bg: 'var(--bg-inset)', fg: 'var(--text-dim)' },
+  voided:             { label: 'Not accepted',            bg: 'rgba(220,38,38,0.10)', fg: '#DC2626' },
 }
 
 function StatusPill({ status }: { status: MarketStatus }) {

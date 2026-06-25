@@ -55,22 +55,22 @@ export default async function MarketDetailPage({ params }: Props) {
   }
 
   return (
-    <main className="min-h-screen pb-40" style={{ backgroundColor: '#F9FAFB' }}>
+    <main className="min-h-screen pb-40" style={{ backgroundColor: 'var(--bg-base)' }}>
       <div className="max-w-[420px] mx-auto">
 
         {/* Hero header */}
-        <div className="px-4 pt-4 pb-4 space-y-3" style={{ backgroundColor: '#F9FAFB' }}>
+        <div className="px-4 pt-4 pb-4 space-y-3" style={{ backgroundColor: 'var(--bg-base)' }}>
           <div className="flex items-center gap-2">
             <span
               className="text-xs font-bold uppercase px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: '#F3F4F6', color: '#374151', letterSpacing: '0.06em' }}
+              style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text)', letterSpacing: '0.06em' }}
             >
               {CATEGORY_ICON[market.category]} {market.category}
             </span>
             {market.ai_confidence != null && (
               <span
                 className="text-xs font-bold px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: '#F0FFF4', color: '#00A844' }}
+                style={{ backgroundColor: 'rgba(0,200,83,0.10)', color: '#00A844' }}
               >
                 Verdikt AI {market.ai_confidence.toFixed(0)}%
               </span>
@@ -82,7 +82,7 @@ export default async function MarketDetailPage({ params }: Props) {
             )}
           </div>
 
-          <h1 className="font-bold text-base leading-snug" style={{ color: '#111A11' }}>
+          <h1 className="font-bold text-base leading-snug" style={{ color: 'var(--text-strong)' }}>
             {market.question}
           </h1>
 
@@ -92,30 +92,30 @@ export default async function MarketDetailPage({ params }: Props) {
           </div>
 
           {/* Meta row */}
-          <div className="flex items-center gap-4 text-xs" style={{ color: '#6B7280' }}>
+          <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-dim)' }}>
             <span className="font-mono">Vol: {formatVolume(market.volume)}</span>
             <CountdownTimer closesAt={market.closes_at} />
           </div>
 
           {market.resolution_source && (
-            <p className="text-xs" style={{ color: '#9CA3AF' }}>
+            <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
               Resolution: {market.resolution_source}
             </p>
           )}
         </div>
 
         {/* Chart */}
-        <div className="px-4 pb-4" style={{ backgroundColor: '#FFFFFF' }}>
+        <div className="px-4 pb-4" style={{ backgroundColor: 'var(--bg-surface)' }}>
           <PriceChart marketId={market.id} initial={ticks ?? []} />
         </div>
 
         {/* Order book */}
-        <div className="px-4 py-4 space-y-4" style={{ backgroundColor: '#FFFFFF' }}>
+        <div className="px-4 py-4 space-y-4" style={{ backgroundColor: 'var(--bg-surface)' }}>
           <OrderBookDepth orders={orders ?? []} />
         </div>
 
         {/* Recent trades */}
-        <div className="px-4 py-4" style={{ backgroundColor: '#FFFFFF' }}>
+        <div className="px-4 py-4" style={{ backgroundColor: 'var(--bg-surface)' }}>
           <RecentTradesFeed marketId={market.id} initial={recentTrades ?? []} />
         </div>
       </div>

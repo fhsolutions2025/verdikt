@@ -55,7 +55,7 @@ export default async function PlayerPage() {
   return (
     <main
       className="min-h-screen pb-24"
-      style={{ backgroundColor: '#FFFFFF' }}
+      style={{ backgroundColor: 'var(--bg-surface)' }}
     >
       <PlayerFeedClient
         initialMarkets={markets ?? []}

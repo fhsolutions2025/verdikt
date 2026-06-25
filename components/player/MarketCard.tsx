@@ -31,8 +31,8 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
       <div
         className="rounded-2xl p-4 space-y-3 transition-transform active:scale-[0.98]"
         style={{
-          backgroundColor: '#FFFFFF',
-          border: `1px solid ${isHot ? '#E05C2030' : '#E5E7EB'}`,
+          backgroundColor: 'var(--bg-surface)',
+          border: `1px solid ${isHot ? '#E05C2030' : 'var(--border)'}`,
           cursor: 'pointer',
         }}
       >
@@ -41,8 +41,8 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
           <span
             className="text-xs font-bold uppercase px-2 py-0.5 rounded-full"
             style={{
-              backgroundColor: '#F3F4F6',
-              color: '#374151',
+              backgroundColor: 'var(--bg-inset)',
+              color: 'var(--text)',
               letterSpacing: '0.06em',
             }}
           >
@@ -52,7 +52,7 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
           {market.ai_confidence != null && (
             <span
               className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: '#F0FFF4', color: '#00A844' }}
+              style={{ backgroundColor: 'rgba(0,200,83,0.10)', color: '#00A844' }}
             >
               Verdikt AI {market.ai_confidence.toFixed(0)}%
             </span>
@@ -61,7 +61,7 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
           {isHot && (
             <span
               className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: '#FFF3E0', color: '#E05C20' }}
+              style={{ backgroundColor: 'rgba(224,92,32,0.10)', color: '#E05C20' }}
             >
               🔥 Hot
             </span>
@@ -69,7 +69,7 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
           {isNew && !isHot && (
             <span
               className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: '#EFF6FF', color: '#3B82F6' }}
+              style={{ backgroundColor: 'rgba(59,130,246,0.10)', color: '#3B82F6' }}
             >
               NEW
             </span>
@@ -77,7 +77,7 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
           {closingSoon && (
             <span
               className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}
+              style={{ backgroundColor: 'rgba(220,38,38,0.06)', color: '#DC2626' }}
             >
               ⏱ Closing soon
             </span>
@@ -87,7 +87,7 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
         {/* Row 2: question */}
         <p
           className="font-bold leading-snug line-clamp-2"
-          style={{ fontSize: 14, color: '#111A11' }}
+          style={{ fontSize: 14, color: 'var(--text-strong)' }}
         >
           {market.question}
         </p>
@@ -96,15 +96,15 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
         {livePrice && (
           <div
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-            style={{ backgroundColor: '#F8FAFC', border: '1px solid #E5E7EB' }}
+            style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
           >
-            <span className="text-xs font-bold font-mono" style={{ color: '#111A11' }}>
+            <span className="text-xs font-bold font-mono" style={{ color: 'var(--text-strong)' }}>
               {livePrice.label}
             </span>
             <span className="text-xs font-bold font-mono" style={{ color: '#00A844' }}>
               {livePrice.value}
             </span>
-            <span className="text-xs ml-auto" style={{ color: '#9CA3AF' }}>
+            <span className="text-xs ml-auto" style={{ color: 'var(--text-faint)' }}>
               live · {livePrice.source}
             </span>
           </div>
@@ -127,11 +127,11 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
               LIVE
             </span>
           ) : (
-            <span className="text-xs font-semibold" style={{ color: '#9CA3AF' }}>
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-faint)' }}>
               {market.status.replace(/_/g, ' ')}
             </span>
           )}
-          <span className="text-xs font-mono" style={{ color: '#9CA3AF' }}>
+          <span className="text-xs font-mono" style={{ color: 'var(--text-faint)' }}>
             Vol: {formatVolume(market.volume)}
           </span>
         </div>
@@ -145,7 +145,7 @@ function PriceBlock({ side, price }: { side: 'yes' | 'no'; price: number }) {
   return (
     <div
       className="flex-1 flex items-center justify-between px-3 py-2 rounded-xl"
-      style={{ backgroundColor: isYes ? '#F0FFF4' : '#FFF8F0' }}
+      style={{ backgroundColor: isYes ? 'rgba(0,200,83,0.10)' : 'rgba(224,92,32,0.08)' }}
     >
       <span
         className="text-xs font-bold uppercase"

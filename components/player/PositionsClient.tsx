@@ -72,8 +72,8 @@ export function PositionsClient({ initialPositions, playerId }: Props) {
   if (positions.length === 0) {
     return (
       <div className="py-16 text-center">
-        <p className="font-bold text-sm" style={{ color: '#374151' }}>No open positions</p>
-        <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>
+        <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>No open positions</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
           Place a trade from the Markets tab to get started.
         </p>
       </div>
@@ -96,10 +96,10 @@ export function PositionsClient({ initialPositions, playerId }: Props) {
           <div
             key={pos.id}
             className="rounded-2xl p-4 space-y-3"
-            style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
           >
             {/* Market question */}
-            <p className="text-sm font-bold leading-snug" style={{ color: '#111A11' }}>
+            <p className="text-sm font-bold leading-snug" style={{ color: 'var(--text-strong)' }}>
               {m.question}
             </p>
 
@@ -108,7 +108,7 @@ export function PositionsClient({ initialPositions, playerId }: Props) {
               <span
                 className="text-xs font-bold uppercase px-2.5 py-1 rounded-full"
                 style={{
-                  backgroundColor: isYes ? '#F0FFF4' : '#FFF8F0',
+                  backgroundColor: isYes ? 'rgba(0,200,83,0.10)' : 'rgba(224,92,32,0.08)',
                   color:           isYes ? '#00A844' : '#E05C20',
                 }}
               >
@@ -144,9 +144,9 @@ export function PositionsClient({ initialPositions, playerId }: Props) {
               disabled={isSelling}
               className="w-full py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
               style={{
-                backgroundColor: isSelling ? '#E5E7EB' : 'transparent',
-                color:           isSelling ? '#9CA3AF' : '#374151',
-                border:          `1px solid ${isSelling ? '#E5E7EB' : '#D1D5DB'}`,
+                backgroundColor: isSelling ? 'var(--border)' : 'transparent',
+                color:           isSelling ? 'var(--text-faint)' : 'var(--text)',
+                border:          `1px solid ${isSelling ? 'var(--border)' : 'var(--border)'}`,
                 cursor:          isSelling ? 'wait' : 'pointer',
               }}
             >
@@ -166,10 +166,10 @@ function PnlCell({
 }) {
   return (
     <div className="space-y-0.5">
-      <p className="text-xs" style={{ color: '#9CA3AF' }}>{label}</p>
+      <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{label}</p>
       <p
         className={mono ? 'font-mono font-bold text-sm' : 'font-bold text-sm'}
-        style={{ color: color ?? '#111A11' }}
+        style={{ color: color ?? 'var(--text-strong)' }}
       >
         {value}
       </p>

@@ -21,7 +21,7 @@ export function OrderBookDepth({ orders }: Props) {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6B7280', letterSpacing: '0.08em' }}>
+      <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}>
         Order Book
       </h3>
 
@@ -67,7 +67,7 @@ function OrderRow({ order, side }: { order: Order; side: 'yes' | 'no' }) {
       </span>
       <span
         className="font-mono text-xs"
-        style={{ color: '#9CA3AF' }}
+        style={{ color: 'var(--text-faint)' }}
       >
         {remaining.toFixed(0)}
       </span>
@@ -82,7 +82,7 @@ function EmptyRows() {
         <div
           key={i}
           className="h-8 rounded-lg"
-          style={{ backgroundColor: '#F3F4F6' }}
+          style={{ backgroundColor: 'var(--bg-inset)' }}
         />
       ))}
     </>

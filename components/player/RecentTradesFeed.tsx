@@ -37,7 +37,7 @@ export function RecentTradesFeed({ marketId, initial }: Props) {
     <div className="space-y-2">
       <h3
         className="text-xs font-bold uppercase tracking-widest"
-        style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+        style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
       >
         Recent Trades
       </h3>
@@ -59,19 +59,19 @@ export function RecentTradesFeed({ marketId, initial }: Props) {
                 {t.side}
               </span>
               {t.is_simulated && (
-                <span className="text-xs" style={{ color: '#9CA3AF' }}>
+                <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
                   {t.simulated_trader_name ?? 'Bot'}
                 </span>
               )}
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-mono text-xs font-semibold" style={{ color: '#374151' }}>
+              <span className="font-mono text-xs font-semibold" style={{ color: 'var(--text)' }}>
                 {t.price}¢
               </span>
-              <span className="font-mono text-xs" style={{ color: '#9CA3AF' }}>
+              <span className="font-mono text-xs" style={{ color: 'var(--text-faint)' }}>
                 {t.amount.toFixed(0)}
               </span>
-              <span className="text-xs" style={{ color: '#D1D5DB' }}>
+              <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
                 {formatAge(t.created_at)}
               </span>
             </div>
@@ -79,7 +79,7 @@ export function RecentTradesFeed({ marketId, initial }: Props) {
         ))}
 
         {trades.length === 0 && (
-          <p className="text-sm py-2" style={{ color: '#9CA3AF' }}>
+          <p className="text-sm py-2" style={{ color: 'var(--text-faint)' }}>
             No trades yet on this market.
           </p>
         )}

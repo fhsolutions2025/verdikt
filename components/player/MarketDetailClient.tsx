@@ -71,7 +71,7 @@ function PriceBlock({
     ? 'rgba(0,200,83,0.2)'
     : flash === 'down'
     ? 'rgba(224,92,32,0.15)'
-    : isYes ? '#F0FFF4' : '#FFF8F0'
+    : isYes ? 'rgba(0,200,83,0.10)' : 'rgba(224,92,32,0.08)'
 
   return (
     <div

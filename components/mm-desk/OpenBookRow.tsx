@@ -48,12 +48,12 @@ export function OpenBookRow({ market }: Props) {
     <div
       className="p-5 rounded-2xl space-y-3"
       style={{
-        backgroundColor: '#FFFFFF',
-        border: `1px solid ${imbalanced ? '#E05C2040' : '#E5E7EB'}`,
+        backgroundColor: 'var(--bg-surface)',
+        border: `1px solid ${imbalanced ? '#E05C2040' : 'var(--border)'}`,
       }}
     >
       {/* Question */}
-      <p className="text-sm font-bold leading-snug" style={{ color: '#111A11' }}>
+      <p className="text-sm font-bold leading-snug" style={{ color: 'var(--text-strong)' }}>
         {market.question}
       </p>
 
@@ -88,7 +88,7 @@ export function OpenBookRow({ market }: Props) {
             <>
               <p
                 className="mt-1.5 text-xs leading-snug rounded-lg px-3 py-2"
-                style={{ backgroundColor: '#FFF8F0', color: '#92400E' }}
+                style={{ backgroundColor: 'rgba(224,92,32,0.08)', color: '#D29922' }}
               >
                 {hedgeNote}
               </p>
@@ -96,13 +96,13 @@ export function OpenBookRow({ market }: Props) {
               <div
                 className="mt-2 flex items-center gap-3"
                 style={{
-                  backgroundColor: '#F0FFF4',
+                  backgroundColor: 'rgba(0,200,83,0.10)',
                   border: '1px solid #00C853',
                   borderRadius: 10,
                   padding: 12,
                 }}
               >
-                <span className="text-xs font-bold flex-shrink-0" style={{ color: '#111A11' }}>
+                <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--text-strong)' }}>
                   Adjust Spread
                 </span>
                 <input
@@ -121,8 +121,8 @@ export function OpenBookRow({ market }: Props) {
                   onClick={applySpread}
                   disabled={applying}
                   style={{
-                    backgroundColor: applying ? '#E5E7EB' : '#00A844',
-                    color:           applying ? '#9CA3AF' : '#FFFFFF',
+                    backgroundColor: applying ? 'var(--border)' : '#00A844',
+                    color:           applying ? 'var(--text-faint)' : '#FFFFFF',
                     borderRadius:    8,
                     padding:         '8px 16px',
                     border:          'none',
@@ -143,17 +143,17 @@ export function OpenBookRow({ market }: Props) {
       {/* Metadata row */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
         <Tooltip content="Bid-ask spread per share. You earn half on every trade. Wider = more income, less competitive pricing." position="top">
-          <span className="font-mono cursor-default" style={{ color: '#6B7280' }}>
-            Spread: <strong style={{ color: '#111A11' }}>{market.spread_cents}¢</strong>
+          <span className="font-mono cursor-default" style={{ color: 'var(--text-dim)' }}>
+            Spread: <strong style={{ color: 'var(--text-strong)' }}>{market.spread_cents}¢</strong>
           </span>
         </Tooltip>
         <Tooltip content="Capital at risk if all open positions resolve against the book." position="top">
-          <span className="font-mono cursor-default" style={{ color: '#6B7280' }}>
-            Exposure: <strong style={{ color: '#111A11' }}>{atRisk.toFixed(0)}</strong>
+          <span className="font-mono cursor-default" style={{ color: 'var(--text-dim)' }}>
+            Exposure: <strong style={{ color: 'var(--text-strong)' }}>{atRisk.toFixed(0)}</strong>
           </span>
         </Tooltip>
-        <span className="font-mono" style={{ color: '#6B7280' }}>
-          Vol: <strong style={{ color: '#111A11' }}>{market.volume.toFixed(0)}</strong>
+        <span className="font-mono" style={{ color: 'var(--text-dim)' }}>
+          Vol: <strong style={{ color: 'var(--text-strong)' }}>{market.volume.toFixed(0)}</strong>
         </span>
         <CountdownTimer closesAt={market.closes_at} />
       </div>
@@ -167,7 +167,7 @@ function PriceChip({ side, price }: { side: 'yes' | 'no'; price: number }) {
     <div
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
       style={{
-        backgroundColor: isYes ? '#F0FFF4' : '#FFF8F0',
+        backgroundColor: isYes ? 'rgba(0,200,83,0.10)' : 'rgba(224,92,32,0.08)',
       }}
     >
       <span

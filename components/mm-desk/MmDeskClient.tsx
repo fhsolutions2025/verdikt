@@ -62,7 +62,7 @@ export function MmDeskClient({ initialLiveMarkets, initialAiMarkets, mmId }: Pro
   return (
     <div className="space-y-4">
       {/* Tab bar — Open Book is default/primary per DESIGN_SYSTEM §7.2 */}
-      <div className="flex gap-1" style={{ borderBottom: '1px solid #E5E7EB' }}>
+      <div className="flex gap-1" style={{ borderBottom: '1px solid var(--border)' }}>
         <TabButton
           label={`Open Book (${liveMarkets.length})`}
           active={tab === 'open-book'}
@@ -119,7 +119,7 @@ function TabButton({
       onClick={onClick}
       className="relative px-4 py-2.5 text-sm font-bold transition-all"
       style={{
-        color:         active ? '#00A844' : '#6B7280',
+        color:         active ? '#00A844' : 'var(--text-dim)',
         background:    'none',
         border:        'none',
         borderBottom:  active ? '2px solid #00C853' : '2px solid transparent',
@@ -143,9 +143,9 @@ function EmptyState({ message }: { message: string }) {
   return (
     <div
       className="rounded-2xl p-8 text-center"
-      style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
+      style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
     >
-      <p className="text-sm" style={{ color: '#9CA3AF' }}>{message}</p>
+      <p className="text-sm" style={{ color: 'var(--text-faint)' }}>{message}</p>
     </div>
   )
 }

@@ -20,8 +20,8 @@ export function PlayerTabBar({ active }: Props) {
     <nav
       className="fixed bottom-0 left-0 right-0 max-w-[420px] mx-auto flex"
       style={{
-        backgroundColor: '#FFFFFF',
-        borderTop: '1px solid #E5E7EB',
+        backgroundColor: 'var(--bg-surface)',
+        borderTop: '1px solid var(--border)',
         zIndex: 50,
       }}
     >
@@ -32,12 +32,12 @@ export function PlayerTabBar({ active }: Props) {
             key={tab.key}
             href={tab.href}
             className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 no-underline min-h-[60px]"
-            style={{ color: isActive ? '#00C853' : '#9CA3AF' }}
+            style={{ color: isActive ? '#00C853' : 'var(--text-faint)' }}
           >
             <span style={{ fontSize: 18 }}>{tab.icon}</span>
             <span
               className="text-xs font-bold"
-              style={{ color: isActive ? '#00C853' : '#9CA3AF' }}
+              style={{ color: isActive ? '#00C853' : 'var(--text-faint)' }}
             >
               {tab.label}
             </span>

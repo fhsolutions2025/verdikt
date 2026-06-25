@@ -61,15 +61,15 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
     <div
       className="p-5 rounded-2xl space-y-3"
       style={{
-        backgroundColor: '#FFFFFF',
-        border: '1px solid #E5E7EB',
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
       }}
     >
       {/* Category + confidence */}
       <div className="flex items-center gap-2">
         <span
           className="text-xs font-bold uppercase px-2 py-0.5 rounded-full"
-          style={{ backgroundColor: '#F3F4F6', color: '#374151', letterSpacing: '0.06em' }}
+          style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text)', letterSpacing: '0.06em' }}
         >
           {market.category}
         </span>
@@ -87,7 +87,7 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
         {market.status === 'pending_mm_review' && (
           <span
             className="text-xs font-bold px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: '#FFF8F0', color: '#E05C20' }}
+            style={{ backgroundColor: 'rgba(224,92,32,0.08)', color: '#E05C20' }}
           >
             Needs review
           </span>
@@ -95,7 +95,7 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
       </div>
 
       {/* Question */}
-      <p className="text-sm font-bold leading-snug" style={{ color: '#111A11' }}>
+      <p className="text-sm font-bold leading-snug" style={{ color: 'var(--text-strong)' }}>
         {market.question}
       </p>
 
@@ -103,7 +103,7 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
       <div className="flex items-center gap-2">
         <div
           className="px-3 py-1.5 rounded-xl"
-          style={{ backgroundColor: '#F0FFF4' }}
+          style={{ backgroundColor: 'rgba(0,200,83,0.10)' }}
         >
           <span className="font-mono font-bold text-lg" style={{ color: '#00A844' }}>
             {market.yes_price.toFixed(1)}¢
@@ -112,7 +112,7 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
         </div>
         <div
           className="px-3 py-1.5 rounded-xl"
-          style={{ backgroundColor: '#FFF8F0' }}
+          style={{ backgroundColor: 'rgba(224,92,32,0.08)' }}
         >
           <span className="font-mono font-bold text-lg" style={{ color: '#E05C20' }}>
             {market.no_price.toFixed(1)}¢
@@ -122,14 +122,14 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
       </div>
 
       {/* Meta */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: '#6B7280' }}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--text-dim)' }}>
         <span>
-          Est. vol: <span className="font-mono font-semibold" style={{ color: '#374151' }}>
+          Est. vol: <span className="font-mono font-semibold" style={{ color: 'var(--text)' }}>
             {market.est_volume ? formatVolume(market.est_volume) : '—'}
           </span>
         </span>
         <span>
-          Spread: <span className="font-mono font-semibold" style={{ color: '#374151' }}>
+          Spread: <span className="font-mono font-semibold" style={{ color: 'var(--text)' }}>
             {market.spread_cents}¢
           </span>
         </span>
@@ -137,7 +137,7 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
       </div>
 
       {market.resolution_source && (
-        <p className="text-xs" style={{ color: '#9CA3AF' }}>
+        <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
           Source: {market.resolution_source}
         </p>
       )}
@@ -149,8 +149,8 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
           disabled={loading}
           className="w-full py-3 rounded-xl text-sm font-bold transition-all active:scale-98"
           style={{
-            backgroundColor: loading ? '#E5E7EB' : '#00C853',
-            color: loading ? '#9CA3AF' : '#FFFFFF',
+            backgroundColor: loading ? 'var(--border)' : '#00C853',
+            color: loading ? 'var(--text-faint)' : '#FFFFFF',
             cursor: loading ? 'wait' : 'pointer',
             border: 'none',
           }}
@@ -164,7 +164,7 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
           style={{
             backgroundColor: 'transparent',
             border: '2px solid #DC2626',
-            color: rejecting ? '#9CA3AF' : '#DC2626',
+            color: rejecting ? 'var(--text-faint)' : '#DC2626',
             cursor: rejecting ? 'wait' : 'pointer',
           }}
         >

@@ -20,7 +20,7 @@ export default async function CreatePage() {
   const submissions = (submissionsRes.data ?? []) as Market[]
 
   return (
-    <main className="min-h-screen pb-24" style={{ backgroundColor: '#FAFAF5' }}>
+    <main className="min-h-screen pb-24" style={{ backgroundColor: 'var(--bg-base)' }}>
       <CreateMarketClient playerId={user.id} initialSubmissions={submissions} />
       <PlayerTabBar active="create" />
     </main>

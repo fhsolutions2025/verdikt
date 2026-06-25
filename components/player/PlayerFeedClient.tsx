@@ -137,7 +137,7 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: 
   return (
     <div
       className="max-w-[420px] mx-auto"
-      style={{ backgroundColor: '#FFFFFF' }}
+      style={{ backgroundColor: 'var(--bg-surface)' }}
     >
       {/* Search */}
       <div className="px-4 pt-4 pb-3">
@@ -148,9 +148,9 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: 
           onChange={e => setSearch(e.target.value)}
           className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
           style={{
-            backgroundColor: '#F3F4F6',
-            border: '1px solid #E5E7EB',
-            color: '#111A11',
+            backgroundColor: 'var(--bg-inset)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-strong)',
             fontFamily: 'inherit',
           }}
         />
@@ -164,8 +164,8 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: 
             onClick={() => setFilter(f.value)}
             className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
             style={{
-              backgroundColor: filter === f.value ? '#00C853' : '#F3F4F6',
-              color:            filter === f.value ? '#FFFFFF'  : '#374151',
+              backgroundColor: filter === f.value ? '#00C853' : 'var(--bg-inset)',
+              color:            filter === f.value ? '#FFFFFF'  : 'var(--text)',
               border: 'none',
               cursor: 'pointer',
             }}
@@ -178,7 +178,7 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: 
       {/* Trending carousel — only shown on "All" with no search */}
       {filter === 'all' && !search && trending.length >= 2 && (
         <div className="px-4 pb-4">
-          <p className="text-xs font-bold uppercase mb-2" style={{ color: '#9CA3AF', letterSpacing: '0.06em' }}>
+          <p className="text-xs font-bold uppercase mb-2" style={{ color: 'var(--text-faint)', letterSpacing: '0.06em' }}>
             🔥 Trending
           </p>
           <div
@@ -200,14 +200,14 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: 
               )
             })}
           </div>
-          <div className="mt-4 border-t" style={{ borderColor: '#F3F4F6' }} />
+          <div className="mt-4 border-t" style={{ borderColor: 'var(--bg-inset)' }} />
         </div>
       )}
 
       {/* Live activity strip */}
       <div
         className="mx-4 mb-4 px-4 py-2.5 rounded-xl text-xs font-semibold"
-        style={{ backgroundColor: '#F0FFF4', color: '#00A844' }}
+        style={{ backgroundColor: 'rgba(0,200,83,0.10)', color: '#00A844' }}
       >
         {liveFiltered.length} live markets · prices update in real time
       </div>
@@ -232,7 +232,7 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: 
 
         {filtered.length === 0 && (
           <div className="py-12 text-center">
-            <p className="text-sm" style={{ color: '#9CA3AF' }}>
+            <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
               No markets match your filter.
             </p>
           </div>
