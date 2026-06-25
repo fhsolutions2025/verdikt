@@ -31,11 +31,75 @@ const SCHEDULES = [
   { id: 'daily',  label: 'Daily' },
 ]
 
+const TOOLTIPS: Record<string, string> = {
+  'Budget cap':        'Maximum total capital Vega can have deployed at once. Vega will never open new positions if this limit is reached.',
+  'Max position size': 'The largest amount Vega can put into a single trade. Smaller = more diversified risk.',
+  'Stop-loss':         'Vega will automatically sell a position if it falls this % below the entry price.',
+  'Min confidence':    'Vega only enters a market when its AI confidence score meets or exceeds this threshold.',
+  'Max trades / day':  'Hard cap on new entry trades per calendar day. Exits and stop-losses are never counted.',
+  'Allowed categories':'Vega will only look for opportunities in the market categories you enable here.',
+  'Run schedule':      'How often Vega automatically scans and trades. "Manual" means only the Run now button triggers it.',
+}
+
+// ── Tooltip ────────────────────────────────────────────────────────────────────
+function Tooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'default' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ color: '#4B5563' }}>
+        <circle cx="6.5" cy="6.5" r="5.75" stroke="currentColor" strokeWidth="1.2"/>
+        <path d="M6.5 5.5v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        <circle cx="6.5" cy="3.75" r="0.7" fill="currentColor"/>
+      </svg>
+      {show && (
+        <span style={{
+          position: 'absolute',
+          bottom: '120%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: '#1F2937',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 8,
+          padding: '7px 10px',
+          fontSize: 11,
+          lineHeight: 1.5,
+          color: '#D1D5DB',
+          width: 200,
+          whiteSpace: 'normal',
+          zIndex: 100,
+          pointerEvents: 'none',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+        }}>
+          {text}
+          <span style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 0, height: 0,
+            borderLeft: '5px solid transparent',
+            borderRight: '5px solid transparent',
+            borderTop: '5px solid #1F2937',
+          }} />
+        </span>
+      )}
+    </span>
+  )
+}
+
+// ── Field ──────────────────────────────────────────────────────────────────────
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 600 }}>{label}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 600 }}>{label}</span>
+          {TOOLTIPS[label] && <Tooltip text={TOOLTIPS[label]} />}
+        </div>
         {hint && <span style={{ color: '#4B5563', fontSize: 10 }}>{hint}</span>}
       </div>
       {children}
@@ -43,6 +107,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   )
 }
 
+// ── NumberInput ────────────────────────────────────────────────────────────────
 function NumberInput({ value, onChange, min, max, step = 1, prefix }: {
   value: number; onChange: (v: number) => void; min: number; max: number; step?: number; prefix?: string
 }) {
@@ -70,6 +135,7 @@ function NumberInput({ value, onChange, min, max, step = 1, prefix }: {
   )
 }
 
+// ── Activity row type ──────────────────────────────────────────────────────────
 interface ActivityRow {
   id:           string
   action:       string
@@ -80,6 +146,55 @@ interface ActivityRow {
   created_at:   string
 }
 
+// ── VegaIcon — star with pulse animation when active ─────────────────────────
+function VegaIcon({ active, running }: { active: boolean; running: boolean }) {
+  return (
+    <>
+      <style>{`
+        @keyframes vegaPulse {
+          0%,100% { opacity:1; transform:scale(1); }
+          50%      { opacity:0.6; transform:scale(1.18); }
+        }
+        @keyframes vegaSpin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+        @keyframes vegaGlow {
+          0%,100% { box-shadow: 0 0 0px 0px ${ACCENT}00; }
+          50%      { box-shadow: 0 0 10px 4px ${ACCENT}55; }
+        }
+        .vega-icon-wrap {
+          width:34px; height:34px; border-radius:9px;
+          display:flex; align-items:center; justify-content:center;
+          transition: background-color 0.3s;
+        }
+        .vega-icon-wrap.active  { animation: vegaGlow 2.4s ease-in-out infinite; }
+        .vega-icon-wrap.running { animation: none; }
+        .vega-star { transition: color 0.3s; }
+        .vega-star.active  { animation: vegaPulse 2.4s ease-in-out infinite; }
+        .vega-star.running { animation: vegaSpin 1.2s linear infinite; }
+      `}</style>
+      <div
+        className={`vega-icon-wrap${active ? ' active' : ''}${running ? ' running' : ''}`}
+        style={{ backgroundColor: active ? ACCENT + '20' : 'rgba(255,255,255,0.06)' }}
+      >
+        <svg
+          width="18" height="18" viewBox="0 0 18 18" fill="none"
+          className={`vega-star${running ? ' running' : active ? ' active' : ''}`}
+          style={{ color: active ? ACCENT : '#6B7280' }}
+        >
+          <path
+            d="M9 1L11 6.5L16.5 7L12.5 11L13.5 16.5L9 13.5L4.5 16.5L5.5 11L1.5 7L7 6.5L9 1Z"
+            stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"
+            fill={active ? ACCENT + '30' : 'none'}
+          />
+        </svg>
+      </div>
+    </>
+  )
+}
+
+// ── Main panel ─────────────────────────────────────────────────────────────────
 export function VegaPanel() {
   const [cfg, setCfg]           = useState<VegaConfig | null>(null)
   const [loading, setLoading]   = useState(true)
@@ -113,7 +228,6 @@ export function VegaPanel() {
       if (res.ok) {
         setMsg(`Run complete: ${d.entries} entered, ${d.exits} exited`)
         loadActivity()
-        // Refresh config stats
         fetch('/api/autonomous-agent').then(r => r.json()).then(x => { if (x.config) setCfg(x.config) }).catch(() => {})
       } else {
         setMsg(d.error ?? 'Run failed')
@@ -182,7 +296,7 @@ export function VegaPanel() {
   return (
     <div style={{ padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
 
-      {/* ── Hero: status + master switch ──────────────────────────────────── */}
+      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <div style={{
         backgroundColor: cfg.is_active ? ACCENT + '10' : 'rgba(255,255,255,0.03)',
         border: `1px solid ${cfg.is_active ? ACCENT + '30' : 'rgba(255,255,255,0.08)'}`,
@@ -191,18 +305,7 @@ export function VegaPanel() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: 9,
-              backgroundColor: cfg.is_active ? ACCENT + '20' : 'rgba(255,255,255,0.06)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: cfg.is_active ? ACCENT : '#6B7280',
-            }}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M9 1L11 6.5L16.5 7L12.5 11L13.5 16.5L9 13.5L4.5 16.5L5.5 11L1.5 7L7 6.5L9 1Z"
-                  stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"
-                  fill={cfg.is_active ? ACCENT + '30' : 'none'} />
-              </svg>
-            </div>
+            <VegaIcon active={cfg.is_active} running={running} />
             <div>
               <div style={{ color: '#E6EDF3', fontSize: 14, fontWeight: 700 }}>Vega</div>
               <div style={{ color: cfg.is_active ? ACCENT : '#6B7280', fontSize: 11, fontWeight: 600 }}>
@@ -213,6 +316,7 @@ export function VegaPanel() {
           {/* Master toggle */}
           <div
             onClick={() => save({ is_active: !cfg.is_active })}
+            title={cfg.is_active ? 'Pause Vega' : 'Activate Vega'}
             style={{
               width: 44, height: 24, borderRadius: 12,
               backgroundColor: cfg.is_active ? ACCENT : '#374151',
@@ -233,13 +337,13 @@ export function VegaPanel() {
           <div>
             <div style={{ color: '#6B7280', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Deployed</div>
             <div style={{ color: '#E6EDF3', fontSize: 15, fontWeight: 700, fontFamily: 'monospace' }}>
-              ₹{cfg.total_deployed.toFixed(0)}
+              {cfg.total_deployed.toFixed(0)}
             </div>
           </div>
           <div>
-            <div style={{ color: '#6B7280', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>P&L</div>
+            <div style={{ color: '#6B7280', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>P&amp;L</div>
             <div style={{ color: pnlPositive ? ACCENT : '#F87171', fontSize: 15, fontWeight: 700, fontFamily: 'monospace' }}>
-              {pnlPositive ? '+' : ''}₹{cfg.total_pnl.toFixed(0)}
+              {pnlPositive ? '+' : ''}{cfg.total_pnl.toFixed(0)}
             </div>
           </div>
           <div>
@@ -260,11 +364,11 @@ export function VegaPanel() {
       {/* ── Config fields ─────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <Field label="Budget cap" hint="total Vega can deploy">
-          <NumberInput value={cfg.budget_cap_inr} onChange={v => setCfg({ ...cfg, budget_cap_inr: v })} min={50} max={50000} step={50} prefix="₹" />
+          <NumberInput value={cfg.budget_cap_inr} onChange={v => setCfg({ ...cfg, budget_cap_inr: v })} min={50} max={50000} step={50} />
         </Field>
 
         <Field label="Max position size" hint="per single trade">
-          <NumberInput value={cfg.max_position_size} onChange={v => setCfg({ ...cfg, max_position_size: v })} min={10} max={cfg.budget_cap_inr} step={10} prefix="₹" />
+          <NumberInput value={cfg.max_position_size} onChange={v => setCfg({ ...cfg, max_position_size: v })} min={10} max={cfg.budget_cap_inr} step={10} />
         </Field>
 
         <Field label="Stop-loss" hint="exits if down this %">
@@ -377,7 +481,10 @@ export function VegaPanel() {
         </button>
       </div>
       {msg && (
-        <span style={{ color: msg.includes('fail') || msg.includes('error') || msg.includes('not') ? '#F87171' : ACCENT, fontSize: 12, fontWeight: 600, textAlign: 'center' }}>
+        <span style={{
+          color: msg.includes('fail') || msg.includes('error') || msg.includes('not') ? '#F87171' : ACCENT,
+          fontSize: 12, fontWeight: 600, textAlign: 'center',
+        }}>
           {msg}
         </span>
       )}
@@ -414,11 +521,11 @@ export function VegaPanel() {
                   )}
                   <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
                     {a.amount != null && a.amount > 0 && (
-                      <span style={{ color: '#6B7280', fontSize: 10, fontFamily: 'monospace' }}>₹{a.amount.toFixed(0)}</span>
+                      <span style={{ color: '#6B7280', fontSize: 10, fontFamily: 'monospace' }}>{a.amount.toFixed(0)}</span>
                     )}
                     {a.realized_pnl != null && (
                       <span style={{ color: a.realized_pnl >= 0 ? ACCENT : '#F87171', fontSize: 10, fontFamily: 'monospace' }}>
-                        {a.realized_pnl >= 0 ? '+' : ''}₹{a.realized_pnl.toFixed(0)}
+                        {a.realized_pnl >= 0 ? '+' : ''}{a.realized_pnl.toFixed(0)}
                       </span>
                     )}
                   </div>
