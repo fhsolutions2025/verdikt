@@ -103,7 +103,7 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
           style={{ backgroundColor: '#F0FFF4' }}
         >
           <span className="font-mono font-bold text-lg" style={{ color: '#00A844' }}>
-            {market.yes_price}¢
+            {market.yes_price.toFixed(1)}¢
           </span>
           <span className="text-xs ml-1" style={{ color: '#00A844' }}>YES</span>
         </div>
@@ -112,7 +112,7 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
           style={{ backgroundColor: '#FFF8F0' }}
         >
           <span className="font-mono font-bold text-lg" style={{ color: '#E05C20' }}>
-            {market.no_price}¢
+            {market.no_price.toFixed(1)}¢
           </span>
           <span className="text-xs ml-1" style={{ color: '#E05C20' }}>NO</span>
         </div>
@@ -140,11 +140,11 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 pt-1">
+      <div className="flex flex-col gap-2 pt-1">
         <button
           onClick={approve}
           disabled={loading}
-          className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-98"
+          className="w-full py-3 rounded-xl text-sm font-bold transition-all active:scale-98"
           style={{
             backgroundColor: loading ? '#E5E7EB' : '#00C853',
             color: loading ? '#9CA3AF' : '#FFFFFF',
@@ -157,11 +157,11 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
         <button
           onClick={reject}
           disabled={rejecting || loading}
-          className="px-4 py-2.5 rounded-xl text-sm font-bold transition-all"
+          className="w-full py-3 rounded-xl text-sm font-bold transition-all"
           style={{
             backgroundColor: 'transparent',
-            border: '1px solid #E5E7EB',
-            color: rejecting ? '#9CA3AF' : '#374151',
+            border: '2px solid #DC2626',
+            color: rejecting ? '#9CA3AF' : '#DC2626',
             cursor: rejecting ? 'wait' : 'pointer',
           }}
         >

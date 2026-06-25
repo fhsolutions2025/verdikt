@@ -142,8 +142,8 @@ export function MarketRiskMonitor({ initial }: Props) {
               {/* §5.1 — Company audience: explain what happened, not just the badge */}
               {market.is_imbalanced && (
                 <p className="text-xs leading-snug" style={{ color: '#E05C2080' }}>
-                  YES price at {market.yes_price}¢ — one side holding{' '}
-                  {market.yes_price > 50 ? market.yes_price : market.no_price}% of risk.
+                  YES price at {market.yes_price.toFixed(1)}¢ — one side holding{' '}
+                  {(market.yes_price > 50 ? market.yes_price : market.no_price).toFixed(1)}% of risk.
                   Review in MM Desk if no reprice in last 30 min.
                 </p>
               )}

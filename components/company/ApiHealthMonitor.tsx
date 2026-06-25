@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { ApiSource } from '@/lib/types'
 
 interface AiStats {
@@ -24,8 +25,11 @@ const LICENSE_LABELS: Record<string, { label: string; color: string }> = {
 }
 
 export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
-  const externalSources = sources.filter(s => s.category !== 'ai')
-  const aiSource        = sources.find(s => s.category === 'ai')
+  const [open, setOpen]     = useState(false)
+  const externalSources     = sources.filter(s => s.category !== 'ai')
+  const aiSource            = sources.find(s => s.category === 'ai')
+  const aiStatus            = aiStats.last_error ? 'degraded' : 'operational'
+  const sourceSummary       = `${externalSources.length} sources active`
 
   return (
     <div
@@ -35,20 +39,31 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
         border: '1px solid rgba(255,255,255,0.08)',
       }}
     >
-      {/* Header */}
-      <div
-        className="px-5 py-4 border-b"
-        style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+      {/* Collapsible header */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-4"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
       >
-        <h2
-          className="text-xs font-bold uppercase tracking-widest"
-          style={{ color: '#6B7280', letterSpacing: '0.08em' }}
-        >
-          API Health
-        </h2>
-      </div>
+        <div className="flex items-center gap-3">
+          <h2
+            className="text-xs font-bold uppercase tracking-widest"
+            style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+          >
+            API Health
+          </h2>
+          <span className="text-xs" style={{ color: '#4B5563' }}>
+            — {sourceSummary} · Claude{' '}
+            <span style={{ color: aiStats.last_error ? '#DC2626' : '#00C853' }}>
+              {aiStatus}
+            </span>
+          </span>
+        </div>
+        <span style={{ color: '#4B5563', fontSize: 12 }}>{open ? '▲' : '▼'}</span>
+      </button>
 
-      <div className="px-5 py-4 space-y-5">
+      {open && (
+      <div className="px-5 pb-4 space-y-5">
 
         {/* External Data Sources */}
         <section className="space-y-2">
@@ -176,6 +191,7 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
           </div>
         </section>
       </div>
+      )}
     </div>
   )
 }

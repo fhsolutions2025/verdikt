@@ -11,15 +11,18 @@ export default async function MmDeskPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [liveRes, aiRes, totalsRes] = await Promise.all([
+  const [liveRes, aiRes, totalsRes, spreadRes] = await Promise.all([
     supabase.from('markets').select('*').eq('status', 'live').order('volume', { ascending: false }),
     supabase.from('markets').select('*').in('status', ['ai_ready', 'pending_mm_review']).order('ai_confidence', { ascending: false }),
     supabase.from('v_platform_totals').select('*').single(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc('get_realized_spread_income'),
   ])
 
-  const liveMarkets = liveRes.data   as Market[] | null
-  const aiMarkets   = aiRes.data     as Market[] | null
-  const totals      = totalsRes.data as PlatformTotals | null
+  const liveMarkets   = liveRes.data   as Market[] | null
+  const aiMarkets     = aiRes.data     as Market[] | null
+  const totals        = totalsRes.data as PlatformTotals | null
+  const spreadIncome  = (spreadRes.data as number | null) ?? 0
 
   return (
     <main
@@ -34,18 +37,18 @@ export default async function MmDeskPage() {
           style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
         >
           <RevenueItem
-            label="Spread Income"
-            value={0}
-            sub="Volume-based"
-          />
-          <RevenueItem
             label="Fee Rebate"
             value={totals?.total_maker_rebates ?? 0}
             sub="25% of maker-side fees"
           />
           <RevenueItem
+            label="Spread Income"
+            value={spreadIncome}
+            sub="Volume-based"
+          />
+          <RevenueItem
             label="Combined Revenue"
-            value={totals?.total_maker_rebates ?? 0}
+            value={(totals?.total_maker_rebates ?? 0) + spreadIncome}
             sub="Today"
             accent="#00A844"
           />

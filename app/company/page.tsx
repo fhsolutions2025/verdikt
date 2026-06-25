@@ -4,12 +4,12 @@ import { KpiCard } from '@/components/company/KpiCard'
 import { MmToggle } from '@/components/company/MmToggle'
 import { AuditFeed } from '@/components/company/AuditFeed'
 import { MarketRiskMonitor } from '@/components/company/MarketRiskMonitor'
-import { OperatorTable } from '@/components/company/OperatorTable'
+import { SingleOperatorCard } from '@/components/company/SingleOperatorCard'
 import { ApiHealthMonitor } from '@/components/company/ApiHealthMonitor'
 import { formatVolume } from '@/lib/calculations'
 import type {
   PlatformTotals, MmConfig, AuditLogEntry,
-  RiskMarket, OperatorRevenue, ApiSource,
+  RiskMarket, ApiSource,
 } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -33,18 +33,17 @@ export default async function CompanyPage() {
     mmConfigRes,
     auditLogRes,
     riskMarketsRes,
-    operatorsRes,
     allMarketsRes,
     apiSourcesRes,
     aiCallsRes,
     rateLimitsRes,
+    spreadRes,
   ] = await Promise.all([
     supabase.from('v_platform_totals').select('*').single(),
     supabase.from('mm_config').select('*').eq('id', '20000000-0000-0000-0000-000000000001').single(),
     supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(30),
     // §4.2 — read from view; is_imbalanced and risk_tier come pre-computed
     supabase.from('v_market_risk_status').select('*'),
-    supabase.from('v_operator_revenue').select('*'),
     supabase.from('markets').select('*').in('status', ['live', 'ai_ready', 'pending_mm_review']),
     supabase.from('api_sources').select('*').order('category'),
     // ai_call_log aggregates for today — project only used columns
@@ -53,17 +52,19 @@ export default async function CompanyPage() {
       .gte('created_at', todayISO),
     // api_rate_limits — call counts per external source for today's windows
     supabase.from('api_rate_limits').select('api_name, call_count').gte('window_start', todayISO),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc('get_realized_spread_income'),
   ])
 
   const totals      = totalsRes.data      as PlatformTotals | null
   const mmConfig    = mmConfigRes.data    as MmConfig | null
   const auditLog    = auditLogRes.data    as AuditLogEntry[] | null
   const riskMarkets = (riskMarketsRes.data ?? []) as RiskMarket[]
-  const operators   = operatorsRes.data   as OperatorRevenue[] | null
   const allMarkets  = allMarketsRes.data  ?? []
   const apiSources  = (apiSourcesRes.data ?? []) as ApiSource[]
   const aiCalls       = aiCallsRes.data     ?? []
   const rateLimitRows = (rateLimitsRes.data  ?? []) as { api_name: string; call_count: number }[]
+  const spreadIncome  = (spreadRes.data as number | null) ?? 0
 
   const totalVolume   = totals?.total_volume        ?? 0
   const totalFees     = totals?.total_platform_fees  ?? 0
@@ -123,27 +124,36 @@ export default async function CompanyPage() {
     >
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
 
-        {/* VC Banner */}
+        {/* VC Banner — Change 1 */}
         <div
-          className="rounded-2xl px-5 py-4"
-          style={{ backgroundColor: '#00A84420', border: '1px solid #00C85330' }}
+          style={{
+            backgroundColor: '#0A2A0A',
+            border: '1px solid #00C853',
+            borderRadius: 12,
+            padding: '14px 20px',
+          }}
         >
-          <p className="text-sm font-bold" style={{ color: '#00E676' }}>
-            Platform-fee-only revenue today:{' '}
-            <span className="font-mono text-lg">{totalFees.toFixed(2)}</span>
-            {mmConfig?.is_verdikt_acting_as_mm && (
-              <>
-                {' '}&nbsp;→{' '}
-                <span className="font-mono text-lg" style={{ color: '#00C853' }}>
-                  {(totalFees + totalRebates).toFixed(2)}
-                </span>
-                {' '}as platform + MM
-              </>
-            )}
+          <p style={{ color: '#00E676', fontSize: 13, fontWeight: 700 }}>
+            Platform-fee-only revenue:{' '}
+            <span style={{ fontFamily: 'monospace' }}>{totalFees.toFixed(2)}</span>
+            {' '}→{' '}
+            <span style={{ fontFamily: 'monospace', color: '#00C853' }}>
+              {(totalFees + spreadIncome).toFixed(2)}
+            </span>
+            {' '}as platform + MM
           </p>
         </div>
 
-        {/* KPI grid */}
+        {/* MM Toggle — Change 3: moved above KPI grid */}
+        {mmConfig && (
+          <MmToggle
+            initial={mmConfig.is_verdikt_acting_as_mm}
+            platformFees={totalFees}
+            makerRebates={totalRebates}
+          />
+        )}
+
+        {/* KPI grid — Change 2: 4th card = Active Operators */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KpiCard
             label="Total Volume (today)"
@@ -162,29 +172,19 @@ export default async function CompanyPage() {
             sub={`${liveCount} live`}
           />
           <KpiCard
-            label="Maker Rebates (today)"
-            value={totalRebates.toFixed(2)}
-            sub="25% share, rebated"
-            accent="#6C3FC5"
+            label="Active Operators"
+            value="1"
+            sub="Betika Kenya"
           />
         </div>
 
-        {/* MM Toggle */}
-        {mmConfig && (
-          <MmToggle
-            initial={mmConfig.is_verdikt_acting_as_mm}
-            platformFees={totalFees}
-            makerRebates={totalRebates}
-          />
-        )}
+        {/* Single operator card — Category 1 */}
+        <SingleOperatorCard totalVolume={totalVolume} totalFees={totalFees} />
 
-        {/* Operator table + Risk monitor */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <OperatorTable operators={operators ?? []} />
-          <MarketRiskMonitor initial={riskMarkets} />
-        </div>
+        {/* Risk monitor */}
+        <MarketRiskMonitor initial={riskMarkets} />
 
-        {/* API Health */}
+        {/* API Health — collapsible by default (Change 4 is in the component) */}
         <ApiHealthMonitor
           sources={apiSources}
           callsToday={callsToday}
