@@ -82,6 +82,18 @@ function EvalBar({ label, value, max, color }: { label: string; value: number; m
   )
 }
 
+interface AutonomousOverview {
+  agents_enabled: boolean
+  paused_reason:  string | null
+  active_count:   number
+  total_count:    number
+  total_deployed: number
+  total_pnl:      number
+  entries_today:  number
+  exits_today:    number
+  errors_today:   number
+}
+
 export function AgentsTab() {
   const [configs, setConfigs]     = useState<AgentConfig[]>([])
   const [selected, setSelected]   = useState<string>('player')
@@ -89,6 +101,15 @@ export function AgentsTab() {
   const [saving, setSaving]       = useState(false)
   const [saveMsg, setSaveMsg]     = useState<string | null>(null)
   const [evalStats, setEvalStats] = useState<Record<string, EvalStats>>({})
+  const [auto, setAuto]           = useState<AutonomousOverview | null>(null)
+  const [togglingKill, setTogglingKill] = useState(false)
+
+  const loadAutonomous = () => {
+    fetch('/api/agents/autonomous')
+      .then(r => r.json())
+      .then(d => { if (typeof d.agents_enabled === 'boolean') setAuto(d) })
+      .catch(() => {})
+  }
 
   useEffect(() => {
     fetch('/api/agents/configs')
@@ -106,7 +127,24 @@ export function AgentsTab() {
       .then(r => r.json())
       .then(d => { if (d.stats) setEvalStats(d.stats) })
       .catch(() => {})
+
+    loadAutonomous()
   }, [])
+
+  const toggleKillSwitch = async () => {
+    if (!auto) return
+    const next = !auto.agents_enabled
+    setTogglingKill(true)
+    try {
+      const res = await fetch('/api/agents/autonomous', {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ agents_enabled: next, paused_reason: next ? null : 'Paused by Ops from dashboard' }),
+      })
+      if (res.ok) setAuto({ ...auto, agents_enabled: next })
+    } catch { /* ignore */ }
+    finally { setTogglingKill(false) }
+  }
 
   const selectAgent = (type: string) => {
     setSelected(type)
@@ -155,7 +193,82 @@ export function AgentsTab() {
   const stats = evalStats[selected]
 
   return (
-    <div style={{ display: 'flex', gap: 0, height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, height: '100%' }}>
+
+      {/* ── Autonomous agents (Vega) — platform overview + kill-switch ─────── */}
+      {auto && (
+        <div style={{
+          backgroundColor: auto.agents_enabled ? '#161B22' : '#2A1212',
+          border: `1px solid ${auto.agents_enabled ? 'rgba(255,255,255,0.08)' : '#DC262640'}`,
+          borderRadius: 12,
+          padding: '16px 20px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 9,
+                backgroundColor: auto.agents_enabled ? '#00C85320' : '#DC262620',
+                color: auto.agents_enabled ? '#00C853' : '#F87171',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M9 1L11 6.5L16.5 7L12.5 11L13.5 16.5L9 13.5L4.5 16.5L5.5 11L1.5 7L7 6.5L9 1Z"
+                    stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <div>
+                <div style={{ color: '#E6EDF3', fontSize: 15, fontWeight: 700 }}>
+                  Vega — Autonomous Trading
+                </div>
+                <div style={{ color: auto.agents_enabled ? '#6B7280' : '#F87171', fontSize: 12, marginTop: 2 }}>
+                  {auto.agents_enabled
+                    ? `${auto.active_count} of ${auto.total_count} player agent${auto.total_count !== 1 ? 's' : ''} active`
+                    : 'GLOBALLY PAUSED — no autonomous trades will execute'}
+                </div>
+              </div>
+            </div>
+
+            {/* Kill-switch */}
+            <button
+              onClick={toggleKillSwitch}
+              disabled={togglingKill}
+              style={{
+                padding: '8px 18px',
+                borderRadius: 9,
+                border: `1px solid ${auto.agents_enabled ? '#DC262650' : '#00C85350'}`,
+                backgroundColor: auto.agents_enabled ? '#DC262615' : '#00C85315',
+                color: auto.agents_enabled ? '#F87171' : '#00C853',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: togglingKill ? 'wait' : 'pointer',
+                opacity: togglingKill ? 0.6 : 1,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {togglingKill ? '…' : auto.agents_enabled ? '⏻  Pause all agents' : '▶  Resume all agents'}
+            </button>
+          </div>
+
+          {/* Aggregate stats */}
+          <div style={{ display: 'flex', gap: 28, marginTop: 16, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Capital deployed', value: `₹${auto.total_deployed.toFixed(0)}`, color: '#E6EDF3' },
+              { label: 'Aggregate P&L', value: `${auto.total_pnl >= 0 ? '+' : ''}₹${auto.total_pnl.toFixed(0)}`, color: auto.total_pnl >= 0 ? '#00C853' : '#F87171' },
+              { label: 'Entries today', value: String(auto.entries_today), color: '#E6EDF3' },
+              { label: 'Exits today', value: String(auto.exits_today), color: '#F59E0B' },
+              { label: 'Errors today', value: String(auto.errors_today), color: auto.errors_today > 0 ? '#F87171' : '#6B7280' },
+            ].map(s => (
+              <div key={s.label}>
+                <div style={{ color: '#6B7280', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
+                <div style={{ color: s.color, fontSize: 16, fontWeight: 700, fontFamily: 'monospace', marginTop: 2 }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Agent config row ──────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 0, flex: 1, minHeight: 0 }}>
 
       {/* ── Agent selector sidebar ────────────────────────────────────────── */}
       <div style={{
@@ -433,6 +546,7 @@ export function AgentsTab() {
 
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -320,6 +320,22 @@ async function touchLastRun(supabase: Supabase, configId: string): Promise<void>
 Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+  // ── Global kill-switch ──────────────────────────────────────────────────────
+  // Ops can globally pause every autonomous agent. Checked first so neither the
+  // scheduled sweep nor a manual "Run now" can place any trade while paused.
+  const { data: globalCfg } = await supabase
+    .from('autonomous_global_config')
+    .select('agents_enabled')
+    .eq('id', 1)
+    .single()
+
+  if (globalCfg && globalCfg.agents_enabled === false) {
+    return new Response(
+      JSON.stringify({ ok: true, killed: true, configs: 0, entries: 0, exits: 0, results: [] }),
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
   // A single-player manual run may be requested via POST body { player_id }.
   // This is the only path that may run a 'manual' config (player pressed "Run now").
   let manualPlayerId: string | null = null
