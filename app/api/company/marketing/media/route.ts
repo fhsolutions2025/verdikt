@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { prompt, style } = await req.json()
+  const { prompt, style, aspect_ratio } = await req.json()
   if (!prompt?.trim()) {
     return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
   }
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       'Content-Type':  'application/json',
       'Authorization': `Bearer ${serviceRoleKey}`,
     },
-    body: JSON.stringify({ prompt, style }),
+    body: JSON.stringify({ prompt, style, aspect_ratio }),
     signal: AbortSignal.timeout(60_000),
   })
 
@@ -37,5 +37,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: data.error ?? 'Image generation failed' }, { status: res.status })
   }
 
-  return NextResponse.json({ url: data.url })
+  return NextResponse.json({ url: data.url, seed: data.seed })
 }
