@@ -132,27 +132,69 @@ export default async function CompanyPage() {
     >
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
 
-        {/* VC Banner — Change 1 */}
+        {/* Page header */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 style={{ color: '#E6EDF3', fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>
+              Operations
+            </h1>
+            <p style={{ color: '#6B7280', fontSize: 12, marginTop: 3 }}>
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <span style={{
+              backgroundColor: '#00C85310',
+              border: '1px solid #00C85330',
+              color: '#00C853',
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: 999,
+              letterSpacing: '0.06em',
+            }}>
+              LIVE
+            </span>
+          </div>
+        </div>
+
+        {/* Revenue banner */}
         <div
           style={{
             backgroundColor: '#0A2A0A',
-            border: '1px solid #00C853',
+            border: '1px solid #00C85330',
             borderRadius: 12,
             padding: '14px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
           }}
         >
-          <p style={{ color: '#00E676', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-            Platform-fee-only revenue:{' '}
-            <span style={{ fontFamily: 'monospace' }}>{totalFees.toFixed(2)}</span>
-            {' '}→{' '}
-            <span style={{ fontFamily: 'monospace', color: '#00C853' }}>
-              {(totalFees + spreadIncome).toFixed(2)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: '#6B7280', fontSize: 12, fontWeight: 600 }}>Fee income</span>
+            <span style={{ color: '#00E676', fontSize: 14, fontWeight: 700, fontFamily: 'monospace' }}>
+              {totalFees.toFixed(2)}¢
             </span>
-            {' '}as platform + MM
-            <Tooltip content="Right number adds realized spread income — half the bid-ask spread × volume traded while Verdikt acts as MM." position="bottom">
+          </div>
+          <div style={{ color: '#374151', fontSize: 12 }}>+</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: '#6B7280', fontSize: 12, fontWeight: 600 }}>MM spread</span>
+            <span style={{ color: '#00E676', fontSize: 14, fontWeight: 700, fontFamily: 'monospace' }}>
+              {spreadIncome.toFixed(2)}¢
+            </span>
+          </div>
+          <div style={{ color: '#374151', fontSize: 12 }}>=</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 600 }}>Total revenue</span>
+            <span style={{ color: '#00C853', fontSize: 16, fontWeight: 800, fontFamily: 'monospace' }}>
+              {(totalFees + spreadIncome).toFixed(2)}¢
+            </span>
+            <Tooltip content="Fee income is 75% of all taker fees. MM spread is half the bid-ask × volume traded while Verdikt acts as market maker." position="bottom">
               <InfoIcon />
             </Tooltip>
-          </p>
+          </div>
         </div>
 
         {/* MM Toggle — moved above KPI grid */}
@@ -186,12 +228,14 @@ export default async function CompanyPage() {
             label="Active Markets"
             value={activeMarkets}
             sub={`${liveCount} live`}
+            live={false}
             tooltip="Markets currently live plus those in AI review or MM approval queues."
           />
           <KpiCard
             label="Active Operators"
             value="1"
             sub="Betika Kenya"
+            live={false}
             tooltip="B2B partners who embed Verdikt markets in their platforms and share in revenue."
           />
         </div>

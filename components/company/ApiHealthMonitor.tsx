@@ -60,7 +60,15 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
             </span>
           </span>
         </div>
-        <span style={{ color: '#4B5563', fontSize: 12 }}>{open ? '▲' : '▼'}</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+          <path
+            d={open ? 'M2 8L6 4L10 8' : 'M2 4L6 8L10 4'}
+            stroke="#4B5563"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
 
       {open && (
@@ -122,7 +130,7 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
               )
             })}
             {externalSources.length === 0 && (
-              <p className="text-xs" style={{ color: '#374151' }}>No external sources registered.</p>
+              <p className="text-xs" style={{ color: '#6B7280' }}>No external sources registered.</p>
             )}
           </div>
         </section>

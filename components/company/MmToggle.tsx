@@ -54,7 +54,7 @@ export function MmToggle({ initial, platformFees, makerRebates, spreadIncome = 0
               <InfoIcon />
             </Tooltip>
           </p>
-          <p className="text-xs mt-0.5" style={{ color: '#374151' }}>
+          <p className="text-xs mt-0.5" style={{ color: '#4B5563' }}>
             {isOn ? 'Collecting platform fee + rebate + spread' : 'Platform fee only'}
           </p>
         </div>
