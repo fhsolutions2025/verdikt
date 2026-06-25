@@ -70,11 +70,30 @@ function NumberInput({ value, onChange, min, max, step = 1, prefix }: {
   )
 }
 
+interface ActivityRow {
+  id:           string
+  action:       string
+  side:         string | null
+  amount:       number | null
+  realized_pnl: number | null
+  rationale:    string | null
+  created_at:   string
+}
+
 export function VegaPanel() {
-  const [cfg, setCfg]         = useState<VegaConfig | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving]   = useState(false)
-  const [msg, setMsg]         = useState<string | null>(null)
+  const [cfg, setCfg]           = useState<VegaConfig | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [running, setRunning]   = useState(false)
+  const [msg, setMsg]           = useState<string | null>(null)
+  const [activity, setActivity] = useState<ActivityRow[]>([])
+
+  const loadActivity = () => {
+    fetch('/api/autonomous-agent/activity')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.activity)) setActivity(d.activity) })
+      .catch(() => {})
+  }
 
   useEffect(() => {
     fetch('/api/autonomous-agent')
@@ -82,7 +101,29 @@ export function VegaPanel() {
       .then(d => { if (d.config) setCfg(d.config) })
       .catch(() => {})
       .finally(() => setLoading(false))
+    loadActivity()
   }, [])
+
+  const runNow = async () => {
+    setRunning(true)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/autonomous-agent/run', { method: 'POST' })
+      const d = await res.json()
+      if (res.ok) {
+        setMsg(`Run complete: ${d.entries} entered, ${d.exits} exited`)
+        loadActivity()
+        // Refresh config stats
+        fetch('/api/autonomous-agent').then(r => r.json()).then(x => { if (x.config) setCfg(x.config) }).catch(() => {})
+      } else {
+        setMsg(d.error ?? 'Run failed')
+      }
+    } catch {
+      setMsg('Network error')
+    } finally {
+      setRunning(false)
+    }
+  }
 
   const save = async (overrides?: Partial<VegaConfig>) => {
     if (!cfg) return
@@ -295,8 +336,8 @@ export function VegaPanel() {
         </Field>
       </div>
 
-      {/* ── Save bar ───────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 4 }}>
+      {/* ── Action bar ─────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4 }}>
         <button
           onClick={() => save()}
           disabled={saving}
@@ -313,14 +354,80 @@ export function VegaPanel() {
             opacity: saving ? 0.6 : 1,
           }}
         >
-          {saving ? 'Saving…' : 'Save Vega settings'}
+          {saving ? 'Saving…' : 'Save settings'}
         </button>
-        {msg && (
-          <span style={{ color: msg === 'Saved' ? ACCENT : '#F87171', fontSize: 12, fontWeight: 600 }}>
-            {msg}
-          </span>
-        )}
+        <button
+          onClick={runNow}
+          disabled={running || !cfg.is_active}
+          title={cfg.is_active ? 'Run Vega once now' : 'Enable Vega to run'}
+          style={{
+            padding: '10px 16px',
+            borderRadius: 10,
+            backgroundColor: 'transparent',
+            border: `1px solid ${cfg.is_active ? ACCENT + '50' : 'rgba(255,255,255,0.1)'}`,
+            color: cfg.is_active ? ACCENT : '#4B5563',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: running || !cfg.is_active ? 'not-allowed' : 'pointer',
+            opacity: running ? 0.6 : 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {running ? 'Running…' : 'Run now'}
+        </button>
       </div>
+      {msg && (
+        <span style={{ color: msg.includes('fail') || msg.includes('error') || msg.includes('not') ? '#F87171' : ACCENT, fontSize: 12, fontWeight: 600, textAlign: 'center' }}>
+          {msg}
+        </span>
+      )}
+
+      {/* ── Recent activity ────────────────────────────────────────────────── */}
+      {activity.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 600 }}>Recent activity</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {activity.slice(0, 8).map(a => {
+              const isExit  = a.action === 'stop_loss' || a.action === 'exit'
+              const isError = a.action === 'error'
+              const color   = isError ? '#F87171' : isExit ? '#F59E0B' : ACCENT
+              const label   = a.action === 'stop_loss' ? 'STOP-LOSS'
+                            : a.action === 'entry'      ? `ENTER ${a.side?.toUpperCase() ?? ''}`
+                            : a.action === 'exit'       ? 'EXIT'
+                            : a.action === 'error'      ? 'ERROR'
+                            : a.action.toUpperCase()
+              return (
+                <div key={a.id} style={{
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ color, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{label}</span>
+                    <span style={{ color: '#4B5563', fontSize: 10 }}>
+                      {new Date(a.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  {a.rationale && (
+                    <p style={{ color: '#9CA3AF', fontSize: 11, lineHeight: 1.4, margin: '4px 0 0' }}>{a.rationale}</p>
+                  )}
+                  <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                    {a.amount != null && a.amount > 0 && (
+                      <span style={{ color: '#6B7280', fontSize: 10, fontFamily: 'monospace' }}>₹{a.amount.toFixed(0)}</span>
+                    )}
+                    {a.realized_pnl != null && (
+                      <span style={{ color: a.realized_pnl >= 0 ? ACCENT : '#F87171', fontSize: 10, fontFamily: 'monospace' }}>
+                        {a.realized_pnl >= 0 ? '+' : ''}₹{a.realized_pnl.toFixed(0)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <p style={{ color: '#4B5563', fontSize: 10.5, lineHeight: 1.5, margin: '4px 0 0', textAlign: 'center' }}>
         Vega is an automated trading agent. This is not financial advice.
