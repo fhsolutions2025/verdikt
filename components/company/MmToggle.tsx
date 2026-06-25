@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
 
 const MM_CONFIG_ID = '20000000-0000-0000-0000-000000000001'
 
@@ -45,10 +46,13 @@ export function MmToggle({ initial, platformFees, makerRebates, spreadIncome = 0
       <div className="flex items-center justify-between">
         <div>
           <p
-            className="text-xs font-bold uppercase tracking-widest"
+            className="text-xs font-bold uppercase tracking-widest flex items-center gap-1.5"
             style={{ color: '#6B7280', letterSpacing: '0.08em' }}
           >
             Verdikt Acts as Institutional MM
+            <Tooltip content="When ON, Verdikt seeds all markets and collects maker rebates + spread income on top of platform fees." position="bottom">
+              <InfoIcon />
+            </Tooltip>
           </p>
           <p className="text-xs mt-0.5" style={{ color: '#374151' }}>
             {isOn ? 'Collecting platform fee + rebate + spread' : 'Platform fee only'}
@@ -93,6 +97,7 @@ export function MmToggle({ initial, platformFees, makerRebates, spreadIncome = 0
           label="Platform Fee (75% share)"
           value={platformFees}
           color="#00C853"
+          tooltip="75% of all taker fees across every trade. The remaining 25% is the maker rebate."
         />
         {isOn && (
           <>
@@ -100,11 +105,13 @@ export function MmToggle({ initial, platformFees, makerRebates, spreadIncome = 0
               label="Maker Rebate (25% share, collected as MM)"
               value={makerRebates}
               color="#00E676"
+              tooltip="Verdikt earns this by acting as the liquidity provider (market maker) on both sides of each trade."
             />
             <RevenueRow
               label="Spread Income"
               value={spreadIncome}
               color="#00E676"
+              tooltip="Half the bid-ask spread × shares traded. Accrues to Verdikt when acting as MM."
             />
           </>
         )}
@@ -129,19 +136,26 @@ function RevenueRow({
   value,
   color,
   bold = false,
+  tooltip,
 }: {
   label: string
   value: number
   color: string
   bold?: boolean
+  tooltip?: string
 }) {
   return (
     <div className="flex justify-between items-center">
       <span
-        className="text-xs"
+        className="text-xs flex items-center gap-1"
         style={{ color: bold ? '#9CA3AF' : '#6B7280', fontWeight: bold ? 600 : 400 }}
       >
         {label}
+        {tooltip && (
+          <Tooltip content={tooltip} position="bottom">
+            <InfoIcon />
+          </Tooltip>
+        )}
       </span>
       <span
         className="font-mono text-sm"

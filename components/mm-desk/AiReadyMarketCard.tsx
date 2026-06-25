@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CountdownTimer } from '@/components/shared/CountdownTimer'
 import { formatVolume } from '@/lib/calculations'
 import { useToast } from '@/components/shared/Toast'
+import { Tooltip } from '@/components/shared/Tooltip'
 
 interface Props {
   market:     Market
@@ -72,15 +73,17 @@ export function AiReadyMarketCard({ market, mmId, onApproved, onRejected }: Prop
         >
           {market.category}
         </span>
-        <span
-          className="text-xs font-bold px-2 py-0.5 rounded-full"
-          style={{
-            backgroundColor: confidenceColor + '18',
-            color: confidenceColor,
-          }}
-        >
-          Verdikt AI {market.ai_confidence?.toFixed(0)}%
-        </span>
+        <Tooltip content="≥85% high confidence — approve freely. 65–84% moderate — review prices. <65% low — inspect carefully before approving." position="bottom">
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded-full cursor-default"
+            style={{
+              backgroundColor: confidenceColor + '18',
+              color: confidenceColor,
+            }}
+          >
+            Verdikt AI {market.ai_confidence?.toFixed(0)}%
+          </span>
+        </Tooltip>
         {market.status === 'pending_mm_review' && (
           <span
             className="text-xs font-bold px-2 py-0.5 rounded-full"

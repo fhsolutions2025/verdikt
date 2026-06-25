@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ApiSource } from '@/lib/types'
+import { Tooltip } from '@/components/shared/Tooltip'
 
 interface AiStats {
   calls_today:    number
@@ -17,11 +18,11 @@ interface Props {
   aiStats:  AiStats
 }
 
-const LICENSE_LABELS: Record<string, { label: string; color: string }> = {
-  free_unrestricted:    { label: 'free',        color: '#00C853' },
-  free_demo_only:       { label: 'demo only',   color: '#E05C20' },
-  metered:              { label: 'metered',     color: '#6C3FC5' },
-  paid_required_at_scale: { label: 'paid at scale', color: '#9CA3AF' },
+const LICENSE_LABELS: Record<string, { label: string; color: string; tooltip: string }> = {
+  free_unrestricted:      { label: 'free',          color: '#00C853', tooltip: 'No API key required. No meaningful rate limits for our usage.' },
+  free_demo_only:         { label: 'demo only',     color: '#E05C20', tooltip: 'Free tier with strict daily caps. Must upgrade for production volume.' },
+  metered:                { label: 'metered',       color: '#6C3FC5', tooltip: 'Charged per API call. Monitor usage closely to control costs.' },
+  paid_required_at_scale: { label: 'paid at scale', color: '#9CA3AF', tooltip: 'Free tier available, but production volumes require a paid plan.' },
 }
 
 export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
@@ -92,12 +93,14 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
                       <span className="text-sm font-medium" style={{ color: '#D1D5DB' }}>
                         {src.name}
                       </span>
-                      <span
-                        className="text-xs px-1.5 py-0.5 rounded font-bold"
-                        style={{ backgroundColor: meta.color + '18', color: meta.color }}
-                      >
-                        {meta.label}
-                      </span>
+                      <Tooltip content={meta.tooltip} position="bottom">
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded font-bold cursor-default"
+                          style={{ backgroundColor: meta.color + '18', color: meta.color }}
+                        >
+                          {meta.label}
+                        </span>
+                      </Tooltip>
                     </div>
                     {src.commercial_note && (
                       <p className="text-xs pl-3.5 leading-snug" style={{ color: '#4B5563' }}>
@@ -172,7 +175,9 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
                 ${aiStats.cost_today_usd.toFixed(4)}
               </span>
 
-              <span>Cache hit rate</span>
+              <Tooltip content="% of AI calls served from in-memory cache. Higher = fewer Anthropic API calls = lower cost." position="top">
+                <span style={{ cursor: 'default' }}>Cache hit rate</span>
+              </Tooltip>
               <span className="font-mono text-right" style={{ color: '#D1D5DB' }}>
                 {(aiStats.cache_hit_rate * 100).toFixed(0)}%
               </span>

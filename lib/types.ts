@@ -41,26 +41,28 @@ export interface Bundle {
 }
 
 export interface Market {
-  id:                string
-  question:          string
-  category:          MarketCategory
-  fee_category:      FeeCategory
-  bundle_id:         string | null
-  yes_price:         number
-  no_price:          number
-  ai_confidence:     number | null
-  status:            MarketStatus
-  resolution_source: string | null
-  closes_at:         string
-  resolved_at:       string | null
-  outcome:           MarketOutcome | null
-  volume:            number
-  est_volume:        number | null
-  spread_cents:      number
-  created_by:        string | null
-  creator_type:      CreatorType
-  created_at:        string
-  updated_at:        string
+  id:                       string
+  question:                 string
+  category:                 MarketCategory
+  fee_category:             FeeCategory
+  bundle_id:                string | null
+  yes_price:                number
+  no_price:                 number
+  ai_confidence:            number | null
+  status:                   MarketStatus
+  resolution_source:        string | null
+  closes_at:                string
+  resolved_at:              string | null
+  outcome:                  MarketOutcome | null
+  volume:                   number
+  est_volume:               number | null
+  spread_cents:             number
+  created_by:               string | null
+  creator_type:             CreatorType
+  created_at:               string
+  updated_at:               string
+  player_original_question: string | null
+  rejection_reason:         string | null
 }
 
 export interface PriceTick {
@@ -180,6 +182,7 @@ export interface AiCallLog {
   output_tokens:     number | null
   latency_ms:        number | null
   success:           boolean
+  from_cache:        boolean
   error_message:     string | null
   related_market_id: string | null
   created_at:        string
