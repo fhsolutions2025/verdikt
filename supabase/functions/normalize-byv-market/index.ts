@@ -168,6 +168,7 @@ Deno.serve(async (_req) => {
         body: JSON.stringify({
           model:      'claude-haiku-4-5-20251001',
           max_tokens: 512,
+          system:     'You are a JSON-only API. Output raw JSON with no markdown, no code fences, no explanation. First character must be {.',
           messages:   [{ role: 'user', content: prompt }],
         }),
       })
@@ -178,7 +179,11 @@ Deno.serve(async (_req) => {
       if (res.ok && body.content?.[0]?.text) {
         inputTokens  = body.usage?.input_tokens  ?? null
         outputTokens = body.usage?.output_tokens ?? null
-        aiJson       = JSON.parse(body.content[0].text.trim())
+        // Strip markdown code fences Haiku sometimes adds despite instructions
+        let rawText = body.content[0].text.trim()
+        const fenceMatch = rawText.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/)
+        if (fenceMatch) rawText = fenceMatch[1].trim()
+        aiJson       = JSON.parse(rawText)
         aiSuccess    = true
       } else {
         errorMessage = body.error?.message ?? `HTTP ${res.status}`
