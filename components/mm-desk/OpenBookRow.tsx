@@ -2,20 +2,41 @@
 
 import { useState } from 'react'
 import { Market } from '@/lib/types'
+import { createClient } from '@/lib/supabase/client'
 import { BalanceBar } from '@/components/shared/BalanceBar'
 import { capitalAtRisk, isMarketImbalanced } from '@/lib/calculations'
 import { CountdownTimer } from '@/components/shared/CountdownTimer'
+import { useToast } from '@/components/shared/Toast'
 
 interface Props {
   market: Market
 }
 
 export function OpenBookRow({ market }: Props) {
-  const [hedgeOpen, setHedgeOpen] = useState(false)
+  const [hedgeOpen, setHedgeOpen]   = useState(false)
+  const [localSpread, setLocalSpread] = useState(market.spread_cents)
+  const [applying, setApplying]     = useState(false)
+  const supabase                    = createClient()
+  const { toast }                   = useToast()
   const yesCap    = market.yes_price
   const noCap     = market.no_price
   const atRisk    = capitalAtRisk(yesCap, noCap)
   const imbalanced = isMarketImbalanced(market.yes_price)
+
+  async function applySpread() {
+    setApplying(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc('update_market_spread', {
+      p_market_id: market.id,
+      p_spread:    localSpread,
+    })
+    setApplying(false)
+    if (error) {
+      toast(`Failed: ${error.message}`, 'error')
+    } else {
+      toast(`Spread updated to ${localSpread}¢`, 'success')
+    }
+  }
 
   // §5.1 — MM audience: explain the signal as an action, not just a label
   const heavySide   = market.yes_price > 50 ? 'YES' : 'NO'
@@ -59,12 +80,57 @@ export function OpenBookRow({ market }: Props) {
             {hedgeOpen ? '▲ Hide guidance' : '▼ Hedge guidance'}
           </button>
           {hedgeOpen && (
-            <p
-              className="mt-1.5 text-xs leading-snug rounded-lg px-3 py-2"
-              style={{ backgroundColor: '#FFF8F0', color: '#92400E' }}
-            >
-              {hedgeNote}
-            </p>
+            <>
+              <p
+                className="mt-1.5 text-xs leading-snug rounded-lg px-3 py-2"
+                style={{ backgroundColor: '#FFF8F0', color: '#92400E' }}
+              >
+                {hedgeNote}
+              </p>
+              {/* Spread adjustment control */}
+              <div
+                className="mt-2 flex items-center gap-3"
+                style={{
+                  backgroundColor: '#F0FFF4',
+                  border: '1px solid #00C853',
+                  borderRadius: 10,
+                  padding: 12,
+                }}
+              >
+                <span className="text-xs font-bold flex-shrink-0" style={{ color: '#111A11' }}>
+                  Adjust Spread
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={5}
+                  step={0.5}
+                  value={localSpread}
+                  onChange={e => setLocalSpread(Number(e.target.value))}
+                  style={{ flex: 1, accentColor: '#00C853' }}
+                />
+                <span className="font-mono text-xs font-bold flex-shrink-0" style={{ color: '#00A844' }}>
+                  {localSpread}¢
+                </span>
+                <button
+                  onClick={applySpread}
+                  disabled={applying}
+                  style={{
+                    backgroundColor: applying ? '#E5E7EB' : '#00A844',
+                    color:           applying ? '#9CA3AF' : '#FFFFFF',
+                    borderRadius:    8,
+                    padding:         '8px 16px',
+                    border:          'none',
+                    cursor:          applying ? 'wait' : 'pointer',
+                    fontSize:        12,
+                    fontWeight:      700,
+                    flexShrink:      0,
+                  }}
+                >
+                  {applying ? '…' : 'APPLY'}
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}
