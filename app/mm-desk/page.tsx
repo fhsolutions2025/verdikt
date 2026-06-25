@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { MmDeskClient } from '@/components/mm-desk/MmDeskClient'
+import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
 import type { Market, PlatformTotals } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -40,17 +41,20 @@ export default async function MmDeskPage() {
             label="Fee Rebate"
             value={totals?.total_maker_rebates ?? 0}
             sub="25% of maker-side fees"
+            tooltip="25% of taker fees on all trades routed back to the market maker. Verdikt takes the other 75%."
           />
           <RevenueItem
             label="Spread Income"
             value={spreadIncome}
             sub="Volume-based"
+            tooltip="Half the bid-ask spread earned per share traded. Grows linearly with volume."
           />
           <RevenueItem
             label="Combined Revenue"
             value={(totals?.total_maker_rebates ?? 0) + spreadIncome}
             sub="Today"
             accent="#00A844"
+            tooltip="Fee rebate + spread income. Total MM earnings accumulated today."
           />
         </div>
 
@@ -65,14 +69,19 @@ export default async function MmDeskPage() {
 }
 
 function RevenueItem({
-  label, value, sub, accent,
+  label, value, sub, accent, tooltip,
 }: {
-  label: string; value: number; sub: string; accent?: string
+  label: string; value: number; sub: string; accent?: string; tooltip?: string
 }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6B7280', letterSpacing: '0.07em' }}>
+      <p className="text-xs font-bold uppercase tracking-widest flex items-center gap-1" style={{ color: '#6B7280', letterSpacing: '0.07em' }}>
         {label}
+        {tooltip && (
+          <Tooltip content={tooltip} position="bottom">
+            <InfoIcon />
+          </Tooltip>
+        )}
       </p>
       <p className="font-mono font-bold text-2xl" style={{ color: accent ?? '#111A11' }}>
         {value.toFixed(2)}

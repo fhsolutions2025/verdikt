@@ -7,6 +7,7 @@ import { BalanceBar } from '@/components/shared/BalanceBar'
 import { capitalAtRisk, isMarketImbalanced } from '@/lib/calculations'
 import { CountdownTimer } from '@/components/shared/CountdownTimer'
 import { useToast } from '@/components/shared/Toast'
+import { Tooltip } from '@/components/shared/Tooltip'
 
 interface Props {
   market: Market
@@ -58,8 +59,12 @@ export function OpenBookRow({ market }: Props) {
 
       {/* Price chips */}
       <div className="flex gap-2">
-        <PriceChip side="yes" price={market.yes_price} />
-        <PriceChip side="no"  price={market.no_price}  />
+        <Tooltip content="Price in cents. YES + NO always = 100. Reflects the market's implied probability." position="bottom">
+          <PriceChip side="yes" price={market.yes_price} />
+        </Tooltip>
+        <Tooltip content="Price in cents. YES + NO always = 100. Reflects the market's implied probability." position="bottom">
+          <PriceChip side="no"  price={market.no_price}  />
+        </Tooltip>
       </div>
 
       {/* Balance bar */}
@@ -137,12 +142,16 @@ export function OpenBookRow({ market }: Props) {
 
       {/* Metadata row */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
-        <span className="font-mono" style={{ color: '#6B7280' }}>
-          Spread: <strong style={{ color: '#111A11' }}>{market.spread_cents}¢</strong>
-        </span>
-        <span className="font-mono" style={{ color: '#6B7280' }}>
-          Exposure: <strong style={{ color: '#111A11' }}>{atRisk.toFixed(0)}</strong>
-        </span>
+        <Tooltip content="Bid-ask spread per share. You earn half on every trade. Wider = more income, less competitive pricing." position="top">
+          <span className="font-mono cursor-default" style={{ color: '#6B7280' }}>
+            Spread: <strong style={{ color: '#111A11' }}>{market.spread_cents}¢</strong>
+          </span>
+        </Tooltip>
+        <Tooltip content="Capital at risk if all open positions resolve against the book." position="top">
+          <span className="font-mono cursor-default" style={{ color: '#6B7280' }}>
+            Exposure: <strong style={{ color: '#111A11' }}>{atRisk.toFixed(0)}</strong>
+          </span>
+        </Tooltip>
         <span className="font-mono" style={{ color: '#6B7280' }}>
           Vol: <strong style={{ color: '#111A11' }}>{market.volume.toFixed(0)}</strong>
         </span>

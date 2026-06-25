@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Market } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/shared/Toast'
+import { Tooltip } from '@/components/shared/Tooltip'
 
 interface Props {
   initial: Market[]
@@ -144,12 +145,14 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
         >
           PLAYER SUBMISSION
         </span>
-        <span
-          className="text-xs font-bold px-2 py-0.5 rounded-full"
-          style={{ backgroundColor: confColor + '18', color: confColor }}
-        >
-          AI {conf}%
-        </span>
+        <Tooltip content="≥65%: AI fully rewrites the question. 40–64%: question kept as-is, needs extra review. <40%: auto-voided." position="bottom">
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded-full cursor-default"
+            style={{ backgroundColor: confColor + '18', color: confColor }}
+          >
+            AI {conf}%
+          </span>
+        </Tooltip>
         {daysToClose < 7 && (
           <span
             className="text-xs font-bold px-2 py-0.5 rounded-full"

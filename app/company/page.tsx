@@ -8,6 +8,7 @@ import { SingleOperatorCard } from '@/components/company/SingleOperatorCard'
 import { ApiHealthMonitor } from '@/components/company/ApiHealthMonitor'
 import { PendingReviewSection } from '@/components/company/PendingReviewSection'
 import { formatVolume } from '@/lib/calculations'
+import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
 import type {
   PlatformTotals, MmConfig, AuditLogEntry,
   RiskMarket, ApiSource, Market,
@@ -138,7 +139,7 @@ export default async function CompanyPage() {
             padding: '14px 20px',
           }}
         >
-          <p style={{ color: '#00E676', fontSize: 13, fontWeight: 700 }}>
+          <p style={{ color: '#00E676', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
             Platform-fee-only revenue:{' '}
             <span style={{ fontFamily: 'monospace' }}>{totalFees.toFixed(2)}</span>
             {' '}→{' '}
@@ -146,6 +147,9 @@ export default async function CompanyPage() {
               {(totalFees + spreadIncome).toFixed(2)}
             </span>
             {' '}as platform + MM
+            <Tooltip content="Right number adds realized spread income — half the bid-ask spread × volume traded while Verdikt acts as MM." position="bottom">
+              <InfoIcon />
+            </Tooltip>
           </p>
         </div>
 
@@ -167,22 +171,26 @@ export default async function CompanyPage() {
             label="Total Volume (today)"
             value={formatVolume(totalVolume)}
             sub="cumulative traded"
+            tooltip="Cumulative cents traded across all live markets since launch."
           />
           <KpiCard
             label="Platform Fees (today)"
             value={totalFees.toFixed(2)}
             sub="75% Verdikt share"
             accent="#00C853"
+            tooltip="Verdikt's 75% share of all taker fees collected. The remaining 25% goes to the market maker."
           />
           <KpiCard
             label="Active Markets"
             value={activeMarkets}
             sub={`${liveCount} live`}
+            tooltip="Markets currently live plus those in AI review or MM approval queues."
           />
           <KpiCard
             label="Active Operators"
             value="1"
             sub="Betika Kenya"
+            tooltip="B2B partners who embed Verdikt markets in their platforms and share in revenue."
           />
         </div>
 
