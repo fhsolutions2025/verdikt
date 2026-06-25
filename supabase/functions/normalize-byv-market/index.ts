@@ -10,6 +10,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANTHROPIC_API_KEY         = Deno.env.get('ANTHROPIC_API_KEY')!
 const ALPHA_VANTAGE_KEY         = Deno.env.get('ALPHA_VANTAGE_KEY') ?? ''
 const FOOTBALL_DATA_KEY         = Deno.env.get('FOOTBALL_DATA_KEY') ?? ''
+const COINGECKO_API_KEY         = Deno.env.get('COINGECKO_API_KEY') ?? ''
 
 // ─── Price context fetching ───────────────────────────────────────────────────
 
@@ -87,9 +88,10 @@ async function fetchPriceContext(
   // ── Crypto: CoinGecko ──────────────────────────────────────────────────────
   for (const [keyword, coinId] of Object.entries(CRYPTO_IDS)) {
     if (q.includes(keyword)) {
-      const res = await safeFetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
-      )
+      const cgUrl = COINGECKO_API_KEY
+        ? `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&x_cg_demo_api_key=${COINGECKO_API_KEY}`
+        : `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`
+      const res = await safeFetch(cgUrl)
       await trackCall(supabase, 'CoinGecko')
       if (res?.ok) {
         const data = await res.json()
