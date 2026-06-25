@@ -6,6 +6,7 @@ import { AuditFeed } from '@/components/company/AuditFeed'
 import { MarketRiskMonitor } from '@/components/company/MarketRiskMonitor'
 import { SingleOperatorCard } from '@/components/company/SingleOperatorCard'
 import { ApiHealthMonitor } from '@/components/company/ApiHealthMonitor'
+import { DataSourcesSection } from '@/components/company/DataSourcesSection'
 import { PendingReviewSection } from '@/components/company/PendingReviewSection'
 import { formatVolume } from '@/lib/calculations'
 import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
@@ -199,6 +200,9 @@ export default async function CompanyPage() {
 
         {/* Risk monitor */}
         <MarketRiskMonitor initial={riskMarkets} />
+
+        {/* Configurations — data source on/off toggles */}
+        <DataSourcesSection initial={apiSources} />
 
         {/* API Health — collapsible by default (Change 4 is in the component) */}
         <ApiHealthMonitor

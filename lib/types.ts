@@ -165,7 +165,16 @@ export interface ApiSource {
   license_tier:          string
   commercial_note:       string | null
   rate_limit_per_minute: number | null
+  enabled:               boolean
   created_at:            string
+}
+
+export interface PriceCache {
+  symbol:     string
+  price:      number
+  label:      string
+  source:     string
+  fetched_at: string
 }
 
 export interface ApiRateLimit {

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { PlayerFeedClient } from '@/components/player/PlayerFeedClient'
 import { PlayerTabBar } from '@/components/player/PlayerTabBar'
-import type { Market, PriceTick } from '@/lib/types'
+import type { Market, PriceTick, PriceCache } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,12 +12,27 @@ export default async function PlayerPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const marketsRes = await supabase
-    .from('markets')
-    .select('*')
-    .in('status', ['live', 'ai_ready'])
-    .order('volume', { ascending: false })
-  const markets = marketsRes.data as Market[] | null
+  const [marketsRes, priceCacheRes] = await Promise.all([
+    supabase
+      .from('markets')
+      .select('*')
+      .in('status', ['live', 'ai_ready'])
+      .order('volume', { ascending: false }),
+    supabase
+      .from('price_cache')
+      .select('*')
+      // Only use prices fetched within the last 10 minutes
+      .gte('fetched_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()),
+  ])
+
+  const markets    = marketsRes.data as Market[] | null
+  const priceRows  = (priceCacheRes.data ?? []) as PriceCache[]
+
+  // Index price_cache by symbol for O(1) lookup in components
+  const priceCache: Record<string, PriceCache> = {}
+  for (const row of priceRows) {
+    priceCache[row.symbol] = row
+  }
 
   // Fetch recent ticks for sparklines
   const marketIds = (markets ?? []).map(m => m.id)
@@ -45,6 +60,7 @@ export default async function PlayerPage() {
       <PlayerFeedClient
         initialMarkets={markets ?? []}
         ticksByMarket={ticksByMarket}
+        priceCache={priceCache}
       />
       <PlayerTabBar active="markets" />
     </main>
