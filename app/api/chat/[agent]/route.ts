@@ -180,6 +180,24 @@ async function executeTool(
   }
 }
 
+// ── Failure logging (best-effort, never throws) ──────────────────────────────
+
+async function logFailure(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  agentType: string,
+  message: string,
+): Promise<void> {
+  try {
+    await service.from('ai_call_log').insert({
+      call_type:     `chat_${agentType}`,
+      model:         'claude-haiku-4-5-20251001',
+      success:       false,
+      from_cache:    false,
+      error_message: message,
+    })
+  } catch { /* swallow — logging must never break the response */ }
+}
+
 // ── Output guardrail: inject disclaimer for financial content ────────────────
 
 const FINANCIAL_KEYWORDS = /\b(buy|sell|trade|invest|bet|position|recommend|suggest|should\s+(?:you\s+)?(?:buy|sell|trade))\b/i
@@ -315,43 +333,52 @@ export async function POST(
   let toolCallsMade: object[] = []
   let toolResultsMade: object[] = []
 
+  // Guard: missing/placeholder API key (common env-config failure)
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? ''
+  if (!apiKey || !apiKey.startsWith('sk-ant-')) {
+    return NextResponse.json(
+      { error: 'AI is not configured: ANTHROPIC_API_KEY is missing or invalid in this environment.' },
+      { status: 503 },
+    )
+  }
+
   for (let round = 0; round < 3; round++) {
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type':      'application/json',
-        'x-api-key':         process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta':    'prompt-caching-2024-07-31',
-      },
-      body: JSON.stringify({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: maxTokens,
-        temperature,
-        system: [
-          {
-            type: 'text',
-            text: systemPrompt,
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-        tools: tools.length > 0 ? tools : undefined,
-        messages: currentMessages,
-      }),
-      signal: AbortSignal.timeout(25_000),
-    })
+    let aiRes: Response
+    try {
+      aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type':      'application/json',
+          'x-api-key':         apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model:      'claude-haiku-4-5-20251001',
+          max_tokens: maxTokens,
+          temperature,
+          // Plain-string system prompt: these prompts are ~250 tokens, far
+          // below Haiku's 2048-token cache minimum, so cache_control gives no
+          // benefit and only risks a 400. Matches the proven generate-market route.
+          system: systemPrompt,
+          tools: tools.length > 0 ? tools : undefined,
+          messages: currentMessages,
+        }),
+        signal: AbortSignal.timeout(25_000),
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'network error'
+      await logFailure(service, agentType, `fetch failed: ${msg}`)
+      return NextResponse.json({ error: `AI request failed: ${msg}` }, { status: 502 })
+    }
 
     if (!aiRes.ok) {
       const errText = await aiRes.text().catch(() => '')
-      // Log failure
-      await service.from('ai_call_log').insert({
-        call_type:  `chat_${agentType}`,
-        model:      'claude-haiku-4-5-20251001',
-        success:    false,
-        from_cache: false,
-        error_message: `HTTP ${aiRes.status}: ${errText.slice(0, 200)}`,
-      })
-      return NextResponse.json({ error: 'AI service unavailable' }, { status: 502 })
+      await logFailure(service, agentType, `HTTP ${aiRes.status}: ${errText.slice(0, 300)}`)
+      // Surface the real upstream status + message so failures are diagnosable
+      return NextResponse.json(
+        { error: `AI service error (${aiRes.status}): ${errText.slice(0, 200) || 'no detail'}` },
+        { status: 502 },
+      )
     }
 
     const aiData = await aiRes.json()
