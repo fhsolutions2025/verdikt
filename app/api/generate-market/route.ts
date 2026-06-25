@@ -54,15 +54,26 @@ export async function POST(req: NextRequest) {
     '}',
   ].filter(Boolean).join('\n')
 
-  // ── Call Haiku ────────────────────────────────────────────────
+  // ── Call Haiku via the anthropic-proxy Edge Function ──────────
+  // ANTHROPIC_API_KEY lives in Supabase secrets, not the Vercel env, so we
+  // relay through the proxy (which holds the key) using a service-role bearer.
+  const supabaseUrl    = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+  if (!supabaseUrl || !serviceRoleKey) {
+    return NextResponse.json(
+      { error: 'AI is not configured: Supabase URL or service-role key missing.' },
+      { status: 503 },
+    )
+  }
+  const proxyUrl = `${supabaseUrl}/functions/v1/anthropic-proxy`
+
   let rawBody = ''
   try {
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const aiRes = await fetch(proxyUrl, {
       method:  'POST',
       headers: {
-        'Content-Type':      'application/json',
-        'x-api-key':         process.env.ANTHROPIC_API_KEY!,
-        'anthropic-version': '2023-06-01',
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${serviceRoleKey}`,
       },
       body: JSON.stringify({
         model:      'claude-haiku-4-5-20251001',
