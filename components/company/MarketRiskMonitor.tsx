@@ -2,24 +2,35 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Market } from '@/lib/types'
+import { Market, RiskMarket } from '@/lib/types'
 import { BalanceBar } from '@/components/shared/BalanceBar'
-import { isMarketImbalanced } from '@/lib/calculations'
 import { useToast } from '@/components/shared/Toast'
 
 interface Props {
-  initial: Market[]
+  initial: RiskMarket[]
 }
 
 type Outcome = 'yes' | 'no' | 'void'
 
+// Apply the same formula as v_market_risk_status to inbound Realtime market rows.
+// Realtime subscribes to the markets table (views are not subscribable);
+// this keeps in-memory state consistent with what the view returns.
+function toRiskMarket(m: Market): RiskMarket {
+  const imbalanced = m.yes_price > 70 || m.yes_price < 30
+  return {
+    ...m,
+    is_imbalanced: imbalanced,
+    risk_tier:     imbalanced ? 'orange' : 'green',
+  }
+}
+
 export function MarketRiskMonitor({ initial }: Props) {
-  const [markets, setMarkets]         = useState<Market[]>(initial)
-  const [resolving, setResolving]     = useState<Market | null>(null)
-  const [outcome, setOutcome]         = useState<Outcome>('yes')
-  const [confirmLoading, setConfirm]  = useState(false)
-  const supabase                      = createClient()
-  const { toast }                     = useToast()
+  const [markets, setMarkets]        = useState<RiskMarket[]>(initial)
+  const [resolving, setResolving]    = useState<RiskMarket | null>(null)
+  const [outcome, setOutcome]        = useState<Outcome>('yes')
+  const [confirmLoading, setConfirm] = useState(false)
+  const supabase                     = createClient()
+  const { toast }                    = useToast()
 
   useEffect(() => {
     const channel = supabase
@@ -28,12 +39,14 @@ export function MarketRiskMonitor({ initial }: Props) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'markets' },
         payload => {
-          const updated = payload.new as Market
-          setMarkets(prev =>
-            updated.status === 'live'
+          const updated = toRiskMarket(payload.new as Market)
+          setMarkets(prev => {
+            if (updated.status !== 'live') return prev.filter(m => m.id !== updated.id)
+            const exists = prev.some(m => m.id === updated.id)
+            return exists
               ? prev.map(m => m.id === updated.id ? updated : m)
-              : prev.filter(m => m.id !== updated.id)
-          )
+              : [...prev, updated]
+          })
         }
       )
       .subscribe()
@@ -41,8 +54,7 @@ export function MarketRiskMonitor({ initial }: Props) {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const live    = markets.filter(m => m.status === 'live')
-  const flagged = live.filter(m => isMarketImbalanced(m.yes_price))
+  const flagged = markets.filter(m => m.is_imbalanced)
 
   async function confirmResolve() {
     if (!resolving) return
@@ -92,7 +104,7 @@ export function MarketRiskMonitor({ initial }: Props) {
         </div>
 
         <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-          {live.map(market => (
+          {markets.map(market => (
             <div key={market.id} className="px-5 py-4 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <p
@@ -122,14 +134,26 @@ export function MarketRiskMonitor({ initial }: Props) {
                   </button>
                 </div>
               </div>
-              <BalanceBar yesPrice={market.yes_price} portal="company" />
+              <BalanceBar
+                yesPrice={market.yes_price}
+                isImbalanced={market.is_imbalanced}
+                portal="company"
+              />
+              {/* §5.1 — Company audience: explain what happened, not just the badge */}
+              {market.is_imbalanced && (
+                <p className="text-xs leading-snug" style={{ color: '#E05C2080' }}>
+                  YES price at {market.yes_price}¢ — one side holding{' '}
+                  {market.yes_price > 50 ? market.yes_price : market.no_price}% of risk.
+                  Review in MM Desk if no reprice in last 30 min.
+                </p>
+              )}
               <div className="flex items-center gap-4 text-xs font-mono" style={{ color: '#6B7280' }}>
                 <span>Vol: {market.volume.toFixed(0)}</span>
               </div>
             </div>
           ))}
 
-          {live.length === 0 && (
+          {markets.length === 0 && (
             <p className="px-5 py-6 text-sm" style={{ color: '#374151' }}>
               No live markets.
             </p>

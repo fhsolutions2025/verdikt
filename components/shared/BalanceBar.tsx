@@ -4,14 +4,15 @@ import { isMarketImbalanced } from '@/lib/calculations'
 import { LiveDot } from './LiveDot'
 
 interface Props {
-  yesPrice: number
-  portal: 'company' | 'mm-desk'
-  showLabels?: boolean
+  yesPrice:      number
+  portal:        'company' | 'mm-desk'
+  showLabels?:   boolean
+  isImbalanced?: boolean  // pass from v_market_risk_status when available; computed as fallback
 }
 
-export function BalanceBar({ yesPrice, portal, showLabels = true }: Props) {
-  const noPrice  = 100 - yesPrice
-  const imbalanced = isMarketImbalanced(yesPrice)
+export function BalanceBar({ yesPrice, portal, showLabels = true, isImbalanced }: Props) {
+  const noPrice    = 100 - yesPrice
+  const imbalanced = isImbalanced ?? isMarketImbalanced(yesPrice)
   const isDark   = portal === 'company'
 
   const trackBg = isDark ? '#374151' : '#E5E7EB'

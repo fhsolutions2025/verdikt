@@ -12,6 +12,7 @@ const TYPE_COLORS: Record<string, string> = {
   operator_sync:'#374151',
   config_change:'#DC2626',
   market_submission:'#4338CA',
+  risk_alert:       '#DC2626',
 }
 
 interface Props {
