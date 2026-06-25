@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 const ALLOWED_FEEDS: Record<string, { label: string; url: string }> = {
   'google-news': {
@@ -87,7 +87,9 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
+  // Use service role to bypass RLS for role check — JWT already validated above
+  const service = await createServiceClient()
+  const { data: profile } = await service
     .from('profiles')
     .select('role')
     .eq('id', user.id)

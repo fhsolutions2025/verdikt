@@ -7,7 +7,10 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await userSupabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await userSupabase
+  const service = await createServiceClient()
+
+  // Use service role to bypass RLS for role check — JWT already validated above
+  const { data: profile } = await service
     .from('profiles')
     .select('role')
     .eq('id', user.id)
@@ -62,7 +65,6 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Insert using service role (bypasses RLS) ──────────────────
-  const service = await createServiceClient()
   const { data, error } = await service
     .from('markets')
     .insert({
