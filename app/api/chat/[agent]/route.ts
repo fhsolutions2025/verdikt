@@ -359,24 +359,28 @@ export async function POST(
   let toolCallsMade: object[] = []
   let toolResultsMade: object[] = []
 
-  // Guard: missing/placeholder API key (common env-config failure)
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? ''
-  if (!apiKey || !apiKey.startsWith('sk-ant-')) {
+  // The ANTHROPIC_API_KEY lives in Supabase secrets, not the Next.js/Vercel
+  // env, so we proxy the Messages call through the `anthropic-proxy` Edge
+  // Function (which holds the key) using a service-role bearer. Guard: the
+  // Supabase URL + service-role key must be present in this environment.
+  const supabaseUrl     = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+  const serviceRoleKey  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+  if (!supabaseUrl || !serviceRoleKey) {
     return NextResponse.json(
-      { error: 'AI is not configured: ANTHROPIC_API_KEY is missing or invalid in this environment.' },
+      { error: 'AI is not configured: Supabase URL or service-role key is missing in this environment.' },
       { status: 503 },
     )
   }
+  const proxyUrl = `${supabaseUrl}/functions/v1/anthropic-proxy`
 
   for (let round = 0; round < 3; round++) {
     let aiRes: Response
     try {
-      aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      aiRes = await fetch(proxyUrl, {
         method: 'POST',
         headers: {
-          'Content-Type':      'application/json',
-          'x-api-key':         apiKey,
-          'anthropic-version': '2023-06-01',
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify({
           model:      'claude-haiku-4-5-20251001',
@@ -389,7 +393,7 @@ export async function POST(
           tools: tools.length > 0 ? tools : undefined,
           messages: currentMessages,
         }),
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(28_000),
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'network error'
