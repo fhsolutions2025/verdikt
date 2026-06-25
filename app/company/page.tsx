@@ -47,8 +47,10 @@ export default async function CompanyPage() {
     supabase.from('v_operator_revenue').select('*'),
     supabase.from('markets').select('*').in('status', ['live', 'ai_ready', 'pending_mm_review']),
     supabase.from('api_sources').select('*').order('category'),
-    // ai_call_log aggregates for today
-    supabase.from('ai_call_log').select('*').gte('created_at', todayISO),
+    // ai_call_log aggregates for today — project only used columns
+    supabase.from('ai_call_log')
+      .select('success, from_cache, error_message, latency_ms, input_tokens, output_tokens, created_at')
+      .gte('created_at', todayISO),
     // api_rate_limits — call counts per external source for today's windows
     supabase.from('api_rate_limits').select('api_name, call_count').gte('window_start', todayISO),
   ])
@@ -70,29 +72,35 @@ export default async function CompanyPage() {
   const liveCount     = riskMarkets.length
 
   // §6 — AI stats computed from ai_call_log
-  const successCalls   = aiCalls.filter((c: { success: boolean }) => c.success)
-  const cachedCalls    = aiCalls.filter((c: { error_message: string | null }) =>
-    c.error_message === 'cache_hit'
-  )
-  const latencies      = successCalls
-    .map((c: { latency_ms: number | null }) => c.latency_ms)
-    .filter((l: number | null): l is number => l != null)
-  const avgLatency     = latencies.length
-    ? latencies.reduce((a: number, b: number) => a + b, 0) / latencies.length
-    : null
-  const totalInputTokens  = aiCalls.reduce((s: number, c: { input_tokens: number | null }) =>
-    s + (c.input_tokens ?? 0), 0)
-  const totalOutputTokens = aiCalls.reduce((s: number, c: { output_tokens: number | null }) =>
-    s + (c.output_tokens ?? 0), 0)
-  const costToday = (totalInputTokens  / 1_000_000) * HAIKU_INPUT_PRICE_PER_M
-                  + (totalOutputTokens / 1_000_000) * HAIKU_OUTPUT_PRICE_PER_M
-  const lastError = aiCalls
-    .filter((c: { success: boolean; error_message: string | null }) =>
-      !c.success && c.error_message && c.error_message !== 'cache_hit'
-    )
-    .sort((a: { created_at: string }, b: { created_at: string }) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )[0]?.error_message ?? null
+  type AiRow = {
+    success: boolean; from_cache: boolean; error_message: string | null
+    latency_ms: number | null; input_tokens: number | null
+    output_tokens: number | null; created_at: string
+  }
+  const rows = aiCalls as AiRow[]
+
+  let sumLatency = 0, latencyCount = 0
+  let totalInputTokens = 0, totalOutputTokens = 0
+  let cachedCount = 0
+  let lastError: string | null = null
+  let lastErrorAt = ''
+
+  for (const c of rows) {
+    if (c.from_cache) { cachedCount++; continue }
+    if (c.success) {
+      if (c.latency_ms != null) { sumLatency += c.latency_ms; latencyCount++ }
+    } else if (c.error_message) {
+      if (!lastErrorAt || c.created_at > lastErrorAt) {
+        lastError = c.error_message; lastErrorAt = c.created_at
+      }
+    }
+    totalInputTokens  += c.input_tokens  ?? 0
+    totalOutputTokens += c.output_tokens ?? 0
+  }
+
+  const avgLatency = latencyCount > 0 ? sumLatency / latencyCount : null
+  const costToday  = (totalInputTokens  / 1_000_000) * HAIKU_INPUT_PRICE_PER_M
+                   + (totalOutputTokens / 1_000_000) * HAIKU_OUTPUT_PRICE_PER_M
 
   // Aggregate call counts per api_name across all minute windows today
   const callsToday = rateLimitRows.reduce<Record<string, number>>((acc, row) => {
@@ -101,10 +109,10 @@ export default async function CompanyPage() {
   }, {})
 
   const aiStats = {
-    calls_today:    aiCalls.length,
+    calls_today:    rows.length,
     avg_latency_ms: avgLatency,
     cost_today_usd: costToday,
-    cache_hit_rate: aiCalls.length > 0 ? cachedCalls.length / aiCalls.length : 0,
+    cache_hit_rate: rows.length > 0 ? cachedCount / rows.length : 0,
     last_error:     lastError,
   }
 

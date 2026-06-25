@@ -40,11 +40,13 @@ export function MarketRiskMonitor({ initial }: Props) {
         { event: 'UPDATE', schema: 'public', table: 'markets' },
         payload => {
           const updated = toRiskMarket(payload.new as Market)
-          setMarkets(prev =>
-            updated.status === 'live'
+          setMarkets(prev => {
+            if (updated.status !== 'live') return prev.filter(m => m.id !== updated.id)
+            const exists = prev.some(m => m.id === updated.id)
+            return exists
               ? prev.map(m => m.id === updated.id ? updated : m)
-              : prev.filter(m => m.id !== updated.id)
-          )
+              : [...prev, updated]
+          })
         }
       )
       .subscribe()
@@ -52,8 +54,7 @@ export function MarketRiskMonitor({ initial }: Props) {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const live    = markets.filter(m => m.status === 'live')
-  const flagged = live.filter(m => m.is_imbalanced)
+  const flagged = markets.filter(m => m.is_imbalanced)
 
   async function confirmResolve() {
     if (!resolving) return
@@ -103,7 +104,7 @@ export function MarketRiskMonitor({ initial }: Props) {
         </div>
 
         <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-          {live.map(market => (
+          {markets.map(market => (
             <div key={market.id} className="px-5 py-4 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <p
@@ -152,7 +153,7 @@ export function MarketRiskMonitor({ initial }: Props) {
             </div>
           ))}
 
-          {live.length === 0 && (
+          {markets.length === 0 && (
             <p className="px-5 py-6 text-sm" style={{ color: '#374151' }}>
               No live markets.
             </p>

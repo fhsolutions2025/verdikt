@@ -60,7 +60,7 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
               const meta  = LICENSE_LABELS[src.license_tier] ?? { label: src.license_tier, color: '#6B7280' }
               const count = callsToday[src.name] ?? 0
               const atCap = src.rate_limit_per_minute != null
-                && count >= src.rate_limit_per_minute * 60
+                && count >= src.rate_limit_per_minute * 1440
 
               return (
                 <div
