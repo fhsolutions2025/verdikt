@@ -14,7 +14,7 @@ export type OrderSide     = 'yes' | 'no'
 export type OrderStatus   = 'open' | 'partially_filled' | 'filled' | 'cancelled'
 export type PositionStatus = 'open' | 'sold' | 'resolved_won' | 'resolved_lost' | 'voided'
 export type TransactionType = 'deposit' | 'withdrawal' | 'trade' | 'sell' | 'payout' | 'fee' | 'maker_rebate' | 'maker_spread' | 'holding_reward' | 'creator_royalty'
-export type AuditType     = 'trade' | 'seed' | 'resolve' | 'fee' | 'operator_sync' | 'config_change' | 'market_submission'
+export type AuditType     = 'trade' | 'seed' | 'resolve' | 'fee' | 'operator_sync' | 'config_change' | 'market_submission' | 'risk_alert'
 
 export interface Profile {
   id:           string
@@ -151,6 +151,40 @@ export interface MmConfig {
   updated_at:              string
 }
 
+export interface RiskMarket extends Market {
+  is_imbalanced: boolean
+  risk_tier:     'green' | 'orange'
+}
+
+export interface ApiSource {
+  id:                    string
+  name:                  string
+  category:              string
+  license_tier:          string
+  commercial_note:       string | null
+  rate_limit_per_minute: number | null
+  created_at:            string
+}
+
+export interface ApiRateLimit {
+  api_name:     string
+  window_start: string
+  call_count:   number
+}
+
+export interface AiCallLog {
+  id:                string
+  call_type:         string
+  model:             string
+  input_tokens:      number | null
+  output_tokens:     number | null
+  latency_ms:        number | null
+  success:           boolean
+  error_message:     string | null
+  related_market_id: string | null
+  created_at:        string
+}
+
 export interface AuditLogEntry {
   id:          string
   type:        AuditType
@@ -195,8 +229,9 @@ export type Database = {
       audit_log:           { Row: AuditLogEntry;      Insert: Omit<AuditLogEntry, 'id' | 'created_at'>; Update: never }
     }
     Views: {
-      v_platform_totals:  { Row: PlatformTotals }
-      v_operator_revenue: { Row: OperatorRevenue }
+      v_platform_totals:    { Row: PlatformTotals }
+      v_operator_revenue:   { Row: OperatorRevenue }
+      v_market_risk_status: { Row: RiskMarket }
     }
     Functions: {
       execute_trade:      { Args: { p_market_id: string; p_taker_id: string | null; p_side: OrderSide; p_amount: number; p_is_simulated?: boolean; p_simulated_trader_name?: string }; Returns: { trade_id: string; shares: number; fee: number; total_cost: number; new_yes_price: number; new_no_price: number } }

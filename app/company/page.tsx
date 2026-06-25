@@ -5,10 +5,18 @@ import { MmToggle } from '@/components/company/MmToggle'
 import { AuditFeed } from '@/components/company/AuditFeed'
 import { MarketRiskMonitor } from '@/components/company/MarketRiskMonitor'
 import { OperatorTable } from '@/components/company/OperatorTable'
+import { ApiHealthMonitor } from '@/components/company/ApiHealthMonitor'
 import { formatVolume } from '@/lib/calculations'
-import type { PlatformTotals, MmConfig, AuditLogEntry, Market, OperatorRevenue } from '@/lib/types'
+import type {
+  PlatformTotals, MmConfig, AuditLogEntry,
+  RiskMarket, OperatorRevenue, ApiSource,
+} from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
+
+// Haiku 4.5 token pricing (USD per million tokens, as of 2025)
+const HAIKU_INPUT_PRICE_PER_M  = 0.80
+const HAIKU_OUTPUT_PRICE_PER_M = 4.00
 
 export default async function CompanyPage() {
   const supabase = await createClient()
@@ -16,35 +24,89 @@ export default async function CompanyPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Fetch everything in parallel — re-query on Realtime events client-side (TECH_SPEC §5)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayISO = today.toISOString()
+
   const [
     totalsRes,
     mmConfigRes,
     auditLogRes,
-    liveMarketsRes,
+    riskMarketsRes,
     operatorsRes,
     allMarketsRes,
+    apiSourcesRes,
+    aiCallsRes,
+    rateLimitsRes,
   ] = await Promise.all([
     supabase.from('v_platform_totals').select('*').single(),
     supabase.from('mm_config').select('*').eq('id', '20000000-0000-0000-0000-000000000001').single(),
     supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(30),
-    supabase.from('markets').select('*').eq('status', 'live'),
+    // §4.2 — read from view; is_imbalanced and risk_tier come pre-computed
+    supabase.from('v_market_risk_status').select('*'),
     supabase.from('v_operator_revenue').select('*'),
     supabase.from('markets').select('*').in('status', ['live', 'ai_ready', 'pending_mm_review']),
+    supabase.from('api_sources').select('*').order('category'),
+    // ai_call_log aggregates for today
+    supabase.from('ai_call_log').select('*').gte('created_at', todayISO),
+    // api_rate_limits — call counts per external source for today's windows
+    supabase.from('api_rate_limits').select('api_name, call_count').gte('window_start', todayISO),
   ])
 
   const totals      = totalsRes.data      as PlatformTotals | null
   const mmConfig    = mmConfigRes.data    as MmConfig | null
   const auditLog    = auditLogRes.data    as AuditLogEntry[] | null
-  const liveMarkets = liveMarketsRes.data as Market[] | null
+  const riskMarkets = (riskMarketsRes.data ?? []) as RiskMarket[]
   const operators   = operatorsRes.data   as OperatorRevenue[] | null
-  const allMarkets  = allMarketsRes.data  as Market[] | null
+  const allMarkets  = allMarketsRes.data  ?? []
+  const apiSources  = (apiSourcesRes.data ?? []) as ApiSource[]
+  const aiCalls       = aiCallsRes.data     ?? []
+  const rateLimitRows = (rateLimitsRes.data  ?? []) as { api_name: string; call_count: number }[]
 
-  const totalVolume     = totals?.total_volume       ?? 0
-  const totalFees       = totals?.total_platform_fees ?? 0
-  const totalRebates    = totals?.total_maker_rebates ?? 0
-  const activeMarkets   = allMarkets?.length          ?? 0
-  const liveCount       = liveMarkets?.length         ?? 0
+  const totalVolume   = totals?.total_volume        ?? 0
+  const totalFees     = totals?.total_platform_fees  ?? 0
+  const totalRebates  = totals?.total_maker_rebates  ?? 0
+  const activeMarkets = allMarkets.length
+  const liveCount     = riskMarkets.length
+
+  // §6 — AI stats computed from ai_call_log
+  const successCalls   = aiCalls.filter((c: { success: boolean }) => c.success)
+  const cachedCalls    = aiCalls.filter((c: { error_message: string | null }) =>
+    c.error_message === 'cache_hit'
+  )
+  const latencies      = successCalls
+    .map((c: { latency_ms: number | null }) => c.latency_ms)
+    .filter((l: number | null): l is number => l != null)
+  const avgLatency     = latencies.length
+    ? latencies.reduce((a: number, b: number) => a + b, 0) / latencies.length
+    : null
+  const totalInputTokens  = aiCalls.reduce((s: number, c: { input_tokens: number | null }) =>
+    s + (c.input_tokens ?? 0), 0)
+  const totalOutputTokens = aiCalls.reduce((s: number, c: { output_tokens: number | null }) =>
+    s + (c.output_tokens ?? 0), 0)
+  const costToday = (totalInputTokens  / 1_000_000) * HAIKU_INPUT_PRICE_PER_M
+                  + (totalOutputTokens / 1_000_000) * HAIKU_OUTPUT_PRICE_PER_M
+  const lastError = aiCalls
+    .filter((c: { success: boolean; error_message: string | null }) =>
+      !c.success && c.error_message && c.error_message !== 'cache_hit'
+    )
+    .sort((a: { created_at: string }, b: { created_at: string }) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0]?.error_message ?? null
+
+  // Aggregate call counts per api_name across all minute windows today
+  const callsToday = rateLimitRows.reduce<Record<string, number>>((acc, row) => {
+    acc[row.api_name] = (acc[row.api_name] ?? 0) + row.call_count
+    return acc
+  }, {})
+
+  const aiStats = {
+    calls_today:    aiCalls.length,
+    avg_latency_ms: avgLatency,
+    cost_today_usd: costToday,
+    cache_hit_rate: aiCalls.length > 0 ? cachedCalls.length / aiCalls.length : 0,
+    last_error:     lastError,
+  }
 
   return (
     <main
@@ -111,8 +173,15 @@ export default async function CompanyPage() {
         {/* Operator table + Risk monitor */}
         <div className="grid md:grid-cols-2 gap-4">
           <OperatorTable operators={operators ?? []} />
-          <MarketRiskMonitor initial={liveMarkets ?? []} />
+          <MarketRiskMonitor initial={riskMarkets} />
         </div>
+
+        {/* API Health */}
+        <ApiHealthMonitor
+          sources={apiSources}
+          callsToday={callsToday}
+          aiStats={aiStats}
+        />
 
         {/* Audit feed */}
         <AuditFeed initial={auditLog ?? []} />
