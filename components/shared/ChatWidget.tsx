@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { VegaPanel } from '@/components/shared/VegaPanel'
 
 export type AgentType = 'player' | 'company' | 'mm_desk'
 
@@ -110,7 +111,9 @@ function ThumbButton({
 
 export function ChatWidget({ agentType }: { agentType: AgentType }) {
   const meta = AGENT_META[agentType]
+  const hasVega = agentType === 'player'
   const [open, setOpen]         = useState(false)
+  const [view, setView]         = useState<'chat' | 'vega'>('chat')
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
@@ -296,6 +299,54 @@ export function ChatWidget({ agentType }: { agentType: AgentType }) {
             }}>LIVE</span>
           </div>
 
+          {/* Tab switcher (player only: Chat | Vega) */}
+          {hasVega && (
+            <div style={{
+              display: 'flex',
+              gap: 4,
+              padding: '8px 12px',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              backgroundColor: '#0D1117',
+            }}>
+              {([['chat', 'Chat'], ['vega', 'Vega']] as const).map(([id, label]) => {
+                const active = view === id
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setView(id)}
+                    style={{
+                      flex: 1,
+                      padding: '6px 0',
+                      borderRadius: 8,
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      backgroundColor: active ? meta.accentColor + '18' : 'transparent',
+                      color: active ? meta.accentColor : '#6B7280',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                    }}
+                  >
+                    {id === 'vega' && (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M6 1L7.3 4.3L11 4.7L8.3 7.3L9 11L6 9L3 11L3.7 7.3L1 4.7L4.7 4.3L6 1Z"
+                          stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"
+                          fill={active ? meta.accentColor + '30' : 'none'} />
+                      </svg>
+                    )}
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ── Vega view ── */}
+          {hasVega && view === 'vega' && <VegaPanel />}
+
+          {/* ── Chat view ── */}
+          {(!hasVega || view === 'chat') && (
+          <>
           {/* Messages */}
           <div style={{
             flex:      1,
@@ -465,6 +516,8 @@ export function ChatWidget({ agentType }: { agentType: AgentType }) {
               </svg>
             </button>
           </div>
+          </>
+          )}
         </div>
       )}
     </>
