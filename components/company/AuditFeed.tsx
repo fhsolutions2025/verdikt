@@ -18,12 +18,13 @@ const TYPE_COLORS: Record<string, string> = {
 const PAGE_SIZE = 20
 
 interface Props {
-  initial: AuditLogEntry[]
+  initial:      AuditLogEntry[]
+  defaultOpen?: boolean
 }
 
-export function AuditFeed({ initial }: Props) {
+export function AuditFeed({ initial, defaultOpen = false }: Props) {
   const [entries, setEntries]   = useState<AuditLogEntry[]>(initial)
-  const [open, setOpen]         = useState(false)
+  const [open, setOpen]         = useState(defaultOpen)
   const [visible, setVisible]   = useState(PAGE_SIZE)
   const supabase                = createClient()
 

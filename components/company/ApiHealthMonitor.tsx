@@ -25,8 +25,12 @@ const LICENSE_LABELS: Record<string, { label: string; color: string; tooltip: st
   paid_required_at_scale: { label: 'paid at scale', color: '#9CA3AF', tooltip: 'Free tier available, but production volumes require a paid plan.' },
 }
 
-export function ApiHealthMonitor({ sources, callsToday, aiStats }: Props) {
-  const [open, setOpen]     = useState(false)
+interface PropsWithOpen extends Props {
+  defaultOpen?: boolean
+}
+
+export function ApiHealthMonitor({ sources, callsToday, aiStats, defaultOpen = false }: PropsWithOpen) {
+  const [open, setOpen]     = useState(defaultOpen)
   const externalSources     = sources.filter(s => s.category !== 'ai')
   const aiSource            = sources.find(s => s.category === 'ai')
   const aiStatus            = aiStats.last_error ? 'degraded' : 'operational'

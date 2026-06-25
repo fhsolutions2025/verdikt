@@ -1,16 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { KpiCard } from '@/components/company/KpiCard'
-import { MmToggle } from '@/components/company/MmToggle'
-import { AuditFeed } from '@/components/company/AuditFeed'
-import { MarketRiskMonitor } from '@/components/company/MarketRiskMonitor'
-import { SingleOperatorCard } from '@/components/company/SingleOperatorCard'
-import { ApiHealthMonitor } from '@/components/company/ApiHealthMonitor'
-import { DataSourcesSection } from '@/components/company/DataSourcesSection'
-import { PendingReviewSection } from '@/components/company/PendingReviewSection'
-import { NewsMarketCreator } from '@/components/company/NewsMarketCreator'
-import { formatVolume } from '@/lib/calculations'
-import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
+import { CompanyDashboard } from '@/components/company/CompanyDashboard'
 import type {
   PlatformTotals, MmConfig, AuditLogEntry,
   RiskMarket, ApiSource, Market,
@@ -18,7 +8,6 @@ import type {
 
 export const dynamic = 'force-dynamic'
 
-// Haiku 4.5 token pricing (USD per million tokens, as of 2025)
 const HAIKU_INPUT_PRICE_PER_M  = 0.80
 const HAIKU_OUTPUT_PRICE_PER_M = 4.00
 
@@ -47,17 +36,13 @@ export default async function CompanyPage() {
     supabase.from('v_platform_totals').select('*').single(),
     supabase.from('mm_config').select('*').eq('id', '20000000-0000-0000-0000-000000000001').single(),
     supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(30),
-    // §4.2 — read from view; is_imbalanced and risk_tier come pre-computed
     supabase.from('v_market_risk_status').select('*'),
     supabase.from('markets').select('*').in('status', ['live', 'ai_ready', 'pending_mm_review']),
-    // Player-submitted markets awaiting company review
     supabase.from('markets').select('*').eq('status', 'ai_ready').eq('creator_type', 'player_mm').order('created_at', { ascending: false }),
     supabase.from('api_sources').select('*').order('category'),
-    // ai_call_log aggregates for today — project only used columns
     supabase.from('ai_call_log')
       .select('success, from_cache, error_message, latency_ms, input_tokens, output_tokens, created_at')
       .gte('created_at', todayISO),
-    // api_rate_limits — call counts per external source for today's windows
     supabase.from('api_rate_limits').select('api_name, call_count').gte('window_start', todayISO),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).rpc('get_realized_spread_income'),
@@ -65,22 +50,16 @@ export default async function CompanyPage() {
 
   const totals      = totalsRes.data      as PlatformTotals | null
   const mmConfig    = mmConfigRes.data    as MmConfig | null
-  const auditLog    = auditLogRes.data    as AuditLogEntry[] | null
-  const riskMarkets     = (riskMarketsRes.data ?? []) as RiskMarket[]
-  const allMarkets      = allMarketsRes.data  ?? []
-  const pendingReview   = (pendingReviewRes.data ?? []) as Market[]
+  const auditLog    = (auditLogRes.data   ?? []) as AuditLogEntry[]
+  const riskMarkets = (riskMarketsRes.data ?? []) as RiskMarket[]
+  const allMarkets  = (allMarketsRes.data  ?? []) as Market[]
+  const pendingReview = (pendingReviewRes.data ?? []) as Market[]
   const apiSources  = (apiSourcesRes.data ?? []) as ApiSource[]
-  const aiCalls       = aiCallsRes.data     ?? []
-  const rateLimitRows = (rateLimitsRes.data  ?? []) as { api_name: string; call_count: number }[]
+  const aiCalls     = aiCallsRes.data     ?? []
+  const rateLimitRows = (rateLimitsRes.data ?? []) as { api_name: string; call_count: number }[]
   const spreadIncome  = (spreadRes.data as number | null) ?? 0
 
-  const totalVolume   = totals?.total_volume        ?? 0
-  const totalFees     = totals?.total_platform_fees  ?? 0
-  const totalRebates  = totals?.total_maker_rebates  ?? 0
-  const activeMarkets = allMarkets.length
-  const liveCount     = riskMarkets.length
-
-  // §6 — AI stats computed from ai_call_log
+  // AI stats from call log
   type AiRow = {
     success: boolean; from_cache: boolean; error_message: string | null
     latency_ms: number | null; input_tokens: number | null
@@ -111,7 +90,6 @@ export default async function CompanyPage() {
   const costToday  = (totalInputTokens  / 1_000_000) * HAIKU_INPUT_PRICE_PER_M
                    + (totalOutputTokens / 1_000_000) * HAIKU_OUTPUT_PRICE_PER_M
 
-  // Aggregate call counts per api_name across all minute windows today
   const callsToday = rateLimitRows.reduce<Record<string, number>>((acc, row) => {
     acc[row.api_name] = (acc[row.api_name] ?? 0) + row.call_count
     return acc
@@ -126,142 +104,17 @@ export default async function CompanyPage() {
   }
 
   return (
-    <main
-      className="min-h-screen"
-      style={{ backgroundColor: '#0D1117' }}
-    >
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-
-        {/* Page header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 style={{ color: '#E6EDF3', fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>
-              Operations
-            </h1>
-            <p style={{ color: '#6B7280', fontSize: 12, marginTop: 3 }}>
-              {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            <span style={{
-              backgroundColor: '#00C85310',
-              border: '1px solid #00C85330',
-              color: '#00C853',
-              fontSize: 11,
-              fontWeight: 700,
-              padding: '4px 10px',
-              borderRadius: 999,
-              letterSpacing: '0.06em',
-            }}>
-              LIVE
-            </span>
-          </div>
-        </div>
-
-        {/* Revenue banner */}
-        <div
-          style={{
-            backgroundColor: '#0A2A0A',
-            border: '1px solid #00C85330',
-            borderRadius: 12,
-            padding: '14px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ color: '#6B7280', fontSize: 12, fontWeight: 600 }}>Fee income</span>
-            <span style={{ color: '#00E676', fontSize: 14, fontWeight: 700, fontFamily: 'monospace' }}>
-              {totalFees.toFixed(2)}¢
-            </span>
-          </div>
-          <div style={{ color: '#374151', fontSize: 12 }}>+</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ color: '#6B7280', fontSize: 12, fontWeight: 600 }}>MM spread</span>
-            <span style={{ color: '#00E676', fontSize: 14, fontWeight: 700, fontFamily: 'monospace' }}>
-              {spreadIncome.toFixed(2)}¢
-            </span>
-          </div>
-          <div style={{ color: '#374151', fontSize: 12 }}>=</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 600 }}>Total revenue</span>
-            <span style={{ color: '#00C853', fontSize: 16, fontWeight: 800, fontFamily: 'monospace' }}>
-              {(totalFees + spreadIncome).toFixed(2)}¢
-            </span>
-            <Tooltip content="Fee income is 75% of all taker fees. MM spread is half the bid-ask × volume traded while Verdikt acts as market maker." position="bottom">
-              <InfoIcon />
-            </Tooltip>
-          </div>
-        </div>
-
-        {/* MM Toggle — moved above KPI grid */}
-        {mmConfig && (
-          <MmToggle
-            initial={mmConfig.is_verdikt_acting_as_mm}
-            platformFees={totalFees}
-            makerRebates={totalRebates}
-          />
-        )}
-
-        {/* Pending Review — player submissions awaiting company decision */}
-        <PendingReviewSection initial={pendingReview} />
-
-        {/* KPI grid — 4th card = Active Operators */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <KpiCard
-            label="Total Volume (today)"
-            value={formatVolume(totalVolume)}
-            sub="cumulative traded"
-            tooltip="Cumulative cents traded across all live markets since launch."
-          />
-          <KpiCard
-            label="Platform Fees (today)"
-            value={totalFees.toFixed(2)}
-            sub="75% Verdikt share"
-            accent="#00C853"
-            tooltip="Verdikt's 75% share of all taker fees collected. The remaining 25% goes to the market maker."
-          />
-          <KpiCard
-            label="Active Markets"
-            value={activeMarkets}
-            sub={`${liveCount} live`}
-            live={false}
-            tooltip="Markets currently live plus those in AI review or MM approval queues."
-          />
-          <KpiCard
-            label="Active Operators"
-            value="1"
-            sub="Betika Kenya"
-            live={false}
-            tooltip="B2B partners who embed Verdikt markets in their platforms and share in revenue."
-          />
-        </div>
-
-        {/* Single operator card — Category 1 */}
-        <SingleOperatorCard totalVolume={totalVolume} totalFees={totalFees} />
-
-        {/* Risk monitor */}
-        <MarketRiskMonitor initial={riskMarkets} />
-
-        {/* News → Market creator */}
-        <NewsMarketCreator />
-
-        {/* Configurations — data source on/off toggles */}
-        <DataSourcesSection initial={apiSources} />
-
-        {/* API Health — collapsible by default (Change 4 is in the component) */}
-        <ApiHealthMonitor
-          sources={apiSources}
-          callsToday={callsToday}
-          aiStats={aiStats}
-        />
-
-        {/* Audit feed */}
-        <AuditFeed initial={auditLog ?? []} />
-      </div>
-    </main>
+    <CompanyDashboard
+      totals={totals}
+      mmConfig={mmConfig}
+      auditLog={auditLog}
+      riskMarkets={riskMarkets}
+      allMarkets={allMarkets}
+      pendingReview={pendingReview}
+      apiSources={apiSources}
+      aiStats={aiStats}
+      callsToday={callsToday}
+      spreadIncome={spreadIncome}
+    />
   )
 }

@@ -18,6 +18,9 @@ export function PersonaSwitcher() {
   const isMmDesk   = pathname.startsWith('/mm-desk')
   const isDark     = isCompany
 
+  // Company portal has its own full-screen layout with embedded header
+  if (isCompany) return null
+
   return (
     <header
       className="flex items-center justify-between px-4 py-3"

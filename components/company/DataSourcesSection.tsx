@@ -24,11 +24,12 @@ const LICENSE_COLORS: Record<string, string> = {
 }
 
 interface Props {
-  initial: ApiSource[]
+  initial:      ApiSource[]
+  defaultOpen?: boolean
 }
 
-export function DataSourcesSection({ initial }: Props) {
-  const [open, setOpen]         = useState(false)
+export function DataSourcesSection({ initial, defaultOpen = false }: Props) {
+  const [open, setOpen]         = useState(defaultOpen)
   const [sources, setSources]   = useState(initial)
   const [pending, startTransition] = useTransition()
   const supabase                = createClient()
