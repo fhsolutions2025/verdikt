@@ -15,15 +15,15 @@ export function SingleOperatorCard({ totalVolume, totalFees }: Props) {
   return (
     <div
       style={{
-        backgroundColor: '#161B22',
-        border: '1px solid rgba(255,255,255,0.08)',
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
         borderRadius: 16,
         padding: 20,
       }}
     >
       {/* Row 1: name + ACTIVE badge */}
       <div className="flex items-center justify-between mb-4">
-        <span style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 700 }}>
+        <span style={{ color: 'var(--text-strong)', fontSize: 16, fontWeight: 700 }}>
           Betika Kenya
         </span>
         <span
@@ -61,13 +61,13 @@ function StatItem({
     <div className="space-y-0.5">
       <p
         className="uppercase font-bold"
-        style={{ color: '#6B7280', fontSize: 10, letterSpacing: '0.07em' }}
+        style={{ color: 'var(--text-dim)', fontSize: 10, letterSpacing: '0.07em' }}
       >
         {label}
       </p>
       <p
         className="font-mono font-bold"
-        style={{ color: accent ?? '#FFFFFF', fontSize: 18 }}
+        style={{ color: accent ?? 'var(--text-strong)', fontSize: 18 }}
       >
         {value}
       </p>

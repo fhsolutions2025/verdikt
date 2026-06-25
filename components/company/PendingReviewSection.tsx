@@ -50,18 +50,18 @@ export function PendingReviewSection({ initial }: Props) {
     <div
       className="rounded-2xl overflow-hidden"
       style={{
-        backgroundColor: '#161B22',
+        backgroundColor: 'var(--bg-surface)',
         border: '1px solid rgba(255,165,0,0.3)',
       }}
     >
       {/* Header */}
       <div
         className="px-5 py-4 flex items-center gap-3 border-b"
-        style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+        style={{ borderColor: 'var(--border)' }}
       >
         <h2
           className="text-xs font-bold uppercase tracking-widest"
-          style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+          style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
         >
           Pending Review
         </h2>
@@ -131,7 +131,7 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
   return (
     <div
       style={{
-        backgroundColor: '#0D1117',
+        backgroundColor: 'var(--bg-base)',
         border: '1px solid rgba(255,165,0,0.3)',
         borderRadius: 14,
         padding: 16,
@@ -161,7 +161,7 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
             ⚠ {daysToClose}d to close
           </span>
         )}
-        <span className="text-xs ml-auto" style={{ color: '#4B5563' }}>
+        <span className="text-xs ml-auto" style={{ color: 'var(--text-faint)' }}>
           {new Date(market.created_at).toLocaleTimeString('en-GB', {
             hour: '2-digit', minute: '2-digit',
           })}
@@ -169,12 +169,12 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
       </div>
 
       {/* Row 2: Original question */}
-      <p className="text-xs mb-1" style={{ color: '#6B7280' }}>
-        Original: <span style={{ color: '#9CA3AF' }}>{original}</span>
+      <p className="text-xs mb-1" style={{ color: 'var(--text-dim)' }}>
+        Original: <span style={{ color: 'var(--text-muted)' }}>{original}</span>
       </p>
 
       {/* Row 3: AI cleaned question */}
-      <p className="text-sm font-bold leading-snug mb-3" style={{ color: '#FFFFFF' }}>
+      <p className="text-sm font-bold leading-snug mb-3" style={{ color: 'var(--text-strong)' }}>
         AI: {market.question}
       </p>
 
@@ -195,7 +195,7 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
           </span>
         </div>
         {market.resolution_source && (
-          <span className="text-xs" style={{ color: '#4B5563' }}>
+          <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
             via {market.resolution_source}
           </span>
         )}
@@ -208,7 +208,7 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
           disabled={loading !== null}
           style={{
             width: '100%',
-            backgroundColor: loading === 'accept' ? '#374151' : '#00A844',
+            backgroundColor: loading === 'accept' ? 'var(--text-faintest)' : '#00A844',
             color: '#FFFFFF',
             borderRadius: 10,
             padding: 14,
@@ -232,9 +232,9 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
               onKeyDown={e => e.key === 'Enter' && reject()}
               style={{
                 width: '100%',
-                backgroundColor: '#161B22',
+                backgroundColor: 'var(--bg-surface)',
                 border: '1.5px solid #DC2626',
-                color: '#FFFFFF',
+                color: '#DC2626',
                 borderRadius: 8,
                 padding: '10px 14px',
                 fontSize: 13,
@@ -249,9 +249,9 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
                 disabled={!reason.trim() || loading !== null}
                 style={{
                   flex: 1,
-                  backgroundColor: loading === 'reject' ? '#374151' : 'transparent',
+                  backgroundColor: loading === 'reject' ? 'var(--text-faintest)' : 'transparent',
                   border: '1.5px solid #DC2626',
-                  color: loading === 'reject' ? '#6B7280' : '#DC2626',
+                  color: loading === 'reject' ? 'var(--text-dim)' : '#DC2626',
                   borderRadius: 10,
                   padding: 12,
                   fontSize: 13,
@@ -265,8 +265,8 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
                 onClick={() => setShowReason(false)}
                 style={{
                   backgroundColor: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#6B7280',
+                  border: '1px solid var(--border-strong)',
+                  color: 'var(--text-dim)',
                   borderRadius: 10,
                   padding: '12px 16px',
                   fontSize: 13,

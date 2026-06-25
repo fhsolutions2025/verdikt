@@ -170,14 +170,14 @@ function NavItem({
         borderRadius: 0,
         backgroundColor: active ? 'rgba(0,200,83,0.08)' : 'transparent',
         borderLeft: `2px solid ${active ? '#00C853' : 'transparent'}`,
-        color: active ? '#00C853' : '#6B7280',
+        color: active ? '#00C853' : 'var(--text-dim)',
         transition: 'all 0.12s',
       }}
       onMouseEnter={e => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#9CA3AF'
+        if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'
       }}
       onMouseLeave={e => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'
+        if (!active) (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-dim)'
       }}
     >
       <span style={{ flexShrink: 0 }}>{icon}</span>
@@ -205,8 +205,8 @@ function TabSection({ title, subtitle, children }: { title: string; subtitle?: s
   return (
     <div className="space-y-5">
       <div>
-        <h2 style={{ color: '#E6EDF3', fontSize: 18, fontWeight: 700, margin: 0 }}>{title}</h2>
-        {subtitle && <p style={{ color: '#6B7280', fontSize: 13, marginTop: 2 }}>{subtitle}</p>}
+        <h2 style={{ color: 'var(--text-strong)', fontSize: 18, fontWeight: 700, margin: 0 }}>{title}</h2>
+        {subtitle && <p style={{ color: 'var(--text-dim)', fontSize: 13, marginTop: 2 }}>{subtitle}</p>}
       </div>
       {children}
     </div>
@@ -232,7 +232,7 @@ export function CompanyDashboard({
   const isMMOn        = mmConfig?.is_verdikt_acting_as_mm ?? false
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#0D1117', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--bg-base)', overflow: 'hidden' }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header style={{
@@ -241,27 +241,27 @@ export function CompanyDashboard({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 20px',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-        backgroundColor: '#0D1117',
+        borderBottom: '1px solid var(--border)',
+        backgroundColor: 'var(--bg-base)',
         flexShrink: 0,
         zIndex: 40,
       }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
           <VerdiktLogo size={24} />
-          <span style={{ color: '#FFFFFF', fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em' }}>Verdikt</span>
+          <span style={{ color: 'var(--text-strong)', fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em' }}>Verdikt</span>
         </Link>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <ThemeToggle compact />
-          <span style={{ width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+          <span style={{ width: 1, height: 18, backgroundColor: 'var(--border-strong)', margin: '0 2px' }} />
           <Link href="/mm-desk" style={{
             padding: '5px 12px',
             borderRadius: 8,
             fontSize: 12,
             fontWeight: 600,
-            color: '#9CA3AF',
+            color: 'var(--text-muted)',
             textDecoration: 'none',
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: '1px solid var(--border)',
             backgroundColor: 'transparent',
             transition: 'all 0.12s',
           }}>
@@ -272,9 +272,9 @@ export function CompanyDashboard({
             borderRadius: 8,
             fontSize: 12,
             fontWeight: 600,
-            color: '#9CA3AF',
+            color: 'var(--text-muted)',
             textDecoration: 'none',
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: '1px solid var(--border)',
             backgroundColor: 'transparent',
           }}>
             Player
@@ -302,7 +302,7 @@ export function CompanyDashboard({
         <aside style={{
           width: 210,
           flexShrink: 0,
-          borderRight: '1px solid rgba(255,255,255,0.08)',
+          borderRight: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
           overflowY: 'auto',
@@ -311,7 +311,7 @@ export function CompanyDashboard({
         }}>
           {/* Section label */}
           <p style={{
-            color: '#4B5563',
+            color: 'var(--text-faint)',
             fontSize: 10,
             fontWeight: 700,
             letterSpacing: '0.1em',
@@ -330,7 +330,7 @@ export function CompanyDashboard({
           <NavItem icon={<IconNews />}     label="News → Market" active={tab === 'news'}     onClick={() => setTab('news')} />
 
           {/* Divider */}
-          <div style={{ margin: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }} />
+          <div style={{ margin: '10px 14px', borderTop: '1px solid var(--border-soft)' }} />
 
           {/* System nav */}
           <NavItem icon={<IconPlug />}     label="Data Sources"  active={tab === 'sources'}  onClick={() => setTab('sources')} />
@@ -340,11 +340,11 @@ export function CompanyDashboard({
           <NavItem icon={<IconBot />}      label="Agents"        active={tab === 'agents'}   onClick={() => setTab('agents')} />
 
           {/* Divider */}
-          <div style={{ margin: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }} />
+          <div style={{ margin: '10px 14px', borderTop: '1px solid var(--border-soft)' }} />
 
           {/* Growth nav */}
           <p style={{
-            color: '#4B5563',
+            color: 'var(--text-faint)',
             fontSize: 10,
             fontWeight: 700,
             letterSpacing: '0.1em',
@@ -357,14 +357,14 @@ export function CompanyDashboard({
           <NavItem icon={<IconMegaphone />} label="Marketing"    active={tab === 'marketing'} onClick={() => setTab('marketing')} />
 
           {/* Bottom: MM status */}
-          <div style={{ marginTop: 'auto', padding: '12px 14px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ marginTop: 'auto', padding: '12px 14px 0', borderTop: '1px solid var(--border-soft)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 0' }}>
               <span style={{
                 width: 7, height: 7, borderRadius: '50%',
-                backgroundColor: isMMOn ? '#00C853' : '#374151',
+                backgroundColor: isMMOn ? '#00C853' : 'var(--text-faintest)',
                 flexShrink: 0,
               }} />
-              <span style={{ color: '#6B7280', fontSize: 11, fontWeight: 600 }}>
+              <span style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 600 }}>
                 MM {isMMOn ? 'ON' : 'OFF'}
               </span>
             </div>
@@ -379,7 +379,7 @@ export function CompanyDashboard({
             <TabSection title="Overview">
               {/* Revenue banner */}
               <div style={{
-                backgroundColor: '#0A2A0A',
+                backgroundColor: 'rgba(0,200,83,0.12)',
                 border: '1px solid #00C85330',
                 borderRadius: 12,
                 padding: '14px 20px',
@@ -389,21 +389,21 @@ export function CompanyDashboard({
                 gap: 16,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#6B7280', fontSize: 12, fontWeight: 600 }}>Fee income</span>
+                  <span style={{ color: 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>Fee income</span>
                   <span style={{ color: '#00E676', fontSize: 14, fontWeight: 700, fontFamily: 'monospace' }}>
                     {totalFees.toFixed(2)}¢
                   </span>
                 </div>
-                <span style={{ color: '#374151' }}>+</span>
+                <span style={{ color: 'var(--text-faintest)' }}>+</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#6B7280', fontSize: 12, fontWeight: 600 }}>MM spread</span>
+                  <span style={{ color: 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>MM spread</span>
                   <span style={{ color: '#00E676', fontSize: 14, fontWeight: 700, fontFamily: 'monospace' }}>
                     {spreadIncome.toFixed(2)}¢
                   </span>
                 </div>
-                <span style={{ color: '#374151' }}>=</span>
+                <span style={{ color: 'var(--text-faintest)' }}>=</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 600 }}>Total revenue</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>Total revenue</span>
                   <span style={{ color: '#00C853', fontSize: 16, fontWeight: 800, fontFamily: 'monospace' }}>
                     {(totalFees + spreadIncome).toFixed(2)}¢
                   </span>
@@ -477,13 +477,13 @@ export function CompanyDashboard({
             >
               {pendingCount === 0 ? (
                 <div style={{
-                  backgroundColor: '#161B22',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  backgroundColor: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
                   borderRadius: 16,
                   padding: '48px 24px',
                   textAlign: 'center',
                 }}>
-                  <p style={{ color: '#4B5563', fontSize: 14 }}>No submissions pending review.</p>
+                  <p style={{ color: 'var(--text-faint)', fontSize: 14 }}>No submissions pending review.</p>
                 </div>
               ) : (
                 <PendingReviewSection initial={pendingReview} />

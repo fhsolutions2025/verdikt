@@ -71,15 +71,15 @@ const ALL_TOOLS = [
   { id: 'get_market_risk',       label: 'Market Risk (MM)',   agents: ['mm_desk'] },
 ]
 
-const CARD_BG = '#12161D'
-const CARD_BORDER = 'rgba(255,255,255,0.07)'
+const CARD_BG = 'var(--bg-surface-2)'
+const CARD_BORDER = 'var(--border)'
 
 // ── Section header with accent icon ──────────────────────────────────────────
 function SectionLabel({ children, accent }: { children: React.ReactNode; accent: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
       <span style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: accent }} />
-      <span style={{ color: '#8B95A5', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+      <span style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
         {children}
       </span>
     </div>
@@ -97,7 +97,7 @@ function Slider({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 500 }}>{label}</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 500 }}>{label}</span>
         <span style={{
           color: accent, fontSize: 12.5, fontWeight: 700, fontFamily: 'monospace',
           backgroundColor: accent + '14', padding: '1px 8px', borderRadius: 6,
@@ -110,7 +110,7 @@ function Slider({
         onChange={e => onChange(Number(e.target.value))}
         style={{
           width: '100%', cursor: 'pointer', height: 4, borderRadius: 3, appearance: 'none', WebkitAppearance: 'none',
-          background: `linear-gradient(90deg, ${accent} ${pct}%, rgba(255,255,255,0.08) ${pct}%)`,
+          background: `linear-gradient(90deg, ${accent} ${pct}%, var(--border) ${pct}%)`,
           accentColor: accent,
         }}
       />
@@ -126,7 +126,7 @@ function SatisfactionRing({ pct, color }: { pct: number | null; color: string })
   return (
     <div style={{ position: 'relative', width: 68, height: 68 }}>
       <svg width="68" height="68" viewBox="0 0 68 68" style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx="34" cy="34" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
+        <circle cx="34" cy="34" r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
         {pct != null && (
           <circle
             cx="34" cy="34" r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
@@ -138,7 +138,7 @@ function SatisfactionRing({ pct, color }: { pct: number | null; color: string })
         position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
       }}>
-        <span style={{ color: '#E6EDF3', fontSize: 16, fontWeight: 800, fontFamily: 'monospace' }}>
+        <span style={{ color: 'var(--text-strong)', fontSize: 16, fontWeight: 800, fontFamily: 'monospace' }}>
           {pct != null ? `${Math.round(pct)}%` : '—'}
         </span>
       </div>
@@ -270,8 +270,8 @@ export function AgentsTab() {
           position: 'relative',
           overflow: 'hidden',
           background: auto.agents_enabled
-            ? 'linear-gradient(135deg, #12161D 0%, #0F1A14 100%)'
-            : 'linear-gradient(135deg, #1F1212 0%, #2A1212 100%)',
+            ? 'linear-gradient(135deg, var(--bg-surface-2) 0%, rgba(0,200,83,0.10) 100%)'
+            : 'linear-gradient(135deg, rgba(220,38,38,0.08) 0%, rgba(220,38,38,0.12) 100%)',
           border: `1px solid ${auto.agents_enabled ? '#00C85328' : '#DC262640'}`,
           borderRadius: 14,
           padding: '18px 22px',
@@ -297,10 +297,10 @@ export function AgentsTab() {
                 </svg>
               </div>
               <div>
-                <div style={{ color: '#E6EDF3', fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>
+                <div style={{ color: 'var(--text-strong)', fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>
                   Vega — Autonomous Trading
                 </div>
-                <div style={{ color: auto.agents_enabled ? '#7B8794' : '#F87171', fontSize: 12, marginTop: 3, fontWeight: 500 }}>
+                <div style={{ color: auto.agents_enabled ? 'var(--text-faint)' : '#F87171', fontSize: 12, marginTop: 3, fontWeight: 500 }}>
                   {auto.agents_enabled
                     ? `${auto.active_count} of ${auto.total_count} player agent${auto.total_count !== 1 ? 's' : ''} active`
                     : 'GLOBALLY PAUSED — no autonomous trades will execute'}
@@ -342,17 +342,17 @@ export function AgentsTab() {
             flexWrap: 'wrap',
           }}>
             {[
-              { label: 'Capital deployed', value: auto.total_deployed.toLocaleString(), color: '#E6EDF3' },
+              { label: 'Capital deployed', value: auto.total_deployed.toLocaleString(), color: 'var(--text-strong)' },
               { label: 'Aggregate P&L', value: `${auto.total_pnl >= 0 ? '+' : ''}${auto.total_pnl.toLocaleString()}`, color: auto.total_pnl >= 0 ? '#00C853' : '#F87171' },
-              { label: 'Entries today', value: String(auto.entries_today), color: '#E6EDF3' },
+              { label: 'Entries today', value: String(auto.entries_today), color: 'var(--text-strong)' },
               { label: 'Exits today', value: String(auto.exits_today), color: '#F59E0B' },
-              { label: 'Errors today', value: String(auto.errors_today), color: auto.errors_today > 0 ? '#F87171' : '#6B7280' },
+              { label: 'Errors today', value: String(auto.errors_today), color: auto.errors_today > 0 ? '#F87171' : 'var(--text-dim)' },
             ].map((s, i) => (
               <div key={s.label} style={{
                 flex: 1, minWidth: 110, padding: '0 16px',
-                borderLeft: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                borderLeft: i === 0 ? 'none' : '1px solid var(--border-soft)',
               }}>
-                <div style={{ color: '#6B7280', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+                <div style={{ color: 'var(--text-dim)', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
                 <div style={{ color: s.color, fontSize: 18, fontWeight: 800, fontFamily: 'monospace', marginTop: 3 }}>{s.value}</div>
               </div>
             ))}
@@ -365,7 +365,7 @@ export function AgentsTab() {
 
         {/* ── Agent selector ────────────────────────────────────────────────── */}
         <div style={{ width: 214, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={{ color: '#4B5563', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px 2px' }}>
+          <p style={{ color: 'var(--text-faint)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px 2px' }}>
             Assistants
           </p>
           {Object.entries(AGENT_LABELS).map(([type, m]) => {
@@ -395,22 +395,22 @@ export function AgentsTab() {
                   <div style={{
                     width: 32, height: 32, borderRadius: 9, flexShrink: 0,
                     backgroundColor: m.color + (isSel ? '22' : '12'),
-                    color: isSel ? m.color : '#7B8794',
+                    color: isSel ? m.color : 'var(--text-faint)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <AgentGlyph type={type} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: isSel ? '#E6EDF3' : '#9CA3AF', fontSize: 13, fontWeight: isSel ? 700 : 600 }}>
+                    <div style={{ color: isSel ? 'var(--text-strong)' : 'var(--text-muted)', fontSize: 13, fontWeight: isSel ? 700 : 600 }}>
                       {m.label}
                     </div>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
                       <span style={{
                         width: 6, height: 6, borderRadius: '50%',
-                        backgroundColor: active ? m.color : '#374151',
+                        backgroundColor: active ? m.color : 'var(--text-faintest)',
                         boxShadow: active ? `0 0 6px ${m.color}` : 'none',
                       }} />
-                      <span style={{ color: active ? m.color : '#4B5563', fontSize: 10, fontWeight: 600 }}>
+                      <span style={{ color: active ? m.color : 'var(--text-faint)', fontSize: 10, fontWeight: 600 }}>
                         {active ? 'Live' : 'Off'}
                       </span>
                     </div>
@@ -423,15 +423,15 @@ export function AgentsTab() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     padding: '5px 8px', borderRadius: 8,
-                    backgroundColor: isToolsOpen ? m.color + '14' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${isToolsOpen ? m.color + '40' : 'rgba(255,255,255,0.05)'}`,
+                    backgroundColor: isToolsOpen ? m.color + '14' : 'var(--fill-subtle)',
+                    border: `1px solid ${isToolsOpen ? m.color + '40' : 'var(--fill-soft)'}`,
                     cursor: 'pointer',
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M7.5 1.5C8.5 1.5 9.5 2.5 9.5 3.5C9.5 4 9.3 4.4 9 4.8L10.5 6.3L9 7.8L7.5 6.3C7.1 6.6 6.7 6.8 6.2 6.8C5.2 6.8 4.2 5.8 4.2 4.8L1.8 7.2L2.5 7.9L1.5 8.9L3.1 10.5L4.1 9.5L4.8 10.2L7.2 7.8" stroke={isToolsOpen ? m.color : '#7B8794'} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M7.5 1.5C8.5 1.5 9.5 2.5 9.5 3.5C9.5 4 9.3 4.4 9 4.8L10.5 6.3L9 7.8L7.5 6.3C7.1 6.6 6.7 6.8 6.2 6.8C5.2 6.8 4.2 5.8 4.2 4.8L1.8 7.2L2.5 7.9L1.5 8.9L3.1 10.5L4.1 9.5L4.8 10.2L7.2 7.8" stroke={isToolsOpen ? m.color : 'var(--text-faint)'} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <span style={{ flex: 1, color: isToolsOpen ? m.color : '#7B8794', fontSize: 10.5, fontWeight: 600 }}>
+                  <span style={{ flex: 1, color: isToolsOpen ? m.color : 'var(--text-faint)', fontSize: 10.5, fontWeight: 600 }}>
                     Tools
                   </span>
                   <span style={{
@@ -442,7 +442,7 @@ export function AgentsTab() {
                     {deployed.length}
                   </span>
                   <svg width="9" height="9" viewBox="0 0 9 9" fill="none" style={{ transform: isToolsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-                    <path d="M2 3.5L4.5 6L7 3.5" stroke={isToolsOpen ? m.color : '#7B8794'} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M2 3.5L4.5 6L7 3.5" stroke={isToolsOpen ? m.color : 'var(--text-faint)'} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
 
@@ -450,16 +450,16 @@ export function AgentsTab() {
                 {isToolsOpen && (
                   <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 2 }}>
                     {deployed.length === 0 ? (
-                      <span style={{ color: '#4B5563', fontSize: 11, padding: '4px 6px' }}>No tools deployed.</span>
+                      <span style={{ color: 'var(--text-faint)', fontSize: 11, padding: '4px 6px' }}>No tools deployed.</span>
                     ) : deployed.map(t => (
                       <div key={t.id} style={{
                         display: 'flex', alignItems: 'center', gap: 7,
                         padding: '5px 8px', borderRadius: 7,
-                        backgroundColor: 'rgba(255,255,255,0.03)',
+                        backgroundColor: 'var(--fill-subtle)',
                       }}>
                         <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: m.color, flexShrink: 0 }} />
-                        <span style={{ color: '#C9D1D9', fontSize: 11, fontWeight: 500, flex: 1 }}>{t.label}</span>
-                        <span style={{ color: '#4B5563', fontSize: 9, fontFamily: 'monospace' }}>{t.id}</span>
+                        <span style={{ color: 'var(--text)', fontSize: 11, fontWeight: 500, flex: 1 }}>{t.label}</span>
+                        <span style={{ color: 'var(--text-faint)', fontSize: 9, fontFamily: 'monospace' }}>{t.id}</span>
                       </div>
                     ))}
                   </div>
@@ -491,14 +491,14 @@ export function AgentsTab() {
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ color: '#E6EDF3', fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>{meta.label}</span>
+                    <span style={{ color: 'var(--text-strong)', fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>{meta.label}</span>
                     <span style={{
                       fontSize: 10, fontWeight: 700, color: meta.color,
                       backgroundColor: meta.color + '18', padding: '2px 7px', borderRadius: 5,
                     }}>{meta.tag}</span>
-                    <span style={{ color: '#4B5563', fontSize: 10.5, fontFamily: 'monospace' }}>v{cfg.version}</span>
+                    <span style={{ color: 'var(--text-faint)', fontSize: 10.5, fontFamily: 'monospace' }}>v{cfg.version}</span>
                   </div>
-                  <div style={{ color: '#7B8794', fontSize: 12, marginTop: 3 }}>{meta.desc}</div>
+                  <div style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 3 }}>{meta.desc}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -507,7 +507,7 @@ export function AgentsTab() {
                     onClick={() => setEditing({ ...cfg, is_active: !cfg.is_active })}
                     style={{
                       width: 38, height: 21, borderRadius: 11,
-                      backgroundColor: cfg.is_active ? meta.color : '#374151',
+                      backgroundColor: cfg.is_active ? meta.color : 'var(--text-faintest)',
                       position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s',
                     }}
                   >
@@ -517,7 +517,7 @@ export function AgentsTab() {
                       backgroundColor: '#fff', transition: 'left 0.2s',
                     }} />
                   </div>
-                  <span style={{ color: cfg.is_active ? '#E6EDF3' : '#6B7280', fontSize: 12, fontWeight: 600 }}>
+                  <span style={{ color: cfg.is_active ? 'var(--text-strong)' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>
                     {cfg.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </label>
@@ -560,7 +560,7 @@ export function AgentsTab() {
                   {/* Satisfaction ring */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                     <SatisfactionRing pct={satisfaction} color={meta.color} />
-                    <span style={{ color: '#6B7280', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Satisfaction</span>
+                    <span style={{ color: 'var(--text-dim)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Satisfaction</span>
                   </div>
                   {/* Feedback bars */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -568,7 +568,7 @@ export function AgentsTab() {
                     <FeedbackRow label="Thumbs down" value={stats.thumbsDown} total={stats.total} color="#DC2626" />
                   </div>
                   {/* Numbers */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: 24 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderLeft: '1px solid var(--border-soft)', paddingLeft: 24 }}>
                     <Stat label="Total messages" value={String(stats.total)} />
                     <Stat label="Avg latency" value={stats.avgLatencyMs != null ? `${Math.round(stats.avgLatencyMs)}ms` : '—'} />
                   </div>
@@ -585,9 +585,9 @@ export function AgentsTab() {
                 rows={12}
                 spellCheck={false}
                 style={{
-                  width: '100%', backgroundColor: '#0B0E13',
+                  width: '100%', backgroundColor: 'var(--bg-inset)',
                   border: `1px solid ${CARD_BORDER}`, borderRadius: 11,
-                  padding: '14px 16px', color: '#C9D4E0', fontSize: 12,
+                  padding: '14px 16px', color: 'var(--text)', fontSize: 12,
                   fontFamily: 'ui-monospace, SFMono-Regular, monospace', lineHeight: 1.65,
                   resize: 'vertical', outline: 'none', boxSizing: 'border-box',
                 }}
@@ -623,7 +623,7 @@ export function AgentsTab() {
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
                         padding: '11px 14px',
-                        backgroundColor: active ? meta.color + '0E' : 'rgba(255,255,255,0.02)',
+                        backgroundColor: active ? meta.color + '0E' : 'var(--fill-subtle)',
                         border: `1px solid ${active ? meta.color + '38' : CARD_BORDER}`,
                         borderRadius: 10, cursor: 'pointer', transition: 'all 0.12s',
                       }}
@@ -631,7 +631,7 @@ export function AgentsTab() {
                       <span style={{
                         width: 18, height: 18, borderRadius: 5, flexShrink: 0,
                         backgroundColor: active ? meta.color : 'transparent',
-                        border: `1.5px solid ${active ? meta.color : '#4B5563'}`,
+                        border: `1.5px solid ${active ? meta.color : 'var(--text-faint)'}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         transition: 'all 0.12s',
                       }}>
@@ -643,8 +643,8 @@ export function AgentsTab() {
                       </span>
                       <input type="checkbox" checked={active} onChange={() => toggleTool(tool.id)} style={{ display: 'none' }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ color: active ? '#E6EDF3' : '#8B95A5', fontSize: 13, fontWeight: 600 }}>{tool.label}</div>
-                        <div style={{ color: '#4B5563', fontSize: 10, fontFamily: 'monospace', marginTop: 1 }}>{tool.id}</div>
+                        <div style={{ color: active ? 'var(--text-strong)' : 'var(--text-muted)', fontSize: 13, fontWeight: 600 }}>{tool.label}</div>
+                        <div style={{ color: 'var(--text-faint)', fontSize: 10, fontFamily: 'monospace', marginTop: 1 }}>{tool.id}</div>
                       </div>
                     </label>
                   )
@@ -686,20 +686,20 @@ export function AgentsTab() {
                     <div key={g.rule} style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10,
                       padding: '11px 13px', borderRadius: 9,
-                      backgroundColor: on ? 'rgba(0,200,83,0.04)' : 'rgba(255,255,255,0.02)',
+                      backgroundColor: on ? 'rgba(0,200,83,0.04)' : 'var(--fill-subtle)',
                       border: `1px solid ${on ? '#00C85320' : CARD_BORDER}`,
                     }}>
                       <span style={{
                         flexShrink: 0, marginTop: 2, width: 7, height: 7, borderRadius: '50%',
-                        backgroundColor: on ? '#00C853' : '#4B5563',
+                        backgroundColor: on ? '#00C853' : 'var(--text-faint)',
                         boxShadow: on ? '0 0 6px #00C85380' : 'none',
                       }} />
                       <div>
-                        <div style={{ color: on ? '#D1D5DB' : '#6B7280', fontSize: 12, fontWeight: 600 }}>
+                        <div style={{ color: on ? 'var(--text)' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>
                           {g.rule}
-                          {!on && <span style={{ color: '#4B5563', fontSize: 10, marginLeft: 6, fontWeight: 500 }}>n/a for this agent</span>}
+                          {!on && <span style={{ color: 'var(--text-faint)', fontSize: 10, marginLeft: 6, fontWeight: 500 }}>n/a for this agent</span>}
                         </div>
-                        <div style={{ color: '#6B7280', fontSize: 10.5, marginTop: 2, lineHeight: 1.45 }}>{g.desc}</div>
+                        <div style={{ color: 'var(--text-dim)', fontSize: 10.5, marginTop: 2, lineHeight: 1.45 }}>{g.desc}</div>
                       </div>
                     </div>
                   )
@@ -720,10 +720,10 @@ function FeedbackRow({ label, value, total, color }: { label: string; value: num
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span style={{ color: '#9CA3AF', fontSize: 11.5 }}>{label}</span>
-        <span style={{ color: '#E6EDF3', fontSize: 11.5, fontWeight: 700, fontFamily: 'monospace' }}>{value}</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>{label}</span>
+        <span style={{ color: 'var(--text-strong)', fontSize: 11.5, fontWeight: 700, fontFamily: 'monospace' }}>{value}</span>
       </div>
-      <div style={{ height: 5, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ height: 5, backgroundColor: 'var(--border-soft)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, backgroundColor: color, borderRadius: 3, transition: 'width 0.5s' }} />
       </div>
     </div>
@@ -733,8 +733,8 @@ function FeedbackRow({ label, value, total, color }: { label: string; value: num
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-      <span style={{ color: '#7B8794', fontSize: 11.5 }}>{label}</span>
-      <span style={{ color: '#E6EDF3', fontSize: 13, fontWeight: 700, fontFamily: 'monospace' }}>{value}</span>
+      <span style={{ color: 'var(--text-faint)', fontSize: 11.5 }}>{label}</span>
+      <span style={{ color: 'var(--text-strong)', fontSize: 13, fontWeight: 700, fontFamily: 'monospace' }}>{value}</span>
     </div>
   )
 }

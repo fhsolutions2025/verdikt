@@ -79,22 +79,22 @@ export function MarketRiskMonitor({ initial }: Props) {
       <div
         className="rounded-2xl overflow-hidden"
         style={{
-          backgroundColor: '#161B22',
-          border: '1px solid rgba(255,255,255,0.08)',
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border)',
         }}
       >
         <div
           className="px-5 py-4 flex items-center justify-between border-b"
-          style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+          style={{ borderColor: 'var(--border)' }}
         >
           <div className="flex items-center gap-3">
             <h2
               className="text-xs font-bold uppercase tracking-widest"
-              style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+              style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
             >
               Market Risk Monitor
             </h2>
-            <span className="text-xs" style={{ color: '#4B5563' }}>
+            <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
               — {markets.length} market{markets.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -108,20 +108,20 @@ export function MarketRiskMonitor({ initial }: Props) {
           )}
         </div>
 
-        <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+        <div className="divide-y" style={{ borderColor: 'var(--border-faint)' }}>
           {markets.map(market => (
             <div key={market.id} className="px-5 py-4 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <p
                   className="text-sm font-medium leading-snug"
-                  style={{ color: '#D1D5DB', maxWidth: '60%' }}
+                  style={{ color: 'var(--text)', maxWidth: '60%' }}
                 >
                   {market.question}
                 </p>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span
                     className="text-xs font-bold px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: '#374151', color: '#9CA3AF' }}
+                    style={{ backgroundColor: 'var(--text-faintest)', color: 'var(--text-muted)' }}
                   >
                     {market.category}
                   </span>
@@ -130,7 +130,7 @@ export function MarketRiskMonitor({ initial }: Props) {
                     className="text-xs font-bold px-2.5 py-1 rounded-lg transition-all active:scale-95"
                     style={{
                       backgroundColor: 'transparent',
-                      color: '#6B7280',
+                      color: 'var(--text-dim)',
                       border: '1px solid rgba(255,255,255,0.18)',
                       cursor: 'pointer',
                     }}
@@ -140,7 +140,7 @@ export function MarketRiskMonitor({ initial }: Props) {
                     }}
                     onMouseLeave={e => {
                       (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.18)'
-                      ;(e.currentTarget as HTMLButtonElement).style.color = '#6B7280'
+                      ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-dim)'
                     }}
                   >
                     Resolve
@@ -160,14 +160,14 @@ export function MarketRiskMonitor({ initial }: Props) {
                   Review in MM Desk if no reprice in last 30 min.
                 </p>
               )}
-              <div className="flex items-center gap-4 text-xs font-mono" style={{ color: '#6B7280' }}>
+              <div className="flex items-center gap-4 text-xs font-mono" style={{ color: 'var(--text-dim)' }}>
                 <span>Vol: {market.volume.toFixed(0)}</span>
               </div>
             </div>
           ))}
 
           {markets.length === 0 && (
-            <p className="px-5 py-6 text-sm" style={{ color: '#6B7280' }}>
+            <p className="px-5 py-6 text-sm" style={{ color: 'var(--text-dim)' }}>
               No live markets.
             </p>
           )}
@@ -183,20 +183,20 @@ export function MarketRiskMonitor({ initial }: Props) {
         >
           <div
             className="w-full max-w-sm rounded-2xl p-6 space-y-5"
-            style={{ backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.12)' }}
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}
           >
             <div className="space-y-1">
-              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#6B7280' }}>
+              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--text-dim)' }}>
                 Resolve Market
               </p>
-              <p className="text-sm font-medium leading-snug" style={{ color: '#D1D5DB' }}>
+              <p className="text-sm font-medium leading-snug" style={{ color: 'var(--text)' }}>
                 {resolving.question}
               </p>
             </div>
 
             {/* Outcome picker */}
             <div className="space-y-2">
-              <p className="text-xs font-bold uppercase" style={{ color: '#6B7280' }}>Select outcome</p>
+              <p className="text-xs font-bold uppercase" style={{ color: 'var(--text-dim)' }}>Select outcome</p>
               <div className="grid grid-cols-3 gap-2">
                 {(['yes', 'no', 'void'] as Outcome[]).map(o => (
                   <button
@@ -205,10 +205,10 @@ export function MarketRiskMonitor({ initial }: Props) {
                     className="py-3 rounded-xl text-sm font-bold transition-all"
                     style={{
                       backgroundColor: outcome === o
-                        ? o === 'yes' ? '#00C853' : o === 'no' ? '#E05C20' : '#4B5563'
-                        : '#1F2937',
-                      color: outcome === o ? '#FFFFFF' : '#6B7280',
-                      border: `1px solid ${outcome === o ? 'transparent' : 'rgba(255,255,255,0.08)'}`,
+                        ? o === 'yes' ? '#00C853' : o === 'no' ? '#E05C20' : 'var(--text-faint)'
+                        : 'var(--bg-inset)',
+                      color: outcome === o ? '#FFFFFF' : 'var(--text-dim)',
+                      border: `1px solid ${outcome === o ? 'transparent' : 'var(--border)'}`,
                       cursor: 'pointer',
                     }}
                   >
@@ -216,7 +216,7 @@ export function MarketRiskMonitor({ initial }: Props) {
                   </button>
                 ))}
               </div>
-              <p className="text-xs" style={{ color: '#4B5563' }}>
+              <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
                 {outcome === 'yes' && 'YES holders paid 1.00 per share. NO holders lose stake.'}
                 {outcome === 'no'  && 'NO holders paid 1.00 per share. YES holders lose stake.'}
                 {outcome === 'void' && 'All positions refunded at entry value. No winners or losers.'}
@@ -230,8 +230,8 @@ export function MarketRiskMonitor({ initial }: Props) {
                 className="flex-1 py-3 rounded-xl text-sm font-bold"
                 style={{
                   backgroundColor: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#6B7280',
+                  border: '1px solid var(--border-strong)',
+                  color: 'var(--text-dim)',
                   cursor: 'pointer',
                 }}
               >
@@ -242,11 +242,11 @@ export function MarketRiskMonitor({ initial }: Props) {
                 disabled={confirmLoading}
                 className="flex-1 py-3 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
                 style={{
-                  backgroundColor: confirmLoading ? '#374151'
+                  backgroundColor: confirmLoading ? 'var(--text-faintest)'
                     : outcome === 'yes' ? '#00C853'
                     : outcome === 'no'  ? '#E05C20'
-                    : '#4B5563',
-                  color: confirmLoading ? '#6B7280' : '#FFFFFF',
+                    : 'var(--text-faint)',
+                  color: confirmLoading ? 'var(--text-dim)' : '#FFFFFF',
                   border: 'none',
                   cursor: confirmLoading ? 'wait' : 'pointer',
                 }}

@@ -38,8 +38,8 @@ export function MmToggle({ initial, platformFees, makerRebates, spreadIncome = 0
     <div
       className="rounded-2xl p-5 space-y-4"
       style={{
-        backgroundColor: '#161B22',
-        border: '1px solid rgba(255,255,255,0.08)',
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
       }}
     >
       {/* Header */}
@@ -47,14 +47,14 @@ export function MmToggle({ initial, platformFees, makerRebates, spreadIncome = 0
         <div>
           <p
             className="text-xs font-bold uppercase tracking-widest flex items-center gap-1.5"
-            style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+            style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
           >
             Verdikt Acts as Institutional MM
             <Tooltip content="When ON, Verdikt seeds all markets and collects maker rebates + spread income on top of platform fees." position="bottom">
               <InfoIcon />
             </Tooltip>
           </p>
-          <p className="text-xs mt-0.5" style={{ color: '#4B5563' }}>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
             {isOn ? 'Collecting platform fee + rebate + spread' : 'Platform fee only'}
           </p>
         </div>
@@ -68,7 +68,7 @@ export function MmToggle({ initial, platformFees, makerRebates, spreadIncome = 0
             width: 48,
             height: 26,
             borderRadius: 13,
-            backgroundColor: isOn ? '#00C853' : '#374151',
+            backgroundColor: isOn ? '#00C853' : 'var(--text-faintest)',
             transition: 'background-color 0.2s ease',
             cursor: saving ? 'wait' : 'pointer',
             border: 'none',
@@ -91,7 +91,7 @@ export function MmToggle({ initial, platformFees, makerRebates, spreadIncome = 0
       {/* Revenue breakdown panel */}
       <div
         className="rounded-xl p-4 space-y-2"
-        style={{ backgroundColor: '#0D1117' }}
+        style={{ backgroundColor: 'var(--bg-base)' }}
       >
         <RevenueRow
           label="Platform Fee (75% share)"
@@ -117,12 +117,12 @@ export function MmToggle({ initial, platformFees, makerRebates, spreadIncome = 0
         )}
         <div
           className="border-t pt-2"
-          style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+          style={{ borderColor: 'var(--border)' }}
         >
           <RevenueRow
             label={isOn ? 'Total Verdikt Revenue' : 'Verdikt Revenue (platform only)'}
             value={verdiktRevenue}
-            color="#FFFFFF"
+            color="var(--text-strong)"
             bold
           />
         </div>
@@ -148,7 +148,7 @@ function RevenueRow({
     <div className="flex justify-between items-center">
       <span
         className="text-xs flex items-center gap-1"
-        style={{ color: bold ? '#9CA3AF' : '#6B7280', fontWeight: bold ? 600 : 400 }}
+        style={{ color: bold ? 'var(--text-muted)' : 'var(--text-dim)', fontWeight: bold ? 600 : 400 }}
       >
         {label}
         {tooltip && (

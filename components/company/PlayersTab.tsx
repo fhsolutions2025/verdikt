@@ -82,7 +82,7 @@ function TierBadge({ volume }: { volume: number }) {
   return (
     <span style={{
       fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
-      backgroundColor: '#37414118', color: '#6B7280', letterSpacing: '0.06em',
+      backgroundColor: 'var(--fill-soft)', color: 'var(--text-dim)', letterSpacing: '0.06em',
     }}>CASUAL</span>
   )
 }
@@ -106,15 +106,15 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
       {/* Drawer */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 480,
-        backgroundColor: '#0D1117',
-        borderLeft: '1px solid rgba(255,255,255,0.1)',
+        backgroundColor: 'var(--bg-base)',
+        borderLeft: '1px solid var(--border-strong)',
         zIndex: 50, overflowY: 'auto',
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Header */}
         <div style={{
           padding: '20px 24px',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
           gap: 12,
         }}>
@@ -129,10 +129,10 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
                 {player.display_name.charAt(0).toUpperCase()}
               </div>
               <div>
-                <h2 style={{ color: '#E6EDF3', fontWeight: 700, fontSize: 16, margin: 0 }}>
+                <h2 style={{ color: 'var(--text-strong)', fontWeight: 700, fontSize: 16, margin: 0 }}>
                   {player.display_name}
                 </h2>
-                <p style={{ color: '#4B5563', fontSize: 11, margin: 0, fontFamily: 'monospace' }}>
+                <p style={{ color: 'var(--text-faint)', fontSize: 11, margin: 0, fontFamily: 'monospace' }}>
                   {player.id.slice(0, 8)}…
                 </p>
               </div>
@@ -141,7 +141,7 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
               <TierBadge volume={player.volume} />
               <RiskBadge flag={player.risk_flag} />
               {player.operator_id && (
-                <span style={{ fontSize: 10, color: '#4B5563', backgroundColor: '#161B22', padding: '2px 8px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-faint)', backgroundColor: 'var(--bg-surface)', padding: '2px 8px', borderRadius: 999, border: '1px solid var(--border-soft)' }}>
                   {player.operator_id}
                 </span>
               )}
@@ -149,7 +149,7 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: 4 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', padding: 4 }}
           >
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <line x1="4" y1="4" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -161,22 +161,22 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
         {/* KPI strip */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          borderBottom: '1px solid var(--border)',
         }}>
           {[
-            { label: 'Balance', value: player.balance.toFixed(2), color: '#E6EDF3', unit: '¢' },
+            { label: 'Balance', value: player.balance.toFixed(2), color: 'var(--text-strong)', unit: '¢' },
             { label: 'Total P&L', value: (player.total_pnl >= 0 ? '+' : '') + player.total_pnl.toFixed(2), color: pnlColor, unit: '¢' },
-            { label: 'Volume', value: player.volume.toFixed(0), color: '#9CA3AF', unit: '¢' },
-            { label: 'Trades', value: String(player.trade_count), color: '#9CA3AF', unit: '' },
+            { label: 'Volume', value: player.volume.toFixed(0), color: 'var(--text-muted)', unit: '¢' },
+            { label: 'Trades', value: String(player.trade_count), color: 'var(--text-muted)', unit: '' },
           ].map(k => (
             <div key={k.label} style={{
               padding: '12px 14px', textAlign: 'center',
-              borderRight: '1px solid rgba(255,255,255,0.06)',
+              borderRight: '1px solid var(--border-soft)',
             }}>
               <div style={{ fontSize: 16, fontWeight: 800, fontFamily: 'monospace', color: k.color }}>
                 {k.value}{k.unit}
               </div>
-              <div style={{ fontSize: 10, color: '#4B5563', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {k.label}
               </div>
             </div>
@@ -187,11 +187,11 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
 
           {/* Open Positions */}
           <div>
-            <h3 style={{ color: '#6B7280', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 10px' }}>
+            <h3 style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 10px' }}>
               Positions ({player.positions.length})
             </h3>
             {player.positions.length === 0 ? (
-              <p style={{ color: '#374151', fontSize: 13 }}>No positions.</p>
+              <p style={{ color: 'var(--text-faintest)', fontSize: 13 }}>No positions.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {player.positions.map(p => {
@@ -199,11 +199,11 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
                   return (
                     <div key={p.id} style={{
                       padding: '10px 14px', borderRadius: 10,
-                      backgroundColor: '#161B22',
-                      border: '1px solid rgba(255,255,255,0.06)',
+                      backgroundColor: 'var(--bg-surface)',
+                      border: '1px solid var(--border-soft)',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                        <p style={{ color: '#D1D5DB', fontSize: 12, margin: 0, flex: 1 }}>
+                        <p style={{ color: 'var(--text)', fontSize: 12, margin: 0, flex: 1 }}>
                           {p.market_question}
                         </p>
                         <span style={{
@@ -216,16 +216,16 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
                         </span>
                       </div>
                       <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
-                        <span style={{ fontSize: 11, color: '#6B7280' }}>{p.shares.toFixed(0)} shares @ {(p.entry_price * 100).toFixed(0)}¢</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{p.shares.toFixed(0)} shares @ {(p.entry_price * 100).toFixed(0)}¢</span>
                         {pnl != null && (
                           <span style={{ fontSize: 11, fontWeight: 700, color: pnl >= 0 ? '#00C853' : '#DC2626' }}>
                             {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}¢
                           </span>
                         )}
                         <span style={{
-                          fontSize: 10, color: '#4B5563',
+                          fontSize: 10, color: 'var(--text-faint)',
                           padding: '1px 6px', borderRadius: 4,
-                          backgroundColor: 'rgba(255,255,255,0.04)',
+                          backgroundColor: 'var(--border-faint)',
                         }}>{p.status}</span>
                       </div>
                     </div>
@@ -237,18 +237,18 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
 
           {/* Recent Transactions */}
           <div>
-            <h3 style={{ color: '#6B7280', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 10px' }}>
+            <h3 style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 10px' }}>
               Recent Transactions
             </h3>
             {player.transactions.length === 0 ? (
-              <p style={{ color: '#374151', fontSize: 13 }}>No transactions.</p>
+              <p style={{ color: 'var(--text-faintest)', fontSize: 13 }}>No transactions.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {player.transactions.slice(0, 10).map(tx => (
                   <div key={tx.id} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '8px 0',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    borderBottom: '1px solid var(--border-faint)',
                   }}>
                     <span style={{
                       fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
@@ -257,7 +257,7 @@ function PlayerDrawer({ player, onClose }: { player: PlayerDetail | null; onClos
                     }}>
                       {tx.type}
                     </span>
-                    <span style={{ flex: 1, fontSize: 12, color: '#9CA3AF' }}>
+                    <span style={{ flex: 1, fontSize: 12, color: 'var(--text-muted)' }}>
                       {tx.description || '—'}
                     </span>
                     <span style={{
@@ -344,20 +344,20 @@ export function PlayersTab() {
         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12,
       }}>
         {[
-          { label: 'Total Players', value: players.length, color: '#E6EDF3' },
+          { label: 'Total Players', value: players.length, color: 'var(--text-strong)' },
           { label: 'Whales (≥1000¢)', value: whaleCount, color: '#F59E0B' },
           { label: 'Active (≥100¢)', value: activeCount, color: '#6C3FC5' },
-          { label: 'Flagged', value: flagCount, color: flagCount > 0 ? '#DC2626' : '#374151' },
+          { label: 'Flagged', value: flagCount, color: flagCount > 0 ? '#DC2626' : 'var(--text-faintest)' },
         ].map(s => (
           <div key={s.label} style={{
-            backgroundColor: '#161B22',
-            border: '1px solid rgba(255,255,255,0.08)',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
             borderRadius: 12, padding: '14px 18px',
           }}>
             <div style={{ fontSize: 24, fontWeight: 800, fontFamily: 'monospace', color: s.color }}>
               {s.value}
             </div>
-            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -371,18 +371,18 @@ export function PlayersTab() {
           onChange={e => setSearch(e.target.value)}
           style={{
             flex: 1, minWidth: 180, padding: '8px 14px',
-            backgroundColor: '#161B22',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 8, color: '#E6EDF3', fontSize: 13, outline: 'none',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, outline: 'none',
           }}
         />
         <select
           value={sortBy}
           onChange={e => setSortBy(e.target.value as typeof sortBy)}
           style={{
-            padding: '8px 12px', backgroundColor: '#161B22',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 8, color: '#9CA3AF', fontSize: 13, cursor: 'pointer', outline: 'none',
+            padding: '8px 12px', backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: 8, color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', outline: 'none',
           }}
         >
           <option value="volume">Sort: Volume</option>
@@ -395,9 +395,9 @@ export function PlayersTab() {
           style={{
             padding: '8px 14px',
             borderRadius: 8,
-            border: `1px solid ${onlyFlagged ? '#DC2626' : 'rgba(255,255,255,0.1)'}`,
+            border: `1px solid ${onlyFlagged ? '#DC2626' : 'var(--border-strong)'}`,
             backgroundColor: onlyFlagged ? '#DC262618' : 'transparent',
-            color: onlyFlagged ? '#DC2626' : '#6B7280',
+            color: onlyFlagged ? '#DC2626' : 'var(--text-dim)',
             fontSize: 12, fontWeight: 700, cursor: 'pointer',
           }}
         >
@@ -407,8 +407,8 @@ export function PlayersTab() {
           onClick={load}
           style={{
             padding: '8px 14px', borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.1)',
-            backgroundColor: 'transparent', color: '#6B7280',
+            border: '1px solid var(--border-strong)',
+            backgroundColor: 'transparent', color: 'var(--text-dim)',
             fontSize: 12, cursor: 'pointer',
           }}
         >
@@ -418,8 +418,8 @@ export function PlayersTab() {
 
       {/* Table */}
       <div style={{
-        backgroundColor: '#161B22',
-        border: '1px solid rgba(255,255,255,0.08)',
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
         borderRadius: 16,
         overflow: 'hidden',
       }}>
@@ -428,22 +428,22 @@ export function PlayersTab() {
           display: 'grid',
           gridTemplateColumns: '1fr 80px 80px 80px 80px 80px 80px',
           padding: '10px 20px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          backgroundColor: '#0D1117',
+          borderBottom: '1px solid var(--border-soft)',
+          backgroundColor: 'var(--bg-base)',
         }}>
           {['Player', 'Balance', 'Volume', 'Trades', 'Positions', 'P&L', 'Risk'].map(h => (
-            <span key={h} style={{ fontSize: 10, fontWeight: 700, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+            <span key={h} style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
               {h}
             </span>
           ))}
         </div>
 
         {loading ? (
-          <div style={{ padding: '40px 20px', textAlign: 'center', color: '#4B5563', fontSize: 13 }}>
+          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
             Loading players…
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: '40px 20px', textAlign: 'center', color: '#4B5563', fontSize: 13 }}>
+          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
             No players found.
           </div>
         ) : (
@@ -455,11 +455,11 @@ export function PlayersTab() {
                 display: 'grid',
                 gridTemplateColumns: '1fr 80px 80px 80px 80px 80px 80px',
                 padding: '12px 20px',
-                borderBottom: '1px solid rgba(255,255,255,0.04)',
+                borderBottom: '1px solid var(--border-faint)',
                 cursor: 'pointer',
                 transition: 'background 0.12s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)')}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--fill-subtle)')}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -467,32 +467,32 @@ export function PlayersTab() {
                   width: 28, height: 28, borderRadius: '50%',
                   background: 'linear-gradient(135deg, #6C3FC540, #00C85340)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 700, color: '#9CA3AF', flexShrink: 0,
+                  fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0,
                 }}>
                   {p.display_name.charAt(0).toUpperCase()}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ color: '#E6EDF3', fontSize: 13, fontWeight: 600, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <p style={{ color: 'var(--text-strong)', fontSize: 13, fontWeight: 600, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {p.display_name}
                   </p>
                   <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
                     <TierBadge volume={p.volume} />
                     {p.operator_id && (
-                      <span style={{ fontSize: 9, color: '#4B5563' }}>{p.operator_id}</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-faint)' }}>{p.operator_id}</span>
                     )}
                   </div>
                 </div>
               </div>
-              <span style={{ color: '#E6EDF3', fontSize: 12, fontFamily: 'monospace', alignSelf: 'center' }}>
+              <span style={{ color: 'var(--text-strong)', fontSize: 12, fontFamily: 'monospace', alignSelf: 'center' }}>
                 {p.balance.toFixed(1)}¢
               </span>
-              <span style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'monospace', alignSelf: 'center' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'monospace', alignSelf: 'center' }}>
                 {p.volume.toFixed(0)}¢
               </span>
-              <span style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'monospace', alignSelf: 'center' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'monospace', alignSelf: 'center' }}>
                 {p.trade_count}
               </span>
-              <span style={{ color: '#9CA3AF', fontSize: 12, fontFamily: 'monospace', alignSelf: 'center' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontFamily: 'monospace', alignSelf: 'center' }}>
                 {p.open_positions}
               </span>
               <span style={{
@@ -515,7 +515,7 @@ export function PlayersTab() {
           position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 49,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div style={{ color: '#6B7280', fontSize: 14 }}>Loading player…</div>
+          <div style={{ color: 'var(--text-dim)', fontSize: 14 }}>Loading player…</div>
         </div>
       )}
       {detail && !detailLoading && (

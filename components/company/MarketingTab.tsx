@@ -93,14 +93,14 @@ const STYLE_DESC: Record<string, string> = {
 const VERDIKT_LOGO_PROMPT =
   'Professional logo design for "Verdikt", a sports prediction market platform. ' +
   'Bold modern geometric wordmark with a custom mark fusing a gavel and an upward-trending arrow, ' +
-  'deep violet #6C3FC5 to emerald green #00C853 gradient, on a dark charcoal background #0D1117. ' +
+  'deep violet #6C3FC5 to emerald green #00C853 gradient, on a dark charcoal background var(--bg-base). ' +
   'Clean, premium, tech-forward, vector style, centered, high contrast, 8k, award-winning brand identity.'
 
 const DEFAULT_BRAND_KIT: BrandKit = {
   colors: [
     { name: 'Violet',  hex: '#6C3FC5' },
     { name: 'Emerald', hex: '#00C853' },
-    { name: 'Ink',     hex: '#0D1117' },
+    { name: 'Ink',     hex: 'var(--bg-base)' },
     { name: 'Ember',   hex: '#E05C20' },
   ],
   logoDescription:
@@ -183,9 +183,9 @@ function TabBtn({ icon, label, active, onClick }: { icon: React.ReactNode; label
   return (
     <button onClick={onClick} style={{
       display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 10,
-      border: `1px solid ${active ? 'rgba(108,63,197,0.5)' : 'rgba(255,255,255,0.08)'}`,
+      border: `1px solid ${active ? 'rgba(108,63,197,0.5)' : 'var(--border)'}`,
       backgroundColor: active ? 'rgba(108,63,197,0.12)' : 'transparent',
-      color: active ? '#9B72E8' : '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.12s',
+      color: active ? '#9B72E8' : 'var(--text-dim)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.12s',
     }}>
       {icon}{label}
     </button>
@@ -231,33 +231,33 @@ function CampaignGenerator({ segments }: { segments: Segment[] }) {
 
   return (
     <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-      <div style={{ flex: '0 0 280px', backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <h3 style={{ color: '#E6EDF3', fontSize: 14, fontWeight: 700, margin: 0 }}>Campaign Brief</h3>
+      <div style={{ flex: '0 0 280px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <h3 style={{ color: 'var(--text-strong)', fontSize: 14, fontWeight: 700, margin: 0 }}>Campaign Brief</h3>
         {[
           { label: 'Goal', value: goal, onChange: setGoal, options: GOALS },
           { label: 'Audience Segment', value: segment, onChange: setSegment, options: SEGMENTS },
           { label: 'Channel', value: channel, onChange: setChannel, options: CHANNELS },
         ].map(f => (
           <div key={f.label}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{f.label}</label>
-            <select value={f.value} onChange={e => f.onChange(e.target.value)} style={{ width: '100%', padding: '8px 10px', backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#E6EDF3', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{f.label}</label>
+            <select value={f.value} onChange={e => f.onChange(e.target.value)} style={{ width: '100%', padding: '8px 10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
               {f.options.map(o => <option key={o}>{o}</option>)}
             </select>
           </div>
         ))}
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Extra context (optional)</label>
-          <textarea value={extra} onChange={e => setExtra(e.target.value)} placeholder="e.g. World Cup markets now live, 50% bonus this weekend…" rows={3} style={{ width: '100%', padding: '8px 10px', backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#E6EDF3', fontSize: 12, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Extra context (optional)</label>
+          <textarea value={extra} onChange={e => setExtra(e.target.value)} placeholder="e.g. World Cup markets now live, 50% bonus this weekend…" rows={3} style={{ width: '100%', padding: '8px 10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 12, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
         </div>
         <button onClick={generate} disabled={loading} style={{ padding: '10px 0', borderRadius: 10, background: loading ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading ? 'default' : 'pointer' }}>
           {loading ? 'Generating…' : '✦ Generate Campaign'}
         </button>
         {segments.length > 0 && (
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
-            <p style={{ fontSize: 10, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Audience sizes</p>
+          <div style={{ borderTop: '1px solid var(--border-soft)', paddingTop: 12 }}>
+            <p style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Audience sizes</p>
             {segments.map(s => (
               <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: 11, color: '#6B7280' }}>{s.label}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{s.label}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: s.color }}>{s.count}</span>
               </div>
             ))}
@@ -266,32 +266,32 @@ function CampaignGenerator({ segments }: { segments: Segment[] }) {
       </div>
       <div style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column', gap: 16 }}>
         {campaign ? (
-          <div style={{ backgroundColor: '#161B22', border: '1px solid rgba(108,63,197,0.3)', borderRadius: 16, padding: 24 }}>
+          <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(108,63,197,0.3)', borderRadius: 16, padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
                 <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, backgroundColor: 'rgba(108,63,197,0.2)', color: '#9B72E8', marginRight: 8 }}>{channel}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.06)', color: '#6B7280' }}>{segment}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, backgroundColor: 'var(--border-soft)', color: 'var(--text-dim)' }}>{segment}</span>
               </div>
-              <button onClick={copyAll} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: copied ? 'rgba(0,200,83,0.1)' : 'transparent', color: copied ? '#00C853' : '#6B7280', fontSize: 11, cursor: 'pointer' }}>{copied ? '✓ Copied' : 'Copy all'}</button>
+              <button onClick={copyAll} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-strong)', backgroundColor: copied ? 'rgba(0,200,83,0.1)' : 'transparent', color: copied ? '#00C853' : 'var(--text-dim)', fontSize: 11, cursor: 'pointer' }}>{copied ? '✓ Copied' : 'Copy all'}</button>
             </div>
-            <h2 style={{ color: '#E6EDF3', fontSize: 20, fontWeight: 800, margin: '0 0 12px', lineHeight: 1.3 }}>{campaign.headline}</h2>
-            <p style={{ color: '#9CA3AF', fontSize: 14, lineHeight: 1.6, margin: '0 0 16px', whiteSpace: 'pre-wrap' }}>{campaign.body}</p>
+            <h2 style={{ color: 'var(--text-strong)', fontSize: 20, fontWeight: 800, margin: '0 0 12px', lineHeight: 1.3 }}>{campaign.headline}</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.6, margin: '0 0 16px', whiteSpace: 'pre-wrap' }}>{campaign.body}</p>
             <div style={{ display: 'inline-block', padding: '10px 20px', borderRadius: 10, background: 'linear-gradient(135deg, #6C3FC5, #9B72E8)', color: '#fff', fontSize: 13, fontWeight: 700 }}>{campaign.cta}</div>
           </div>
         ) : (
-          <div style={{ backgroundColor: '#161B22', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 16, padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-            <span style={{ color: '#374151', fontSize: 32 }}>✦</span>
-            <p style={{ color: '#4B5563', fontSize: 14, textAlign: 'center', margin: 0 }}>Fill in the brief and click Generate Campaign to create AI-powered copy.</p>
+          <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px dashed var(--border)', borderRadius: 16, padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+            <span style={{ color: 'var(--text-faintest)', fontSize: 32 }}>✦</span>
+            <p style={{ color: 'var(--text-faint)', fontSize: 14, textAlign: 'center', margin: 0 }}>Fill in the brief and click Generate Campaign to create AI-powered copy.</p>
           </div>
         )}
         {history.length > 1 && (
           <div>
-            <p style={{ fontSize: 11, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Recent ({history.length - 1} more)</p>
+            <p style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Recent ({history.length - 1} more)</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {history.slice(1, 4).map(c => (
-                <button key={c.id} onClick={() => setCampaign(c)} style={{ padding: '10px 14px', borderRadius: 10, backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.06)', textAlign: 'left', cursor: 'pointer' }}>
-                  <p style={{ color: '#D1D5DB', fontSize: 13, fontWeight: 600, margin: 0 }}>{c.headline}</p>
-                  <p style={{ color: '#4B5563', fontSize: 11, margin: '3px 0 0' }}>{c.goal} · {c.segment}</p>
+                <button key={c.id} onClick={() => setCampaign(c)} style={{ padding: '10px 14px', borderRadius: 10, backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-soft)', textAlign: 'left', cursor: 'pointer' }}>
+                  <p style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600, margin: 0 }}>{c.headline}</p>
+                  <p style={{ color: 'var(--text-faint)', fontSize: 11, margin: '3px 0 0' }}>{c.goal} · {c.segment}</p>
                 </button>
               ))}
             </div>
@@ -333,14 +333,14 @@ function ImageCard({
   }
 
   return (
-    <div style={{ backgroundColor: '#161B22', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.25)' }}>
+    <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.25)' }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={meta.url} alt={meta.alt_text} title={meta.title} loading="lazy" style={{ width: '100%', display: 'block' }} />
       <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: '#9B72E8', backgroundColor: 'rgba(108,63,197,0.15)', padding: '2px 8px', borderRadius: 999, flex: 1 }}>
           {meta.platform.label} · {meta.platform.dims}
         </span>
-        <button onClick={save} disabled={saving || saved} style={{ padding: '5px 10px', borderRadius: 7, border: `1px solid ${saved ? 'rgba(0,200,83,0.4)' : 'rgba(255,255,255,0.1)'}`, backgroundColor: saved ? 'rgba(0,200,83,0.1)' : 'transparent', color: saved ? '#00C853' : '#9CA3AF', fontSize: 11, fontWeight: 600, cursor: saved ? 'default' : 'pointer' }}>
+        <button onClick={save} disabled={saving || saved} style={{ padding: '5px 10px', borderRadius: 7, border: `1px solid ${saved ? 'rgba(0,200,83,0.4)' : 'var(--border-strong)'}`, backgroundColor: saved ? 'rgba(0,200,83,0.1)' : 'transparent', color: saved ? '#00C853' : 'var(--text-muted)', fontSize: 11, fontWeight: 600, cursor: saved ? 'default' : 'pointer' }}>
           {saved ? '✓ Saved' : saving ? '…' : '+ Save'}
         </button>
         <button onClick={download} style={{ padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(108,63,197,0.3)', backgroundColor: 'rgba(108,63,197,0.1)', color: '#9B72E8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>↓</button>
@@ -448,31 +448,31 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
     <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
 
       {/* ── Left panel ─────────────────────────────────────────────────────── */}
-      <div style={{ flex: '0 0 300px', backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ flex: '0 0 300px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Brand kit status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, backgroundColor: brandKit.autoInject ? 'rgba(0,200,83,0.07)' : 'rgba(255,255,255,0.03)', border: `1px solid ${brandKit.autoInject ? 'rgba(0,200,83,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
-          <span style={{ color: brandKit.autoInject ? '#00C853' : '#6B7280' }}><IconPalette /></span>
-          <span style={{ fontSize: 11, color: brandKit.autoInject ? '#00C853' : '#6B7280', flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, backgroundColor: brandKit.autoInject ? 'rgba(0,200,83,0.07)' : 'var(--fill-subtle)', border: `1px solid ${brandKit.autoInject ? 'rgba(0,200,83,0.2)' : 'var(--border-soft)'}` }}>
+          <span style={{ color: brandKit.autoInject ? '#00C853' : 'var(--text-dim)' }}><IconPalette /></span>
+          <span style={{ fontSize: 11, color: brandKit.autoInject ? '#00C853' : 'var(--text-dim)', flex: 1 }}>
             {brandKit.autoInject ? 'Brand kit auto-applied' : 'Brand kit off'}
           </span>
           <div style={{ display: 'flex', gap: 3 }}>
-            {brandKit.colors.map(c => <span key={c.hex} style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: c.hex, border: '1px solid rgba(255,255,255,0.15)' }} />)}
+            {brandKit.colors.map(c => <span key={c.hex} style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: c.hex, border: '1px solid var(--border-strong)' }} />)}
           </div>
         </div>
 
         {/* Generation mode */}
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Mode</label>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Mode</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {([
               { id: 'single', label: 'Single image',   sub: '1 image · $0.08' },
               { id: 'batch',  label: '4 variants',      sub: 'pick the best · $0.32' },
               { id: 'all',    label: 'All 8 platforms', sub: 'full asset pack · $0.64' },
             ] as { id: GenMode; label: string; sub: string }[]).map(m => (
-              <button key={m.id} onClick={() => setMode(m.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${mode === m.id ? 'rgba(108,63,197,0.5)' : 'rgba(255,255,255,0.06)'}`, backgroundColor: mode === m.id ? 'rgba(108,63,197,0.12)' : 'transparent' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: mode === m.id ? '#9B72E8' : '#9CA3AF' }}>{m.label}</span>
-                <span style={{ fontSize: 10, color: '#4B5563' }}>{m.sub}</span>
+              <button key={m.id} onClick={() => setMode(m.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${mode === m.id ? 'rgba(108,63,197,0.5)' : 'var(--border-soft)'}`, backgroundColor: mode === m.id ? 'rgba(108,63,197,0.12)' : 'transparent' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: mode === m.id ? '#9B72E8' : 'var(--text-muted)' }}>{m.label}</span>
+                <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{m.sub}</span>
               </button>
             ))}
           </div>
@@ -481,8 +481,8 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         {/* Platform (hidden in all-mode) */}
         {mode !== 'all' && (
           <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Platform & Size</label>
-            <select value={platform.id} onChange={e => setPlatform(PLATFORM_SIZES.find(p => p.id === e.target.value)!)} style={{ width: '100%', padding: '8px 10px', backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#E6EDF3', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Platform & Size</label>
+            <select value={platform.id} onChange={e => setPlatform(PLATFORM_SIZES.find(p => p.id === e.target.value)!)} style={{ width: '100%', padding: '8px 10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
               {PLATFORM_SIZES.map(p => <option key={p.id} value={p.id}>{p.label} — {p.dims}</option>)}
             </select>
           </div>
@@ -490,12 +490,12 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
 
         {/* Style */}
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Visual Style</label>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Visual Style</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {STYLES.map(s => (
-              <button key={s} onClick={() => setStyle(s)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', borderRadius: 8, border: `1px solid ${style === s ? 'rgba(108,63,197,0.5)' : 'rgba(255,255,255,0.06)'}`, backgroundColor: style === s ? 'rgba(108,63,197,0.12)' : 'transparent', cursor: 'pointer' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: style === s ? '#9B72E8' : '#6B7280' }}>{s}</span>
-                <span style={{ fontSize: 10, color: '#374151' }}>{STYLE_DESC[s]}</span>
+              <button key={s} onClick={() => setStyle(s)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', borderRadius: 8, border: `1px solid ${style === s ? 'rgba(108,63,197,0.5)' : 'var(--border-soft)'}`, backgroundColor: style === s ? 'rgba(108,63,197,0.12)' : 'transparent', cursor: 'pointer' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: style === s ? '#9B72E8' : 'var(--text-dim)' }}>{s}</span>
+                <span style={{ fontSize: 10, color: 'var(--text-faintest)' }}>{STYLE_DESC[s]}</span>
               </button>
             ))}
           </div>
@@ -504,33 +504,33 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         {/* Prompt */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Prompt</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Prompt</label>
             {enhanced && <button onClick={() => setEnhanced(null)} style={{ fontSize: 10, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>✕ Clear enhanced</button>}
           </div>
-          <textarea value={prompt} onChange={e => { setPrompt(e.target.value); setEnhanced(null) }} placeholder="Describe your creative in a few words…" rows={4} style={{ width: '100%', padding: '10px', backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#E6EDF3', fontSize: 12, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-          <button onClick={enhancePrompt} disabled={!prompt.trim() || enhancing} style={{ marginTop: 6, width: '100%', padding: '7px 0', borderRadius: 8, border: '1px solid rgba(108,63,197,0.35)', backgroundColor: 'rgba(108,63,197,0.08)', color: enhancing ? '#4B5563' : '#9B72E8', fontSize: 12, fontWeight: 600, cursor: (!prompt.trim() || enhancing) ? 'default' : 'pointer' }}>
+          <textarea value={prompt} onChange={e => { setPrompt(e.target.value); setEnhanced(null) }} placeholder="Describe your creative in a few words…" rows={4} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 12, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          <button onClick={enhancePrompt} disabled={!prompt.trim() || enhancing} style={{ marginTop: 6, width: '100%', padding: '7px 0', borderRadius: 8, border: '1px solid rgba(108,63,197,0.35)', backgroundColor: 'rgba(108,63,197,0.08)', color: enhancing ? 'var(--text-faint)' : '#9B72E8', fontSize: 12, fontWeight: 600, cursor: (!prompt.trim() || enhancing) ? 'default' : 'pointer' }}>
             {enhancing ? '✦ Enhancing…' : '✨ Enhance with AI'}
           </button>
           {enhanced && (
             <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, backgroundColor: 'rgba(0,200,83,0.06)', border: '1px solid rgba(0,200,83,0.2)' }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#00C853', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓ Enhanced prompt</p>
-              <p style={{ fontSize: 11, color: '#9CA3AF', margin: 0, lineHeight: 1.5 }}>{enhanced}</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>{enhanced}</p>
             </div>
           )}
         </div>
 
         {/* Campaign tag */}
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Campaign tag (for gallery)</label>
-          <input value={campaignTag} onChange={e => setCampaignTag(e.target.value)} placeholder="e.g. world-cup-2026" style={{ width: '100%', padding: '8px 10px', backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#E6EDF3', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Campaign tag (for gallery)</label>
+          <input value={campaignTag} onChange={e => setCampaignTag(e.target.value)} placeholder="e.g. world-cup-2026" style={{ width: '100%', padding: '8px 10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
         </div>
 
         {/* Presets */}
         <div>
-          <p style={{ fontSize: 10, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Preset ideas</p>
+          <p style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Preset ideas</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {PRESETS.map(p => (
-              <button key={p.label} onClick={() => { setPrompt(p.prompt); setEnhanced(null) }} style={{ padding: '7px 10px', borderRadius: 8, backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.06)', color: '#6B7280', fontSize: 11, textAlign: 'left', cursor: 'pointer' }}>
+              <button key={p.label} onClick={() => { setPrompt(p.prompt); setEnhanced(null) }} style={{ padding: '7px 10px', borderRadius: 8, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)', color: 'var(--text-dim)', fontSize: 11, textAlign: 'left', cursor: 'pointer' }}>
                 <span style={{ color: '#9B72E8', fontWeight: 700, marginRight: 6 }}>{p.label}</span>{p.prompt.slice(0, 40)}…
               </button>
             ))}
@@ -547,14 +547,14 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
 
         {/* Loading */}
         {loading && mode === 'single' && (
-          <div style={{ position: 'relative', backgroundColor: '#161B22', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.3)', aspectRatio: platform.aspectRatio }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, #161B22 0%, #1F2937 50%, #161B22 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.6s ease-in-out infinite' }} />
+          <div style={{ position: 'relative', backgroundColor: 'var(--bg-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.3)', aspectRatio: platform.aspectRatio }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, var(--bg-surface) 0%, var(--bg-inset) 50%, var(--bg-surface) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.6s ease-in-out infinite' }} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px' }}>
-              <div style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 999, height: 4, overflow: 'hidden' }}>
+              <div style={{ backgroundColor: 'var(--border-soft)', borderRadius: 999, height: 4, overflow: 'hidden' }}>
                 <div style={{ height: '100%', borderRadius: 999, background: 'linear-gradient(90deg, #6C3FC5, #9B72E8)', width: `${progress}%`, transition: 'width 0.8s ease-out' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                <span style={{ fontSize: 11, color: '#6B7280' }}>Ideogram V_2 generating…</span>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Ideogram V_2 generating…</span>
                 <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: '#9B72E8' }}>{progress}%</span>
               </div>
             </div>
@@ -562,12 +562,12 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         )}
 
         {loading && mode !== 'single' && (
-          <div style={{ backgroundColor: '#161B22', borderRadius: 16, border: '1px solid rgba(108,63,197,0.3)', padding: '24px' }}>
+          <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, border: '1px solid rgba(108,63,197,0.3)', padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontSize: 13, color: '#9CA3AF' }}>Generating {mode === 'batch' ? '4 variants' : 'full asset pack'}…</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Generating {mode === 'batch' ? '4 variants' : 'full asset pack'}…</span>
               <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'monospace', color: '#9B72E8' }}>{batchDone} / {batchTotal}</span>
             </div>
-            <div style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 999, height: 6, overflow: 'hidden' }}>
+            <div style={{ backgroundColor: 'var(--border-soft)', borderRadius: 999, height: 6, overflow: 'hidden' }}>
               <div style={{ height: '100%', borderRadius: 999, background: 'linear-gradient(90deg, #6C3FC5, #9B72E8)', width: `${batchTotal ? (batchDone / batchTotal) * 100 : 0}%`, transition: 'width 0.5s ease-out' }} />
             </div>
             {/* live grid of completed */}
@@ -582,19 +582,19 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         {/* Single result */}
         {!loading && single && (
           <>
-            <div style={{ backgroundColor: '#161B22', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.3)' }}>
+            <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.3)' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={results[0].url} alt={results[0].alt_text} title={results[0].title} loading="lazy" style={{ width: '100%', display: 'block' }} />
-              <div style={{ padding: '14px 18px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border-soft)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#9B72E8', backgroundColor: 'rgba(108,63,197,0.15)', padding: '3px 10px', borderRadius: 999, border: '1px solid rgba(108,63,197,0.3)' }}>{results[0].platform.label} · {results[0].platform.dims}</span>
-                <span style={{ fontSize: 11, color: '#4B5563', flex: 1 }}>{results[0].style}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-faint)', flex: 1 }}>{results[0].style}</span>
                 <SaveAndDownload meta={results[0]} campaignTag={campaignTag} onSaved={onGallerySaved} />
               </div>
             </div>
 
             {/* SEO metadata */}
-            <div style={{ backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '16px 20px' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 12px' }}>SEO Metadata</p>
+            <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px' }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 12px' }}>SEO Metadata</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
                   { key: 'Alt Text', val: results[0].alt_text },
@@ -604,26 +604,26 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
                   { key: 'Model', val: 'Ideogram V_2' },
                 ].map(r => (
                   <div key={r.key} style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-                    <span style={{ color: '#4B5563', width: 90, flexShrink: 0 }}>{r.key}</span>
-                    <span style={{ color: '#9CA3AF', flex: 1 }}>{r.val}</span>
+                    <span style={{ color: 'var(--text-faint)', width: 90, flexShrink: 0 }}>{r.key}</span>
+                    <span style={{ color: 'var(--text-muted)', flex: 1 }}>{r.val}</span>
                   </div>
                 ))}
                 <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-                  <span style={{ color: '#4B5563', width: 90, flexShrink: 0 }}>Keywords</span>
+                  <span style={{ color: 'var(--text-faint)', width: 90, flexShrink: 0 }}>Keywords</span>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1 }}>
-                    {results[0].keywords.map(k => <span key={k} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.05)', color: '#6B7280', border: '1px solid rgba(255,255,255,0.06)' }}>{k}</span>)}
+                    {results[0].keywords.map(k => <span key={k} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 999, backgroundColor: 'var(--fill-soft)', color: 'var(--text-dim)', border: '1px solid var(--border-soft)' }}>{k}</span>)}
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Resize */}
-            <div style={{ backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '16px 20px' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 12px' }}>Generate in another size — +${IDEOGRAM_COST.toFixed(2)} each</p>
+            <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px' }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 12px' }}>Generate in another size — +${IDEOGRAM_COST.toFixed(2)} each</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {PLATFORM_SIZES.filter(p => p.id !== results[0].platform.id).map(p => (
-                  <button key={p.id} onClick={() => generateInSize(p)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)', color: '#9CA3AF', fontSize: 11, cursor: 'pointer' }}>
-                    {p.label}<span style={{ color: '#374151', marginLeft: 5, fontSize: 10 }}>{p.dims}</span>
+                  <button key={p.id} onClick={() => generateInSize(p)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-strong)', backgroundColor: 'var(--fill-subtle)', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer' }}>
+                    {p.label}<span style={{ color: 'var(--text-faintest)', marginLeft: 5, fontSize: 10 }}>{p.dims}</span>
                   </button>
                 ))}
               </div>
@@ -635,10 +635,10 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         {!loading && results.length > 0 && !single && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
                 {mode === 'batch' ? `${results.length} variants — pick your favourites to save` : `Asset pack — ${results.length} platform sizes`}
               </p>
-              <span style={{ fontSize: 11, color: '#4B5563' }}>Total ${(results.length * IDEOGRAM_COST).toFixed(2)}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Total ${(results.length * IDEOGRAM_COST).toFixed(2)}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: mode === 'batch' ? 'repeat(auto-fill, minmax(240px, 1fr))' : 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
               {results.map((m, i) => <ImageCard key={i} meta={m} campaignTag={campaignTag} onSaved={onGallerySaved} />)}
@@ -648,7 +648,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
 
         {/* Error */}
         {!loading && error && results.length === 0 && (
-          <div style={{ backgroundColor: '#161B22', borderRadius: 16, padding: '40px', border: '1px solid rgba(220,38,38,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, padding: '40px', border: '1px solid rgba(220,38,38,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 24 }}>⚠</span>
             <p style={{ color: '#DC2626', fontSize: 14, textAlign: 'center', margin: 0 }}>{error}</p>
           </div>
@@ -656,10 +656,10 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
 
         {/* Empty */}
         {!loading && results.length === 0 && !error && (
-          <div style={{ backgroundColor: '#161B22', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.08)', aspectRatio: mode === 'all' ? '16/9' : platform.aspectRatio, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+          <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, border: '1px dashed var(--border)', aspectRatio: mode === 'all' ? '16/9' : platform.aspectRatio, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
             <div style={{ textAlign: 'center', padding: 20 }}>
-              <div style={{ fontSize: 40, color: '#1F2937', marginBottom: 10 }}>🎨</div>
-              <p style={{ color: '#4B5563', fontSize: 13, margin: 0 }}>Generated creative will appear here.<br />Powered by Ideogram V_2 · ${IDEOGRAM_COST.toFixed(2)}/image</p>
+              <div style={{ fontSize: 40, color: 'var(--bg-inset)', marginBottom: 10 }}>🎨</div>
+              <p style={{ color: 'var(--text-faint)', fontSize: 13, margin: 0 }}>Generated creative will appear here.<br />Powered by Ideogram V_2 · ${IDEOGRAM_COST.toFixed(2)}/image</p>
             </div>
           </div>
         )}
@@ -703,7 +703,7 @@ function SaveAndDownload({ meta, campaignTag, onSaved }: { meta: ImageMeta; camp
 
   return (
     <>
-      <button onClick={save} disabled={saving || saved} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${saved ? 'rgba(0,200,83,0.4)' : 'rgba(255,255,255,0.1)'}`, backgroundColor: saved ? 'rgba(0,200,83,0.1)' : 'transparent', color: saved ? '#00C853' : '#9CA3AF', fontSize: 12, fontWeight: 600, cursor: saved ? 'default' : 'pointer' }}>
+      <button onClick={save} disabled={saving || saved} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${saved ? 'rgba(0,200,83,0.4)' : 'var(--border-strong)'}`, backgroundColor: saved ? 'rgba(0,200,83,0.1)' : 'transparent', color: saved ? '#00C853' : 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: saved ? 'default' : 'pointer' }}>
         {saved ? '✓ In gallery' : saving ? 'Saving…' : '+ Save to gallery'}
       </button>
       <button onClick={downloadWithMeta} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(108,63,197,0.3)', backgroundColor: 'rgba(108,63,197,0.1)', color: '#9B72E8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>↓ Download + Meta</button>
@@ -726,26 +726,26 @@ function BrandKitSection({ brandKit, setBrandKit }: { brandKit: BrandKit; setBra
       <div style={{ flex: 1, minWidth: 320, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Auto-inject toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 14, backgroundColor: '#161B22', border: `1px solid ${brandKit.autoInject ? 'rgba(0,200,83,0.3)' : 'rgba(255,255,255,0.08)'}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 14, backgroundColor: 'var(--bg-surface)', border: `1px solid ${brandKit.autoInject ? 'rgba(0,200,83,0.3)' : 'var(--border)'}` }}>
           <div>
-            <p style={{ color: '#E6EDF3', fontSize: 14, fontWeight: 700, margin: 0 }}>Auto-inject into every image prompt</p>
-            <p style={{ color: '#6B7280', fontSize: 12, margin: '3px 0 0' }}>Appends brand palette & visual style to all Media Studio generations.</p>
+            <p style={{ color: 'var(--text-strong)', fontSize: 14, fontWeight: 700, margin: 0 }}>Auto-inject into every image prompt</p>
+            <p style={{ color: 'var(--text-dim)', fontSize: 12, margin: '3px 0 0' }}>Appends brand palette & visual style to all Media Studio generations.</p>
           </div>
-          <button onClick={() => update({ autoInject: !brandKit.autoInject })} style={{ position: 'relative', width: 46, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', backgroundColor: brandKit.autoInject ? '#00C853' : '#374151', transition: 'background 0.15s', flexShrink: 0 }}>
+          <button onClick={() => update({ autoInject: !brandKit.autoInject })} style={{ position: 'relative', width: 46, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', backgroundColor: brandKit.autoInject ? '#00C853' : 'var(--text-faintest)', transition: 'background 0.15s', flexShrink: 0 }}>
             <span style={{ position: 'absolute', top: 3, left: brandKit.autoInject ? 23 : 3, width: 20, height: 20, borderRadius: '50%', backgroundColor: '#fff', transition: 'left 0.15s' }} />
           </button>
         </div>
 
         {/* Colors */}
-        <div style={{ backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 20 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 14px' }}>Brand Colors</p>
+        <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 14px' }}>Brand Colors</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
             {brandKit.colors.map((c, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
                 <input type="color" value={c.hex} onChange={e => updateColor(i, { hex: e.target.value })} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', backgroundColor: 'transparent', padding: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <input value={c.name} onChange={e => updateColor(i, { name: e.target.value })} style={{ width: '100%', background: 'none', border: 'none', color: '#E6EDF3', fontSize: 13, fontWeight: 600, outline: 'none', padding: 0 }} />
-                  <input value={c.hex} onChange={e => updateColor(i, { hex: e.target.value })} style={{ width: '100%', background: 'none', border: 'none', color: '#6B7280', fontSize: 11, fontFamily: 'monospace', outline: 'none', padding: 0 }} />
+                  <input value={c.name} onChange={e => updateColor(i, { name: e.target.value })} style={{ width: '100%', background: 'none', border: 'none', color: 'var(--text-strong)', fontSize: 13, fontWeight: 600, outline: 'none', padding: 0 }} />
+                  <input value={c.hex} onChange={e => updateColor(i, { hex: e.target.value })} style={{ width: '100%', background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 11, fontFamily: 'monospace', outline: 'none', padding: 0 }} />
                 </div>
               </div>
             ))}
@@ -758,35 +758,35 @@ function BrandKitSection({ brandKit, setBrandKit }: { brandKit: BrandKit; setBra
           { label: 'Visual Style (injected into image prompts)', key: 'visualStyle' as const, value: brandKit.visualStyle },
           { label: 'Logo Description', key: 'logoDescription' as const, value: brandKit.logoDescription },
         ].map(f => (
-          <div key={f.key} style={{ backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 20 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 10px' }}>{f.label}</p>
-            <textarea value={f.value} onChange={e => update({ [f.key]: e.target.value })} rows={2} style={{ width: '100%', padding: '10px', backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#E6EDF3', fontSize: 13, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} />
+          <div key={f.key} style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 10px' }}>{f.label}</p>
+            <textarea value={f.value} onChange={e => update({ [f.key]: e.target.value })} rows={2} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} />
           </div>
         ))}
       </div>
 
       {/* Logo prompt card */}
       <div style={{ flex: '0 0 320px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ backgroundColor: '#161B22', border: '1px solid rgba(108,63,197,0.3)', borderRadius: 14, padding: 20 }}>
+        <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(108,63,197,0.3)', borderRadius: 14, padding: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <span style={{ color: '#9B72E8' }}><IconPalette /></span>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#E6EDF3', margin: 0 }}>Verdikt Logo Prompt</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', margin: 0 }}>Verdikt Logo Prompt</p>
           </div>
-          <p style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.6, margin: '0 0 14px' }}>{VERDIKT_LOGO_PROMPT}</p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, margin: '0 0 14px' }}>{VERDIKT_LOGO_PROMPT}</p>
           <button onClick={() => { navigator.clipboard.writeText(VERDIKT_LOGO_PROMPT); setCopied(true); setTimeout(() => setCopied(false), 2000) }} style={{ width: '100%', padding: '9px 0', borderRadius: 9, border: '1px solid rgba(108,63,197,0.4)', backgroundColor: copied ? 'rgba(0,200,83,0.1)' : 'rgba(108,63,197,0.12)', color: copied ? '#00C853' : '#9B72E8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             {copied ? '✓ Copied — paste in Media Studio' : 'Copy logo prompt'}
           </button>
-          <p style={{ fontSize: 11, color: '#4B5563', margin: '10px 0 0', textAlign: 'center' }}>Or pick the “Verdikt Logo” preset in Media Studio.</p>
+          <p style={{ fontSize: 11, color: 'var(--text-faint)', margin: '10px 0 0', textAlign: 'center' }}>Or pick the “Verdikt Logo” preset in Media Studio.</p>
         </div>
 
         {/* Live preview swatch */}
-        <div style={{ backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 20 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 12px' }}>Palette Preview</p>
+        <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 12px' }}>Palette Preview</p>
           <div style={{ display: 'flex', height: 48, borderRadius: 10, overflow: 'hidden' }}>
             {brandKit.colors.map(c => <div key={c.hex} style={{ flex: 1, backgroundColor: c.hex }} title={`${c.name} ${c.hex}`} />)}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            {brandKit.colors.map(c => <span key={c.hex} style={{ fontSize: 10, fontFamily: 'monospace', color: '#6B7280' }}>{c.hex}</span>)}
+            {brandKit.colors.map(c => <span key={c.hex} style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--text-dim)' }}>{c.hex}</span>)}
           </div>
         </div>
       </div>
@@ -838,50 +838,50 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
           { label: 'Total Ideogram spend', value: `$${totalSpend.toFixed(2)}`, color: '#9B72E8', sub: 'lifetime, all saved assets' },
           { label: 'Images generated',     value: String(totalCount),          color: '#00C853', sub: 'saved to gallery' },
           { label: 'Avg cost / image',     value: `$${avgCost.toFixed(3)}`,    color: '#E05C20', sub: 'Ideogram V_2' },
-          { label: 'Showing',              value: String(assets.length),       color: '#9CA3AF', sub: search || activeTag ? 'filtered' : 'all' },
+          { label: 'Showing',              value: String(assets.length),       color: 'var(--text-muted)', sub: search || activeTag ? 'filtered' : 'all' },
         ].map(s => (
-          <div key={s.label} style={{ backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 18px' }}>
+          <div key={s.label} style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px' }}>
             <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{s.label}</div>
-            <div style={{ fontSize: 10, color: '#4B5563', marginTop: 1 }}>{s.sub}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 1 }}>{s.sub}</div>
           </div>
         ))}
       </div>
 
       {/* Controls */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by title, prompt, alt text…" style={{ flex: 1, minWidth: 200, padding: '9px 14px', backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#E6EDF3', fontSize: 13, outline: 'none' }} />
-        <button onClick={load} style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'transparent', color: '#6B7280', fontSize: 12, cursor: 'pointer' }}>↺ Refresh</button>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by title, prompt, alt text…" style={{ flex: 1, minWidth: 200, padding: '9px 14px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, outline: 'none' }} />
+        <button onClick={load} style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', backgroundColor: 'transparent', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer' }}>↺ Refresh</button>
       </div>
 
       {/* Tag chips */}
       {tags.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button onClick={() => setActiveTag('')} style={{ padding: '4px 12px', borderRadius: 999, border: `1px solid ${!activeTag ? 'rgba(108,63,197,0.5)' : 'rgba(255,255,255,0.08)'}`, backgroundColor: !activeTag ? 'rgba(108,63,197,0.15)' : 'transparent', color: !activeTag ? '#9B72E8' : '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>All</button>
+          <button onClick={() => setActiveTag('')} style={{ padding: '4px 12px', borderRadius: 999, border: `1px solid ${!activeTag ? 'rgba(108,63,197,0.5)' : 'var(--border)'}`, backgroundColor: !activeTag ? 'rgba(108,63,197,0.15)' : 'transparent', color: !activeTag ? '#9B72E8' : 'var(--text-dim)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>All</button>
           {tags.map(t => (
-            <button key={t} onClick={() => setActiveTag(t)} style={{ padding: '4px 12px', borderRadius: 999, border: `1px solid ${activeTag === t ? 'rgba(108,63,197,0.5)' : 'rgba(255,255,255,0.08)'}`, backgroundColor: activeTag === t ? 'rgba(108,63,197,0.15)' : 'transparent', color: activeTag === t ? '#9B72E8' : '#6B7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t}</button>
+            <button key={t} onClick={() => setActiveTag(t)} style={{ padding: '4px 12px', borderRadius: 999, border: `1px solid ${activeTag === t ? 'rgba(108,63,197,0.5)' : 'var(--border)'}`, backgroundColor: activeTag === t ? 'rgba(108,63,197,0.15)' : 'transparent', color: activeTag === t ? '#9B72E8' : 'var(--text-dim)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t}</button>
           ))}
         </div>
       )}
 
       {/* Grid */}
       {loading ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: '#4B5563', fontSize: 14 }}>Loading gallery…</div>
+        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>Loading gallery…</div>
       ) : assets.length === 0 ? (
-        <div style={{ backgroundColor: '#161B22', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 16, padding: '60px 40px', textAlign: 'center' }}>
-          <div style={{ fontSize: 36, color: '#1F2937', marginBottom: 10 }}>🖼️</div>
-          <p style={{ color: '#4B5563', fontSize: 14, margin: 0 }}>{search || activeTag ? 'No assets match your filters.' : 'No saved assets yet. Generate in Media Studio and click "Save to gallery".'}</p>
+        <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px dashed var(--border)', borderRadius: 16, padding: '60px 40px', textAlign: 'center' }}>
+          <div style={{ fontSize: 36, color: 'var(--bg-inset)', marginBottom: 10 }}>🖼️</div>
+          <p style={{ color: 'var(--text-faint)', fontSize: 14, margin: 0 }}>{search || activeTag ? 'No assets match your filters.' : 'No saved assets yet. Generate in Media Studio and click "Save to gallery".'}</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
           {assets.map(a => (
-            <div key={a.id} onClick={() => setSelected(a)} style={{ backgroundColor: '#161B22', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer' }}>
+            <div key={a.id} onClick={() => setSelected(a)} style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', cursor: 'pointer' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={a.public_url} alt={a.alt_text} loading="lazy" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
               <div style={{ padding: '10px 12px' }}>
-                <p style={{ color: '#D1D5DB', fontSize: 12, fontWeight: 600, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title || a.prompt.slice(0, 40)}</p>
+                <p style={{ color: 'var(--text)', fontSize: 12, fontWeight: 600, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title || a.prompt.slice(0, 40)}</p>
                 <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 9, color: '#6B7280', backgroundColor: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>{a.platform}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-dim)', backgroundColor: 'var(--fill-soft)', padding: '2px 6px', borderRadius: 4 }}>{a.platform}</span>
                   {a.campaign_tag && <span style={{ fontSize: 9, color: '#9B72E8', backgroundColor: 'rgba(108,63,197,0.15)', padding: '2px 6px', borderRadius: 4 }}>{a.campaign_tag}</span>}
                 </div>
               </div>
@@ -894,11 +894,11 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
       {selected && (
         <>
           <div onClick={() => setSelected(null)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 49, cursor: 'pointer' }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(640px, 92vw)', maxHeight: '88vh', overflowY: 'auto', backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, zIndex: 50 }}>
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(640px, 92vw)', maxHeight: '88vh', overflowY: 'auto', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-strong)', borderRadius: 16, zIndex: 50 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={selected.public_url} alt={selected.alt_text} style={{ width: '100%', display: 'block', borderTopLeftRadius: 16, borderTopRightRadius: 16 }} />
             <div style={{ padding: 20 }}>
-              <h3 style={{ color: '#E6EDF3', fontSize: 16, fontWeight: 700, margin: '0 0 10px' }}>{selected.title}</h3>
+              <h3 style={{ color: 'var(--text-strong)', fontSize: 16, fontWeight: 700, margin: '0 0 10px' }}>{selected.title}</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
                 {[
                   { k: 'Platform', v: `${selected.platform} · ${selected.dimensions}` },
@@ -909,15 +909,15 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
                   { k: 'Created', v: new Date(selected.created_at).toLocaleString() },
                 ].map(r => (
                   <div key={r.k} style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-                    <span style={{ color: '#4B5563', width: 80, flexShrink: 0 }}>{r.k}</span>
-                    <span style={{ color: '#9CA3AF', flex: 1 }}>{r.v}</span>
+                    <span style={{ color: 'var(--text-faint)', width: 80, flexShrink: 0 }}>{r.k}</span>
+                    <span style={{ color: 'var(--text-muted)', flex: 1 }}>{r.v}</span>
                   </div>
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <a href={selected.public_url} download target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '9px 0', borderRadius: 9, border: '1px solid rgba(108,63,197,0.3)', backgroundColor: 'rgba(108,63,197,0.1)', color: '#9B72E8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>↓ Download</a>
                 <button onClick={() => remove(selected.id)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid rgba(220,38,38,0.3)', backgroundColor: 'rgba(220,38,38,0.1)', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
-                <button onClick={() => setSelected(null)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'transparent', color: '#6B7280', fontSize: 13, cursor: 'pointer' }}>Close</button>
+                <button onClick={() => setSelected(null)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid var(--border-strong)', backgroundColor: 'transparent', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer' }}>Close</button>
               </div>
             </div>
           </div>
@@ -933,31 +933,31 @@ function AudienceSegments({ segments, loading }: { segments: Segment[]; loading:
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
-        {loading ? [1,2,3,4].map(i => <div key={i} style={{ height: 120, borderRadius: 14, backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.06)', animation: 'pulse 2s ease-in-out infinite' }} />)
+        {loading ? [1,2,3,4].map(i => <div key={i} style={{ height: 120, borderRadius: 14, backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-soft)', animation: 'pulse 2s ease-in-out infinite' }} />)
         : segments.map(s => (
-          <div key={s.label} style={{ backgroundColor: '#161B22', border: `1px solid ${s.color}25`, borderRadius: 14, padding: '18px 20px' }}>
+          <div key={s.label} style={{ backgroundColor: 'var(--bg-surface)', border: `1px solid ${s.color}25`, borderRadius: 14, padding: '18px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#E6EDF3' }}>{s.label}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)' }}>{s.label}</span>
               <span style={{ fontSize: 20, fontWeight: 800, fontFamily: 'monospace', color: s.color }}>{s.count}</span>
             </div>
-            <p style={{ color: '#6B7280', fontSize: 12, margin: '0 0 6px' }}>{s.description}</p>
+            <p style={{ color: 'var(--text-dim)', fontSize: 12, margin: '0 0 6px' }}>{s.description}</p>
             <span style={{ fontSize: 10, fontWeight: 600, color: s.color, backgroundColor: s.color + '18', padding: '2px 8px', borderRadius: 999 }}>{s.volume_range}</span>
           </div>
         ))}
       </div>
-      <div style={{ backgroundColor: '#161B22', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '18px 20px' }}>
-        <h3 style={{ color: '#6B7280', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 14px' }}>Suggested Campaigns by Segment</h3>
+      <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px' }}>
+        <h3 style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 14px' }}>Suggested Campaigns by Segment</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
             { segment: '🐋 Whales',  action: 'VIP loyalty reward + exclusive market access', color: '#F59E0B' },
             { segment: '⚡ Active',  action: 'Weekend volume boost challenge + leaderboard',  color: '#6C3FC5' },
             { segment: '😴 Casual',  action: 'Low-risk intro market + guided first prediction', color: '#00C853' },
-            { segment: '💤 Inactive', action: 'Win-back push with 2x P&L on first trade back', color: '#9CA3AF' },
+            { segment: '💤 Inactive', action: 'Win-back push with 2x P&L on first trade back', color: 'var(--text-muted)' },
           ].map(r => (
-            <div key={r.segment} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', borderRadius: 10, backgroundColor: '#0D1117', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div key={r.segment} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', borderRadius: 10, backgroundColor: 'var(--bg-base)', border: '1px solid var(--fill-soft)' }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: r.color, minWidth: 80 }}>{r.segment}</span>
-              <span style={{ fontSize: 13, color: '#9CA3AF', flex: 1 }}>{r.action}</span>
-              <span style={{ fontSize: 12, color: '#374151' }}>→</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)', flex: 1 }}>{r.action}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-faintest)' }}>→</span>
             </div>
           ))}
         </div>
@@ -1013,7 +1013,7 @@ export function MarketingTab() {
         <span style={{ color: '#9B72E8' }}>
           {section === 'campaigns' ? <IconBullhorn /> : section === 'media' ? <IconImage /> : section === 'gallery' ? <IconFolder /> : section === 'brand' ? <IconPalette /> : <IconUsers />}
         </span>
-        <span style={{ color: '#9CA3AF', fontSize: 13 }}>{blurb[section]}</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{blurb[section]}</span>
       </div>
 
       {section === 'campaigns' && <CampaignGenerator segments={segments} />}

@@ -20,7 +20,7 @@ const LICENSE_COLORS: Record<string, string> = {
   free_unrestricted:      '#00C853',
   free_demo_only:         '#E05C20',
   metered:                '#6C3FC5',
-  paid_required_at_scale: '#9CA3AF',
+  paid_required_at_scale: 'var(--text-muted)',
 }
 
 interface Props {
@@ -65,8 +65,8 @@ export function DataSourcesSection({ initial, defaultOpen = false }: Props) {
     <div
       className="rounded-2xl overflow-hidden"
       style={{
-        backgroundColor: '#161B22',
-        border: '1px solid rgba(255,255,255,0.08)',
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
       }}
     >
       {/* Collapsible header */}
@@ -78,18 +78,18 @@ export function DataSourcesSection({ initial, defaultOpen = false }: Props) {
         <div className="flex items-center gap-3">
           <h2
             className="text-xs font-bold uppercase tracking-widest"
-            style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+            style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
           >
             Data Sources
           </h2>
-          <span className="text-xs" style={{ color: '#4B5563' }}>
+          <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
             — {enabledCount} of {sources.filter(s => s.category !== 'ai').length} data sources active
           </span>
         </div>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
           <path
             d={open ? 'M2 8L6 4L10 8' : 'M2 4L6 8L10 4'}
-            stroke="#4B5563"
+            stroke="var(--text-faint)"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -99,7 +99,7 @@ export function DataSourcesSection({ initial, defaultOpen = false }: Props) {
 
       {open && (
         <div className="px-5 pb-5 space-y-5">
-          <p className="text-xs leading-snug" style={{ color: '#4B5563' }}>
+          <p className="text-xs leading-snug" style={{ color: 'var(--text-faint)' }}>
             Toggle sources on/off to control what data feeds into AI market pricing and live price strips on player cards.
             Changes take effect on the next scheduled run.
           </p>
@@ -108,26 +108,26 @@ export function DataSourcesSection({ initial, defaultOpen = false }: Props) {
             const meta = CATEGORY_LABELS[cat] ?? { label: cat, icon: '•' }
             return (
               <section key={cat} className="space-y-2">
-                <p className="text-xs font-bold uppercase" style={{ color: '#374151' }}>
+                <p className="text-xs font-bold uppercase" style={{ color: 'var(--text-faintest)' }}>
                   {meta.icon} {meta.label}
                 </p>
                 <div className="space-y-1">
                   {items.map(src => {
-                    const color = LICENSE_COLORS[src.license_tier] ?? '#6B7280'
+                    const color = LICENSE_COLORS[src.license_tier] ?? 'var(--text-dim)'
                     const isAi  = src.category === 'ai'
                     return (
                       <div
                         key={src.id}
                         className="flex items-start justify-between gap-3 rounded-xl px-3 py-2.5"
                         style={{
-                          backgroundColor: src.enabled ? 'rgba(0,200,83,0.04)' : 'rgba(255,255,255,0.02)',
-                          border: `1px solid ${src.enabled ? 'rgba(0,200,83,0.12)' : 'rgba(255,255,255,0.04)'}`,
+                          backgroundColor: src.enabled ? 'rgba(0,200,83,0.04)' : 'var(--fill-subtle)',
+                          border: `1px solid ${src.enabled ? 'rgba(0,200,83,0.12)' : 'var(--border-faint)'}`,
                           opacity: isAi ? 0.6 : 1,
                         }}
                       >
                         <div className="space-y-0.5 min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium" style={{ color: '#D1D5DB' }}>
+                            <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
                               {src.name}
                             </span>
                             <span
@@ -137,13 +137,13 @@ export function DataSourcesSection({ initial, defaultOpen = false }: Props) {
                               {src.license_tier.replace(/_/g, ' ')}
                             </span>
                             {src.rate_limit_per_minute != null && (
-                              <span className="text-xs font-mono" style={{ color: '#4B5563' }}>
+                              <span className="text-xs font-mono" style={{ color: 'var(--text-faint)' }}>
                                 {src.rate_limit_per_minute}/min
                               </span>
                             )}
                           </div>
                           {src.commercial_note && (
-                            <p className="text-xs leading-snug" style={{ color: '#4B5563' }}>
+                            <p className="text-xs leading-snug" style={{ color: 'var(--text-faint)' }}>
                               {src.commercial_note}
                             </p>
                           )}
@@ -151,7 +151,7 @@ export function DataSourcesSection({ initial, defaultOpen = false }: Props) {
 
                         {/* Toggle — AI sources are always on (managed via Anthropic dashboard) */}
                         {isAi ? (
-                          <span className="text-xs flex-shrink-0 mt-0.5" style={{ color: '#4B5563' }}>
+                          <span className="text-xs flex-shrink-0 mt-0.5" style={{ color: 'var(--text-faint)' }}>
                             always on
                           </span>
                         ) : (
@@ -162,7 +162,7 @@ export function DataSourcesSection({ initial, defaultOpen = false }: Props) {
                             style={{
                               width: 40, height: 22,
                               borderRadius: 11,
-                              backgroundColor: src.enabled ? '#00C853' : '#374151',
+                              backgroundColor: src.enabled ? '#00C853' : 'var(--text-faintest)',
                               border: 'none',
                               cursor: pending ? 'wait' : 'pointer',
                               position: 'relative',

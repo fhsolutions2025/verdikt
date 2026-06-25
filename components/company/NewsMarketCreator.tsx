@@ -68,7 +68,7 @@ function Spinner() {
       style={{
         display: 'inline-block',
         width: 14, height: 14,
-        border: '2px solid #30363D',
+        border: '2px solid var(--border-strong)',
         borderTopColor: '#00C853',
         borderRadius: '50%',
         animation: 'spin 0.7s linear infinite',
@@ -93,9 +93,9 @@ function HeadlineCard({ item, state, isSelected, onGenerate, onSelect }: Headlin
   const isError      = state.status === 'error'
   const hasPreview   = state.status === 'preview'
 
-  let borderColor = isSelected ? '#00C853' : '#30363D'
+  let borderColor = isSelected ? '#00C853' : 'var(--border-strong)'
   if (isPublished) borderColor = '#238636'
-  if (isNotViable || isError) borderColor = '#6E7681'
+  if (isNotViable || isError) borderColor = 'var(--text-dim)'
 
   return (
     <div
@@ -104,7 +104,7 @@ function HeadlineCard({ item, state, isSelected, onGenerate, onSelect }: Headlin
         border:        `1px solid ${borderColor}`,
         borderRadius:  10,
         padding:       '12px 14px',
-        backgroundColor: isSelected ? '#0D2217' : '#161B22',
+        backgroundColor: isSelected ? 'rgba(0,200,83,0.10)' : 'var(--bg-surface)',
         cursor:        isPublished || isNotViable ? 'default' : 'pointer',
         transition:    'border-color 0.15s, background-color 0.15s',
         opacity:       isPublished || isNotViable ? 0.55 : 1,
@@ -115,7 +115,7 @@ function HeadlineCard({ item, state, isSelected, onGenerate, onSelect }: Headlin
         <div style={{ flex: 1, minWidth: 0 }}>
           <p
             style={{
-              color:       isPublished ? '#57AB5A' : '#E6EDF3',
+              color:       isPublished ? '#57AB5A' : 'var(--text-strong)',
               fontSize:    13,
               fontWeight:  600,
               lineHeight:  1.4,
@@ -128,17 +128,17 @@ function HeadlineCard({ item, state, isSelected, onGenerate, onSelect }: Headlin
           </p>
           <div className="flex items-center gap-2 flex-wrap">
             {item.source && (
-              <span style={{ fontSize: 11, color: '#8B949E', fontWeight: 500 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
                 {item.source}
               </span>
             )}
             {item.pubDate && (
-              <span style={{ fontSize: 11, color: '#6E7681' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                 {formatPubDate(item.pubDate)}
               </span>
             )}
             {isNotViable && (
-              <span style={{ fontSize: 11, color: '#6E7681', fontStyle: 'italic' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>
                 Not viable for prediction market
               </span>
             )}
@@ -165,9 +165,9 @@ function HeadlineCard({ item, state, isSelected, onGenerate, onSelect }: Headlin
               fontSize:        12,
               fontWeight:      600,
               cursor:          isGenerating ? 'default' : 'pointer',
-              backgroundColor: isGenerating ? '#21262D' : hasPreview ? '#1A3A1A' : '#21262D',
-              border:          `1px solid ${hasPreview ? '#238636' : '#30363D'}`,
-              color:           hasPreview ? '#57AB5A' : '#8B949E',
+              backgroundColor: isGenerating ? 'var(--bg-surface)' : hasPreview ? 'rgba(0,200,83,0.14)' : 'var(--bg-surface)',
+              border:          `1px solid ${hasPreview ? '#238636' : 'var(--border-strong)'}`,
+              color:           hasPreview ? '#57AB5A' : 'var(--text-muted)',
               transition:      'all 0.15s',
               whiteSpace:      'nowrap',
             }}
@@ -204,7 +204,7 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
       style={{
         border:          '1px solid #00C853',
         borderRadius:    12,
-        backgroundColor: '#0A1A0A',
+        backgroundColor: 'rgba(0,200,83,0.08)',
         padding:         20,
         marginTop:       16,
       }}
@@ -215,7 +215,7 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
 
       {/* Question */}
       <div style={{ marginBottom: 14 }}>
-        <label style={{ color: '#8B949E', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 5 }}>
+        <label style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 5 }}>
           QUESTION
         </label>
         <textarea
@@ -224,10 +224,10 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
           rows={2}
           style={{
             width:           '100%',
-            backgroundColor: '#161B22',
-            border:          '1px solid #30363D',
+            backgroundColor: 'var(--bg-surface)',
+            border:          '1px solid var(--border-strong)',
             borderRadius:    8,
-            color:           '#E6EDF3',
+            color:           'var(--text-strong)',
             fontSize:        14,
             fontWeight:      600,
             padding:         '10px 12px',
@@ -242,11 +242,11 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
 
       {/* YES / NO prices */}
       <div style={{ marginBottom: 14 }}>
-        <label style={{ color: '#8B949E', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 8 }}>
+        <label style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 8 }}>
           PROBABILITY  —  YES: <span style={{ color: '#00C853' }}>{yp}¢</span>  /  NO: <span style={{ color: '#E05C20' }}>{np}¢</span>
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 11, color: '#6E7681', width: 22 }}>5</span>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', width: 22 }}>5</span>
           <input
             type="range"
             min={5} max={95} step={1}
@@ -257,7 +257,7 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
             }}
             style={{ flex: 1, accentColor: '#00C853', cursor: 'pointer' }}
           />
-          <span style={{ fontSize: 11, color: '#6E7681', width: 22, textAlign: 'right' }}>95</span>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', width: 22, textAlign: 'right' }}>95</span>
         </div>
         {/* Visual bar */}
         <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 8 }}>
@@ -269,7 +269,7 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
       {/* Closes at */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
         <div style={{ flex: 1 }}>
-          <label style={{ color: '#8B949E', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 5 }}>
+          <label style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 5 }}>
             CLOSES AT
           </label>
           <input
@@ -278,10 +278,10 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
             onChange={e => onChange({ ...draft, closes_at: e.target.value })}
             style={{
               width:           '100%',
-              backgroundColor: '#161B22',
-              border:          '1px solid #30363D',
+              backgroundColor: 'var(--bg-surface)',
+              border:          '1px solid var(--border-strong)',
               borderRadius:    8,
-              color:           '#E6EDF3',
+              color:           'var(--text-strong)',
               fontSize:        13,
               padding:         '8px 10px',
               outline:         'none',
@@ -290,13 +290,13 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
           />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={{ color: '#8B949E', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 5 }}>
+          <label style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 5 }}>
             AI CONFIDENCE
           </label>
           <div
             style={{
-              backgroundColor: '#161B22',
-              border:          '1px solid #30363D',
+              backgroundColor: 'var(--bg-surface)',
+              border:          '1px solid var(--border-strong)',
               borderRadius:    8,
               padding:         '8px 10px',
               fontSize:        13,
@@ -312,7 +312,7 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
 
       {/* Resolution source */}
       <div style={{ marginBottom: 14 }}>
-        <label style={{ color: '#8B949E', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 5 }}>
+        <label style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 5 }}>
           RESOLUTION SOURCE
         </label>
         <input
@@ -321,10 +321,10 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
           onChange={e => onChange({ ...draft, resolution_source: e.target.value })}
           style={{
             width:           '100%',
-            backgroundColor: '#161B22',
-            border:          '1px solid #30363D',
+            backgroundColor: 'var(--bg-surface)',
+            border:          '1px solid var(--border-strong)',
             borderRadius:    8,
-            color:           '#E6EDF3',
+            color:           'var(--text-strong)',
             fontSize:        13,
             padding:         '8px 10px',
             outline:         'none',
@@ -338,32 +338,32 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
       {draft.rationale && (
         <div
           style={{
-            backgroundColor: '#161B22',
-            border:          '1px solid #30363D',
+            backgroundColor: 'var(--bg-surface)',
+            border:          '1px solid var(--border-strong)',
             borderRadius:    8,
             padding:         '10px 12px',
             marginBottom:    14,
           }}
         >
-          <p style={{ fontSize: 11, color: '#6E7681', marginBottom: 3, fontWeight: 600 }}>
+          <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 3, fontWeight: 600 }}>
             HAIKU RATIONALE
           </p>
-          <p style={{ fontSize: 12, color: '#8B949E', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
             {draft.rationale}
           </p>
         </div>
       )}
 
       {/* Status route notice */}
-      <p style={{ fontSize: 11, color: '#6E7681', marginBottom: 14 }}>
-        Market enters <code style={{ color: '#8B949E' }}>pending_ai</code> → normalize-byv sets confidence → MM approval → <code style={{ color: '#00C853' }}>live</code>
+      <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 14 }}>
+        Market enters <code style={{ color: 'var(--text-muted)' }}>pending_ai</code> → normalize-byv sets confidence → MM approval → <code style={{ color: '#00C853' }}>live</code>
       </p>
 
       {/* Error */}
       {publishError && (
         <div
           style={{
-            backgroundColor: '#1C0A0A',
+            backgroundColor: 'rgba(220,38,38,0.08)',
             border:          '1px solid #F85149',
             borderRadius:    8,
             padding:         '8px 12px',
@@ -386,9 +386,9 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
             fontSize:        13,
             fontWeight:      700,
             cursor:          publishing ? 'default' : 'pointer',
-            backgroundColor: publishing ? '#21262D' : '#00C853',
+            backgroundColor: publishing ? 'var(--bg-surface)' : '#00C853',
             border:          'none',
-            color:           publishing ? '#6E7681' : '#0D1117',
+            color:           publishing ? 'var(--text-dim)' : 'var(--bg-base)',
             display:         'flex',
             alignItems:      'center',
             justifyContent:  'center',
@@ -407,8 +407,8 @@ function PreviewPanel({ draft, onChange, onPublish, onCancel, publishing, publis
             fontWeight:      600,
             cursor:          'pointer',
             backgroundColor: 'transparent',
-            border:          '1px solid #30363D',
-            color:           '#8B949E',
+            border:          '1px solid var(--border-strong)',
+            color:           'var(--text-muted)',
           }}
         >
           Cancel
@@ -542,8 +542,8 @@ export function NewsMarketCreator() {
   return (
     <section
       style={{
-        backgroundColor: '#161B22',
-        border:          '1px solid #30363D',
+        backgroundColor: 'var(--bg-surface)',
+        border:          '1px solid var(--border-strong)',
         borderRadius:    12,
         overflow:        'hidden',
       }}
@@ -552,7 +552,7 @@ export function NewsMarketCreator() {
       <div
         style={{
           padding:         '16px 20px',
-          borderBottom:    '1px solid #30363D',
+          borderBottom:    '1px solid var(--border-strong)',
           display:         'flex',
           alignItems:      'center',
           justifyContent:  'space-between',
@@ -560,17 +560,17 @@ export function NewsMarketCreator() {
         }}
       >
         <div>
-          <p style={{ color: '#E6EDF3', fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
+          <p style={{ color: 'var(--text-strong)', fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
             News → Market
           </p>
-          <p style={{ color: '#8B949E', fontSize: 12 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>
             Curate headlines and generate prediction markets with one click
           </p>
         </div>
         {publishedCount > 0 && (
           <span
             style={{
-              backgroundColor: '#0A2A0A',
+              backgroundColor: 'rgba(0,200,83,0.12)',
               border:          '1px solid #238636',
               borderRadius:    20,
               padding:         '3px 10px',
@@ -589,7 +589,7 @@ export function NewsMarketCreator() {
 
         {/* Feed selector */}
         <div style={{ marginBottom: 14 }}>
-          <p style={{ color: '#6E7681', fontSize: 11, fontWeight: 600, marginBottom: 8, letterSpacing: '0.06em' }}>
+          <p style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 600, marginBottom: 8, letterSpacing: '0.06em' }}>
             SELECT FEED
           </p>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -608,9 +608,9 @@ export function NewsMarketCreator() {
                   fontSize:        12,
                   fontWeight:      600,
                   cursor:          'pointer',
-                  backgroundColor: selectedFeed === f.id ? '#00C853' : '#21262D',
-                  border:          `1px solid ${selectedFeed === f.id ? '#00C853' : '#30363D'}`,
-                  color:           selectedFeed === f.id ? '#0D1117' : '#8B949E',
+                  backgroundColor: selectedFeed === f.id ? '#00C853' : 'var(--bg-surface)',
+                  border:          `1px solid ${selectedFeed === f.id ? '#00C853' : 'var(--border-strong)'}`,
+                  color:           selectedFeed === f.id ? 'var(--bg-base)' : 'var(--text-muted)',
                   transition:      'all 0.15s',
                 }}
               >
@@ -631,9 +631,9 @@ export function NewsMarketCreator() {
             fontSize:        13,
             fontWeight:      700,
             cursor:          fetchState.status === 'loading' ? 'default' : 'pointer',
-            backgroundColor: fetchState.status === 'loading' ? '#21262D' : '#21262D',
-            border:          '1px solid #30363D',
-            color:           fetchState.status === 'loading' ? '#6E7681' : '#E6EDF3',
+            backgroundColor: fetchState.status === 'loading' ? 'var(--bg-surface)' : 'var(--bg-surface)',
+            border:          '1px solid var(--border-strong)',
+            color:           fetchState.status === 'loading' ? 'var(--text-dim)' : 'var(--text-strong)',
             display:         'flex',
             alignItems:      'center',
             justifyContent:  'center',
@@ -654,7 +654,7 @@ export function NewsMarketCreator() {
         {fetchState.status === 'error' && (
           <div
             style={{
-              backgroundColor: '#1C0A0A',
+              backgroundColor: 'rgba(220,38,38,0.08)',
               border:          '1px solid #F85149',
               borderRadius:    8,
               padding:         '10px 14px',
@@ -664,7 +664,7 @@ export function NewsMarketCreator() {
             <p style={{ color: '#F85149', fontSize: 12, fontWeight: 600 }}>
               Failed to load feed
             </p>
-            <p style={{ color: '#8B949E', fontSize: 12, marginTop: 3 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>
               {fetchState.message}
             </p>
           </div>
@@ -673,9 +673,9 @@ export function NewsMarketCreator() {
         {/* Headlines list */}
         {fetchState.status === 'loaded' && items.length > 0 && (
           <div>
-            <p style={{ color: '#6E7681', fontSize: 11, fontWeight: 600, marginBottom: 10, letterSpacing: '0.06em' }}>
+            <p style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 600, marginBottom: 10, letterSpacing: '0.06em' }}>
               {fetchState.feedLabel.toUpperCase()} — {items.length} HEADLINES
-              <span style={{ color: '#30363D', marginLeft: 8 }}>
+              <span style={{ color: 'var(--border-strong)', marginLeft: 8 }}>
                 · click a headline to select, then Generate
               </span>
             </p>
@@ -714,7 +714,7 @@ export function NewsMarketCreator() {
 
         {/* Empty state */}
         {fetchState.status === 'loaded' && items.length === 0 && (
-          <p style={{ color: '#6E7681', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
+          <p style={{ color: 'var(--text-dim)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
             No headlines returned from feed.
           </p>
         )}

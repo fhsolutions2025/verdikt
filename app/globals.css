@@ -63,36 +63,59 @@ body {
   background: #FFFFFF;
 }
 
-/* ─── Theme toggle chrome variables ──────────────────────────
-   Default (dark) values; overridden under light below.        */
-:root {
+/* ─── Semantic theme tokens ──────────────────────────────────
+   The Company dashboard (and shared dark widgets) consume these
+   instead of hardcoded hex, so they restyle for light/dark with
+   no inversion tricks. Brand accents (green/purple/orange/red)
+   are intentionally NOT tokenized — they read on both themes.  */
+:root, html[data-theme='dark'] {
+  --bg-base:       #0D1117;
+  --bg-surface:    #161B22;
+  --bg-surface-2:  #12161D;
+  --bg-inset:      #0D1117;
+  --border:        rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.12);
+  --border-soft:   rgba(255,255,255,0.06);
+  --border-faint:  rgba(255,255,255,0.04);
+  --fill-soft:     rgba(255,255,255,0.05);
+  --fill-subtle:   rgba(255,255,255,0.03);
+  --text-strong:   #E6EDF3;
+  --text:          #D1D5DB;
+  --text-muted:    #9CA3AF;
+  --text-dim:      #6B7280;
+  --text-faint:    #4B5563;
+  --text-faintest: #374151;
+  --shadow-card:   none;
+
   --tt-bg:     rgba(255,255,255,0.03);
   --tt-border: rgba(255,255,255,0.1);
   --tt-fg:     #6B7280;
 }
 
-/* ─── Light mode ─────────────────────────────────────────────
-   The app is built dark-first with hardcoded inline colors, so
-   light mode is delivered via a tuned inversion on the body.
-   invert(1) hue-rotate(180deg) flips lightness while keeping
-   hues (brand green/purple) roughly intact. Raster media and
-   anything marked [data-keep-color] are counter-inverted so
-   they render with their true colors.                          */
-html[data-theme='light'] body {
-  filter: invert(1) hue-rotate(180deg);
-  background: #0D1117; /* inverts to a light surface */
-}
-html[data-theme='light'] img,
-html[data-theme='light'] video,
-html[data-theme='light'] [data-keep-color] {
-  filter: invert(1) hue-rotate(180deg);
-}
 html[data-theme='light'] {
-  --tt-bg:     rgba(0,0,0,0.04);
-  --tt-border: rgba(0,0,0,0.12);
-  --tt-fg:     #6B7280;
+  --bg-base:       #F4F6F9;
+  --bg-surface:    #FFFFFF;
+  --bg-surface-2:  #FFFFFF;
+  --bg-inset:      #EEF1F5;
+  --border:        rgba(15,23,42,0.10);
+  --border-strong: rgba(15,23,42,0.16);
+  --border-soft:   rgba(15,23,42,0.07);
+  --border-faint:  rgba(15,23,42,0.05);
+  --fill-soft:     rgba(15,23,42,0.045);
+  --fill-subtle:   rgba(15,23,42,0.025);
+  --text-strong:   #0B1220;
+  --text:          #1F2937;
+  --text-muted:    #475569;
+  --text-dim:      #64748B;
+  --text-faint:    #94A3B8;
+  --text-faintest: #B4BDC9;
+  --shadow-card:   0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.06);
+
+  --tt-bg:     rgba(15,23,42,0.04);
+  --tt-border: rgba(15,23,42,0.12);
+  --tt-fg:     #64748B;
 }
-/* Keep scrollbar subtle in light mode */
+
 html[data-theme='light'] ::-webkit-scrollbar-thumb { background: #C7CDD4; }
 
 a { color: inherit; text-decoration: none; }

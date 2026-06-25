@@ -17,8 +17,8 @@ export function KpiCard({ label, value, sub, live = true, accent, tooltip }: Pro
     <div
       className="relative rounded-2xl p-5"
       style={{
-        backgroundColor: '#161B22',
-        border: '1px solid rgba(255,255,255,0.08)',
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
       }}
     >
       {live && (
@@ -29,7 +29,7 @@ export function KpiCard({ label, value, sub, live = true, accent, tooltip }: Pro
 
       <p
         className="text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1"
-        style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+        style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
       >
         {label}
         {tooltip && (
@@ -43,7 +43,7 @@ export function KpiCard({ label, value, sub, live = true, accent, tooltip }: Pro
         className="font-mono font-bold"
         style={{
           fontSize: 28,
-          color: accent ?? '#FFFFFF',
+          color: accent ?? 'var(--text-strong)',
           lineHeight: 1.1,
         }}
       >
@@ -51,7 +51,7 @@ export function KpiCard({ label, value, sub, live = true, accent, tooltip }: Pro
       </p>
 
       {sub && (
-        <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
+        <p className="text-xs mt-1.5" style={{ color: 'var(--text-dim)' }}>
           {sub}
         </p>
       )}

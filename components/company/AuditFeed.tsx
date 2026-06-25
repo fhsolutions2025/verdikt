@@ -7,9 +7,9 @@ import { AuditLogEntry } from '@/lib/types'
 const TYPE_COLORS: Record<string, string> = {
   trade:             '#00C853',
   seed:              '#6C3FC5',
-  resolve:           '#9CA3AF',
+  resolve:           'var(--text-muted)',
   fee:               '#E05C20',
-  operator_sync:     '#374151',
+  operator_sync:     'var(--text-faintest)',
   config_change:     '#DC2626',
   market_submission: '#6C3FC5',
   risk_alert:        '#DC2626',
@@ -50,20 +50,20 @@ function ActivityHeatmap({ entries }: { entries: AuditLogEntry[] }) {
   const maxCount = Math.max(...buckets.map(b => b.count), 1)
 
   return (
-    <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+    <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-soft)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#4B5563', textTransform: 'uppercase' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--text-faint)', textTransform: 'uppercase' }}>
           24H Activity Heatmap
         </span>
-        <span style={{ fontSize: 10, color: '#374151' }}>·</span>
-        <span style={{ fontSize: 10, color: '#374151' }}>
+        <span style={{ fontSize: 10, color: 'var(--text-faintest)' }}>·</span>
+        <span style={{ fontSize: 10, color: 'var(--text-faintest)' }}>
           {entries.length} total events
         </span>
       </div>
       <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 40 }}>
         {buckets.map((b, i) => {
           const intensity = b.count / maxCount
-          const color = b.hasAlert ? '#DC2626' : b.count > 0 ? '#00C853' : '#1F2937'
+          const color = b.hasAlert ? '#DC2626' : b.count > 0 ? '#00C853' : 'var(--bg-inset)'
           const height = b.count > 0 ? Math.max(4, intensity * 36) : 4
           return (
             <div
@@ -85,9 +85,9 @@ function ActivityHeatmap({ entries }: { entries: AuditLogEntry[] }) {
         })}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-        <span style={{ fontSize: 9, color: '#374151' }}>-24h</span>
-        <span style={{ fontSize: 9, color: '#374151' }}>-12h</span>
-        <span style={{ fontSize: 9, color: '#374151' }}>now</span>
+        <span style={{ fontSize: 9, color: 'var(--text-faintest)' }}>-24h</span>
+        <span style={{ fontSize: 9, color: 'var(--text-faintest)' }}>-12h</span>
+        <span style={{ fontSize: 9, color: 'var(--text-faintest)' }}>now</span>
       </div>
     </div>
   )
@@ -108,14 +108,14 @@ function StatsRow({ entries }: { entries: AuditLogEntry[] }) {
     { label: 'Seeds',   count: counts['seed']              ?? 0, color: '#6C3FC5' },
     { label: 'Fees',    count: counts['fee']               ?? 0, color: '#E05C20' },
     { label: 'Reviews', count: counts['market_submission'] ?? 0, color: '#6C3FC5' },
-    { label: 'Resolved',count: counts['resolve']           ?? 0, color: '#9CA3AF' },
+    { label: 'Resolved',count: counts['resolve']           ?? 0, color: 'var(--text-muted)' },
   ]
 
   return (
     <div style={{
       display: 'flex',
       gap: 0,
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
+      borderBottom: '1px solid var(--border-soft)',
       overflowX: 'auto',
     }}>
       {stats.map(s => (
@@ -123,13 +123,13 @@ function StatsRow({ entries }: { entries: AuditLogEntry[] }) {
           flex: 1,
           minWidth: 70,
           padding: '10px 14px',
-          borderRight: '1px solid rgba(255,255,255,0.04)',
+          borderRight: '1px solid var(--border-faint)',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'monospace', color: s.count > 0 ? s.color : '#374151' }}>
+          <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'monospace', color: s.count > 0 ? s.color : 'var(--text-faintest)' }}>
             {s.count}
           </div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: '#4B5563', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-faint)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             {s.label}
           </div>
         </div>
@@ -184,7 +184,7 @@ function FraudAlertsPanel({ entries }: { entries: AuditLogEntry[] }) {
           }}>
             <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#DC2626', flexShrink: 0, marginTop: 5 }} />
             <span style={{ fontSize: 12, color: '#FCA5A5', flex: 1 }}>{a.description}</span>
-            <span style={{ fontSize: 11, color: '#6B7280', flexShrink: 0, fontFamily: 'monospace' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0, fontFamily: 'monospace' }}>
               {formatTime(a.created_at)}
             </span>
           </div>
@@ -231,8 +231,8 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
     <div
       className="rounded-2xl overflow-hidden"
       style={{
-        backgroundColor: '#161B22',
-        border: '1px solid rgba(255,255,255,0.08)',
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border)',
       }}
     >
       {/* Collapsible header */}
@@ -244,7 +244,7 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
         <div className="flex items-center gap-3">
           <h2
             className="text-xs font-bold uppercase tracking-widest"
-            style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+            style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
           >
             Live Activity
           </h2>
@@ -262,7 +262,7 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
           <path
             d={open ? 'M2 8L6 4L10 8' : 'M2 4L6 8L10 4'}
-            stroke="#4B5563"
+            stroke="var(--text-faint)"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -287,11 +287,11 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
             gap: 4,
             padding: '10px 20px',
             overflowX: 'auto',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            borderBottom: '1px solid var(--border-soft)',
           }}>
             {[TYPE_ALL, ...ALL_TYPES].map(t => {
               const active = typeFilter === t
-              const color  = TYPE_COLORS[t] ?? '#6B7280'
+              const color  = TYPE_COLORS[t] ?? 'var(--text-dim)'
               return (
                 <button
                   key={t}
@@ -299,9 +299,9 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
                   style={{
                     padding: '4px 10px',
                     borderRadius: 999,
-                    border: `1px solid ${active ? color : 'rgba(255,255,255,0.08)'}`,
+                    border: `1px solid ${active ? color : 'var(--border)'}`,
                     backgroundColor: active ? color + '20' : 'transparent',
-                    color: active ? color : '#6B7280',
+                    color: active ? color : 'var(--text-dim)',
                     fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -316,7 +316,7 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
           </div>
 
           {/* Event list */}
-          <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+          <div className="divide-y" style={{ borderColor: 'var(--border-faint)' }}>
             {shown.map(entry => {
               const isSubmission = entry.type === 'market_submission'
               const isAlert      = entry.type === 'risk_alert'
@@ -334,8 +334,8 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
                   <span
                     className="mt-0.5 text-xs font-bold uppercase px-2 py-0.5 rounded-full flex-shrink-0"
                     style={{
-                      color:           TYPE_COLORS[entry.type] ?? '#6B7280',
-                      backgroundColor: (TYPE_COLORS[entry.type] ?? '#6B7280') + '18',
+                      color:           TYPE_COLORS[entry.type] ?? 'var(--text-dim)',
+                      backgroundColor: (TYPE_COLORS[entry.type] ?? 'var(--text-dim)') + '18',
                     }}
                   >
                     {entry.type.replace(/_/g, ' ')}
@@ -344,7 +344,7 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
                     <p
                       className="text-sm truncate"
                       style={{
-                        color:      isAlert ? '#FCA5A5' : '#D1D5DB',
+                        color:      isAlert ? '#FCA5A5' : 'var(--text)',
                         fontWeight: (isSubmission || isAlert) ? 700 : 400,
                       }}
                     >
@@ -352,11 +352,11 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
                     </p>
                     <div className="flex items-center gap-3 mt-0.5">
                       {entry.amount != null && (
-                        <span className="font-mono text-xs" style={{ color: '#6B7280' }}>
+                        <span className="font-mono text-xs" style={{ color: 'var(--text-dim)' }}>
                           {entry.amount.toFixed(2)}
                         </span>
                       )}
-                      <span className="text-xs" style={{ color: '#374151' }}>
+                      <span className="text-xs" style={{ color: 'var(--text-faintest)' }}>
                         {formatTime(entry.created_at)}
                       </span>
                     </div>
@@ -366,18 +366,18 @@ export function AuditFeed({ initial, defaultOpen = false }: Props) {
             })}
 
             {filtered.length === 0 && (
-              <p className="px-5 py-6 text-sm" style={{ color: '#6B7280' }}>
+              <p className="px-5 py-6 text-sm" style={{ color: 'var(--text-dim)' }}>
                 {typeFilter === TYPE_ALL ? 'No activity yet.' : `No ${typeFilter.replace(/_/g, ' ')} events.`}
               </p>
             )}
           </div>
 
           {visible < filtered.length && (
-            <div className="px-5 py-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+            <div className="px-5 py-3 border-t" style={{ borderColor: 'var(--border-faint)' }}>
               <button
                 onClick={() => setVisible(v => v + PAGE_SIZE)}
                 className="text-xs font-bold"
-                style={{ color: '#4B5563', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                style={{ color: 'var(--text-faint)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               >
                 Load more ({filtered.length - visible} remaining)
               </button>
