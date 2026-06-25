@@ -12,6 +12,8 @@ import { NewsMarketCreator } from '@/components/company/NewsMarketCreator'
 import { DataSourcesSection } from '@/components/company/DataSourcesSection'
 import { ApiHealthMonitor } from '@/components/company/ApiHealthMonitor'
 import { AuditFeed } from '@/components/company/AuditFeed'
+import { AgentsTab } from '@/components/company/AgentsTab'
+import { ChatWidget } from '@/components/shared/ChatWidget'
 import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
 import { formatVolume } from '@/lib/calculations'
 import type {
@@ -19,7 +21,7 @@ import type {
   RiskMarket, ApiSource, Market,
 } from '@/lib/types'
 
-type Tab = 'overview' | 'markets' | 'review' | 'news' | 'sources' | 'health' | 'activity'
+type Tab = 'overview' | 'markets' | 'review' | 'news' | 'sources' | 'health' | 'activity' | 'agents'
 
 interface AiStats {
   calls_today:    number
@@ -102,6 +104,16 @@ function IconList() {
       <line x1="3" y1="4" x2="12" y2="4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
       <line x1="3" y1="7.5" x2="12" y2="7.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
       <line x1="3" y1="11" x2="8" y2="11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function IconBot() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <rect x="2" y="5" width="11" height="8" rx="2" stroke="currentColor" strokeWidth="1.4"/>
+      <circle cx="5.5" cy="9" r="1" fill="currentColor"/>
+      <circle cx="9.5" cy="9" r="1" fill="currentColor"/>
+      <path d="M7.5 1V4M6 4H9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
     </svg>
   )
 }
@@ -298,6 +310,7 @@ export function CompanyDashboard({
           <NavItem icon={<IconActivity />} label="API Health"    active={tab === 'health'}   onClick={() => setTab('health')}
             badge={aiStats.last_error ? 1 : undefined} badgeColor="#DC2626" />
           <NavItem icon={<IconList />}     label="Activity"      active={tab === 'activity'} onClick={() => setTab('activity')} />
+          <NavItem icon={<IconBot />}      label="Agents"        active={tab === 'agents'}   onClick={() => setTab('agents')} />
 
           {/* Bottom: MM status */}
           <div style={{ marginTop: 'auto', padding: '12px 14px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
@@ -474,8 +487,21 @@ export function CompanyDashboard({
             </TabSection>
           )}
 
+          {/* Agents */}
+          {tab === 'agents' && (
+            <TabSection
+              title="AI Agents"
+              subtitle="Configure system prompts, tools, rate limits, and guardrails for each assistant"
+            >
+              <AgentsTab />
+            </TabSection>
+          )}
+
         </main>
       </div>
+
+      {/* Company AI chat assistant */}
+      <ChatWidget agentType="company" />
     </div>
   )
 }
