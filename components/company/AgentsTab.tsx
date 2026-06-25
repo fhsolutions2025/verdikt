@@ -675,6 +675,7 @@ export function AgentsTab() {
                 {[
                   { rule: 'Prompt injection detection', status: 'active', desc: 'Blocks jailbreak & role-switch attempts' },
                   { rule: 'PII stripping', status: 'active', desc: 'Redacts cards, emails, IBANs, phone numbers & national IDs before the model sees input' },
+                  { rule: 'Currency / locale', status: 'active', desc: 'Forbids ₹/INR & India-specific framing — output is sanitised before display' },
                   { rule: 'Input length cap', status: 'active', desc: '2,000 characters max per message' },
                   { rule: 'Financial disclaimer', status: selected === 'player' ? 'active' : 'n/a', desc: 'Auto-appended on trading recommendations' },
                   { rule: 'Context window cap', status: 'active', desc: 'Last 20 turns only — prevents context stuffing' },

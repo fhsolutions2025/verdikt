@@ -210,6 +210,25 @@ async function logFailure(
 
 const FINANCIAL_KEYWORDS = /\b(buy|sell|trade|invest|bet|position|recommend|suggest|should\s+(?:you\s+)?(?:buy|sell|trade))\b/i
 
+// ── Locale / currency guardrail ──────────────────────────────────────────────
+// The platform operates across Africa, Europe and globally — there is NO
+// India-specific context. Models otherwise tend to default monetary values to
+// the Indian Rupee (₹). This is appended server-side to every agent's system
+// prompt so it cannot be removed by editing a stored config.
+const LOCALE_GUARDRAIL = `
+
+OUTPUT RULES — always follow:
+- Currency: NEVER use the Indian Rupee symbol (₹) or the words "INR" / "Rupee" / "Rs". The platform serves Africa, Europe and global markets and has no India-specific context. Present monetary amounts as plain numbers with thousands separators (e.g. "1.38M", "8,731.70") and NO currency symbol, unless the user explicitly names a currency.
+- Do not invent country, locale or regulatory framing that was not provided in the data.`
+
+// Hard output filter — strip any rupee / INR notation the model still emits.
+function stripCurrencyLeak(text: string): string {
+  return text
+    .replace(/₹\s?/g, '')
+    .replace(/\bINR\b\s?/g, '')
+    .replace(/\bRs\.?\s?/g, '')
+}
+
 // ── Main route ────────────────────────────────────────────────────────────────
 
 export async function POST(
@@ -351,7 +370,8 @@ export async function POST(
     .map(t => TOOL_DEFS[t])
 
   // ── Call Haiku with streaming ─────────────────────────────────────────────
-  const systemPrompt = agentConfig?.system_prompt ?? 'You are a helpful assistant for the Verdikt prediction market platform.'
+  const baseSystemPrompt = agentConfig?.system_prompt ?? 'You are a helpful assistant for the Verdikt prediction market platform.'
+  const systemPrompt = baseSystemPrompt + LOCALE_GUARDRAIL
   const temperature  = Number(agentConfig?.temperature ?? 0.7)
   const maxTokens    = Number(agentConfig?.max_tokens ?? 1024)
 
@@ -459,6 +479,9 @@ export async function POST(
   const latencyMs = Date.now() - startTime
 
   // ── Output guardrails ─────────────────────────────────────────────────────
+  // Strip any rupee/INR notation that slipped past the system instruction.
+  finalText = stripCurrencyLeak(finalText)
+
   if (FINANCIAL_KEYWORDS.test(finalText) && agentType === 'player') {
     finalText += '\n\n*This is not financial advice. Past performance does not guarantee future results.*'
   }
