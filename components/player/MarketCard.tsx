@@ -5,13 +5,26 @@ import { Market, PriceTick } from '@/lib/types'
 import { LiveDot } from '@/components/shared/LiveDot'
 import { formatVolume } from '@/lib/calculations'
 
-interface Props {
-  market: Market
-  ticks:  PriceTick[]
+interface LivePrice {
+  label:  string   // e.g. 'BTC/USD'
+  value:  string   // e.g. '$67,420'
+  source: string
 }
 
-export function MarketCard({ market, ticks }: Props) {
-  const isLive = market.status === 'live'
+interface Props {
+  market:     Market
+  ticks:      PriceTick[]
+  livePrice?: LivePrice
+  isHot?:     boolean
+}
+
+export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
+  const isLive        = market.status === 'live'
+  const now           = Date.now()
+  const createdAt     = new Date(market.created_at).getTime()
+  const closesAt      = new Date(market.closes_at).getTime()
+  const isNew         = now - createdAt < 24 * 60 * 60 * 1000
+  const closingSoon   = closesAt > now && closesAt - now < 24 * 60 * 60 * 1000
 
   return (
     <Link href={`/player/${market.id}`} className="block">
@@ -19,12 +32,12 @@ export function MarketCard({ market, ticks }: Props) {
         className="rounded-2xl p-4 space-y-3 transition-transform active:scale-[0.98]"
         style={{
           backgroundColor: '#FFFFFF',
-          border: '1px solid #E5E7EB',
+          border: `1px solid ${isHot ? '#E05C2030' : '#E5E7EB'}`,
           cursor: 'pointer',
         }}
       >
-        {/* Row 1: category + confidence */}
-        <div className="flex items-center gap-2">
+        {/* Row 1: category + confidence + badges */}
+        <div className="flex items-center gap-2 flex-wrap">
           <span
             className="text-xs font-bold uppercase px-2 py-0.5 rounded-full"
             style={{
@@ -33,14 +46,40 @@ export function MarketCard({ market, ticks }: Props) {
               letterSpacing: '0.06em',
             }}
           >
-            {CATEGORY_ICON[market.category]} {market.category}
+            {CATEGORY_ICON[market.category]} {market.category.replace('_', ' ')}
           </span>
+
           {market.ai_confidence != null && (
             <span
               className="text-xs font-bold px-2 py-0.5 rounded-full"
               style={{ backgroundColor: '#F0FFF4', color: '#00A844' }}
             >
               Verdikt AI {market.ai_confidence.toFixed(0)}%
+            </span>
+          )}
+
+          {isHot && (
+            <span
+              className="text-xs font-bold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: '#FFF3E0', color: '#E05C20' }}
+            >
+              🔥 Hot
+            </span>
+          )}
+          {isNew && !isHot && (
+            <span
+              className="text-xs font-bold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: '#EFF6FF', color: '#3B82F6' }}
+            >
+              NEW
+            </span>
+          )}
+          {closingSoon && (
+            <span
+              className="text-xs font-bold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}
+            >
+              ⏱ Closing soon
             </span>
           )}
         </div>
@@ -53,16 +92,34 @@ export function MarketCard({ market, ticks }: Props) {
           {market.question}
         </p>
 
-        {/* Row 3: sparkline */}
+        {/* Row 3: live data strip — shown when a relevant price is available */}
+        {livePrice && (
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
+            style={{ backgroundColor: '#F8FAFC', border: '1px solid #E5E7EB' }}
+          >
+            <span className="text-xs font-bold font-mono" style={{ color: '#111A11' }}>
+              {livePrice.label}
+            </span>
+            <span className="text-xs font-bold font-mono" style={{ color: '#00A844' }}>
+              {livePrice.value}
+            </span>
+            <span className="text-xs ml-auto" style={{ color: '#9CA3AF' }}>
+              live · {livePrice.source}
+            </span>
+          </div>
+        )}
+
+        {/* Row 4: sparkline */}
         <Sparkline ticks={ticks} />
 
-        {/* Row 4: YES / NO price blocks */}
+        {/* Row 5: YES / NO price blocks */}
         <div className="flex gap-2">
           <PriceBlock side="yes" price={market.yes_price} />
           <PriceBlock side="no"  price={market.no_price}  />
         </div>
 
-        {/* Row 5: live indicator + volume */}
+        {/* Row 6: live indicator + volume */}
         <div className="flex items-center justify-between">
           {isLive ? (
             <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: '#00C853' }}>
@@ -124,6 +181,8 @@ function Sparkline({ ticks }: { ticks: PriceTick[] }) {
     return `${x},${y}`
   }).join(' ')
 
+  const trend = prices[prices.length - 1]! > prices[0]! ? '#00C853' : '#E05C20'
+
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -134,7 +193,7 @@ function Sparkline({ ticks }: { ticks: PriceTick[] }) {
       <polyline
         points={points}
         fill="none"
-        stroke="#00C853"
+        stroke={trend}
         strokeWidth="1.5"
         strokeLinejoin="round"
         strokeLinecap="round"
