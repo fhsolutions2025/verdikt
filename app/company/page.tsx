@@ -6,10 +6,11 @@ import { AuditFeed } from '@/components/company/AuditFeed'
 import { MarketRiskMonitor } from '@/components/company/MarketRiskMonitor'
 import { SingleOperatorCard } from '@/components/company/SingleOperatorCard'
 import { ApiHealthMonitor } from '@/components/company/ApiHealthMonitor'
+import { PendingReviewSection } from '@/components/company/PendingReviewSection'
 import { formatVolume } from '@/lib/calculations'
 import type {
   PlatformTotals, MmConfig, AuditLogEntry,
-  RiskMarket, ApiSource,
+  RiskMarket, ApiSource, Market,
 } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -34,6 +35,7 @@ export default async function CompanyPage() {
     auditLogRes,
     riskMarketsRes,
     allMarketsRes,
+    pendingReviewRes,
     apiSourcesRes,
     aiCallsRes,
     rateLimitsRes,
@@ -45,6 +47,8 @@ export default async function CompanyPage() {
     // §4.2 — read from view; is_imbalanced and risk_tier come pre-computed
     supabase.from('v_market_risk_status').select('*'),
     supabase.from('markets').select('*').in('status', ['live', 'ai_ready', 'pending_mm_review']),
+    // Player-submitted markets awaiting company review
+    supabase.from('markets').select('*').eq('status', 'ai_ready').eq('creator_type', 'player_mm').order('created_at', { ascending: false }),
     supabase.from('api_sources').select('*').order('category'),
     // ai_call_log aggregates for today — project only used columns
     supabase.from('ai_call_log')
@@ -59,8 +63,9 @@ export default async function CompanyPage() {
   const totals      = totalsRes.data      as PlatformTotals | null
   const mmConfig    = mmConfigRes.data    as MmConfig | null
   const auditLog    = auditLogRes.data    as AuditLogEntry[] | null
-  const riskMarkets = (riskMarketsRes.data ?? []) as RiskMarket[]
-  const allMarkets  = allMarketsRes.data  ?? []
+  const riskMarkets     = (riskMarketsRes.data ?? []) as RiskMarket[]
+  const allMarkets      = allMarketsRes.data  ?? []
+  const pendingReview   = (pendingReviewRes.data ?? []) as Market[]
   const apiSources  = (apiSourcesRes.data ?? []) as ApiSource[]
   const aiCalls       = aiCallsRes.data     ?? []
   const rateLimitRows = (rateLimitsRes.data  ?? []) as { api_name: string; call_count: number }[]
@@ -144,7 +149,7 @@ export default async function CompanyPage() {
           </p>
         </div>
 
-        {/* MM Toggle — Change 3: moved above KPI grid */}
+        {/* MM Toggle — moved above KPI grid */}
         {mmConfig && (
           <MmToggle
             initial={mmConfig.is_verdikt_acting_as_mm}
@@ -153,7 +158,10 @@ export default async function CompanyPage() {
           />
         )}
 
-        {/* KPI grid — Change 2: 4th card = Active Operators */}
+        {/* Pending Review — player submissions awaiting company decision */}
+        <PendingReviewSection initial={pendingReview} />
+
+        {/* KPI grid — 4th card = Active Operators */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KpiCard
             label="Total Volume (today)"

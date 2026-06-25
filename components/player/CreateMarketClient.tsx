@@ -97,10 +97,12 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
       volume:            0,
       est_volume:        null,
       spread_cents:      2,
-      created_by:        playerId,
-      creator_type:      'player_mm',
-      created_at:        now,
-      updated_at:        now,
+      created_by:               playerId,
+      creator_type:             'player_mm',
+      created_at:               now,
+      updated_at:               now,
+      player_original_question: null,
+      rejection_reason:         null,
     }
     setSubmissions(prev => [optimistic, ...prev])
 
@@ -263,7 +265,7 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
                 style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
               >
                 <p className="text-sm font-medium leading-snug" style={{ color: '#111A11' }}>
-                  {m.question}
+                  {m.player_original_question ?? m.question}
                 </p>
                 <div className="flex items-center justify-between">
                   <StatusPill status={m.status} />
@@ -271,6 +273,11 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
                     Closes {new Date(m.closes_at).toLocaleDateString()}
                   </span>
                 </div>
+                {m.status === 'voided' && m.rejection_reason && (
+                  <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEE2E2', color: '#B91C1C' }}>
+                    {m.rejection_reason}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -280,21 +287,21 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
   )
 }
 
-const STATUS_META: Record<MarketStatus, { label: string; bg: string; fg: string }> = {
-  pending_ai:         { label: 'Drafting',        bg: '#EEF2FF', fg: '#4338CA' },
-  ai_ready:           { label: 'Awaiting MM',     bg: '#FEF3C7', fg: '#92400E' },
-  pending_mm_review:  { label: 'In MM review',    bg: '#FEF3C7', fg: '#92400E' },
-  pending_compliance: { label: 'In compliance',   bg: '#FEF3C7', fg: '#92400E' },
-  live:               { label: 'Live',            bg: '#DCFCE7', fg: '#15803D' },
-  resolved:           { label: 'Resolved',        bg: '#F3F4F6', fg: '#6B7280' },
-  voided:             { label: 'Not approved',    bg: '#FEE2E2', fg: '#B91C1C' },
+const STATUS_META: Record<MarketStatus, { label: string; bg: string; fg: string; pulse?: boolean }> = {
+  pending_ai:         { label: 'AI Reviewing…',           bg: '#EEF2FF', fg: '#4338CA', pulse: true },
+  ai_ready:           { label: 'Awaiting Company Review', bg: '#FEF3C7', fg: '#92400E' },
+  pending_mm_review:  { label: 'Awaiting MM Approval',   bg: '#FEF3C7', fg: '#92400E' },
+  pending_compliance: { label: 'In compliance',           bg: '#FEF3C7', fg: '#92400E' },
+  live:               { label: 'Live ✓',                  bg: '#DCFCE7', fg: '#15803D' },
+  resolved:           { label: 'Resolved',                bg: '#F3F4F6', fg: '#6B7280' },
+  voided:             { label: 'Not accepted',            bg: '#FEE2E2', fg: '#B91C1C' },
 }
 
 function StatusPill({ status }: { status: MarketStatus }) {
   const meta = STATUS_META[status] ?? STATUS_META.pending_ai
   return (
     <span
-      className="text-xs font-bold px-2.5 py-1 rounded-full"
+      className={`text-xs font-bold px-2.5 py-1 rounded-full${meta.pulse ? ' animate-pulse' : ''}`}
       style={{ backgroundColor: meta.bg, color: meta.fg }}
     >
       {meta.label}
