@@ -8,6 +8,7 @@ import { SingleOperatorCard } from '@/components/company/SingleOperatorCard'
 import { ApiHealthMonitor } from '@/components/company/ApiHealthMonitor'
 import { DataSourcesSection } from '@/components/company/DataSourcesSection'
 import { PendingReviewSection } from '@/components/company/PendingReviewSection'
+import { NewsMarketCreator } from '@/components/company/NewsMarketCreator'
 import { formatVolume } from '@/lib/calculations'
 import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
 import type {
@@ -200,6 +201,9 @@ export default async function CompanyPage() {
 
         {/* Risk monitor */}
         <MarketRiskMonitor initial={riskMarkets} />
+
+        {/* News → Market creator */}
+        <NewsMarketCreator />
 
         {/* Configurations — data source on/off toggles */}
         <DataSourcesSection initial={apiSources} />
