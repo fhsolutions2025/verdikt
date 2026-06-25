@@ -18,15 +18,22 @@ const INJECTION_PATTERNS = [
   /<\|im_start\|>|<\|im_end\|>/,
 ]
 
+// International PII patterns. The platform serves players across Africa,
+// Europe and beyond, so we strip globally-recognised identifiers rather than
+// any single country's national-ID format.
 const PII_PATTERNS = [
-  // Credit card
-  /\b(?:\d{4}[\s-]?){3}\d{4}\b/g,
-  // CVV
-  /\bcvv\s*:?\s*\d{3,4}\b/gi,
-  // Aadhaar
-  /\b\d{4}\s\d{4}\s\d{4}\b/g,
-  // PAN
-  /\b[A-Z]{5}\d{4}[A-Z]\b/g,
+  // Payment card number (13–16 digits, optional spaces/dashes)
+  /\b(?:\d[ -]*?){13,16}\b/g,
+  // CVV / CVC
+  /\bcv[vc]\s*:?\s*\d{3,4}\b/gi,
+  // Email address
+  /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
+  // IBAN (international bank account — Europe, Africa, Middle East, etc.)
+  /\b[A-Z]{2}\d{2}[ ]?(?:[A-Z0-9][ ]?){11,30}\b/g,
+  // International phone number in E.164-ish form (must start with +)
+  /\+\d[\d\s().-]{7,}\d/g,
+  // National identifier in ###-##-#### form (e.g. US SSN and similar)
+  /\b\d{3}-\d{2}-\d{4}\b/g,
 ]
 
 function stripPii(text: string): { cleaned: string; hadPii: boolean } {

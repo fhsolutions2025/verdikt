@@ -23,10 +23,41 @@ interface EvalStats {
   avgLatencyMs: number | null
 }
 
-const AGENT_LABELS: Record<string, { label: string; color: string; desc: string }> = {
-  player:   { label: 'Player Assistant',  color: '#00C853', desc: 'Visible to all players as a floating chat widget' },
-  company:  { label: 'Ops Assistant',     color: '#6366F1', desc: 'Available on the Company dashboard' },
-  mm_desk:  { label: 'MM Desk Assistant', color: '#F59E0B', desc: 'Available on the MM Desk' },
+// ── Agent metadata + icons ───────────────────────────────────────────────────
+function AgentGlyph({ type, size = 18 }: { type: string; size?: number }) {
+  const common = { width: size, height: size, viewBox: '0 0 18 18', fill: 'none' as const }
+  if (type === 'player') {
+    return (
+      <svg {...common}>
+        <circle cx="9" cy="5.5" r="3" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M3 15.5c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (type === 'company') {
+    return (
+      <svg {...common}>
+        <rect x="2.5" y="2.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+        <rect x="10.5" y="2.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+        <rect x="2.5" y="10.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+        <rect x="10.5" y="10.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+      </svg>
+    )
+  }
+  // mm_desk — candlestick / book
+  return (
+    <svg {...common}>
+      <path d="M5 2.5v13M13 2.5v13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <rect x="3" y="6" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="11" y="4" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  )
+}
+
+const AGENT_LABELS: Record<string, { label: string; color: string; desc: string; tag: string }> = {
+  player:   { label: 'Player Assistant',  color: '#00C853', desc: 'Visible to all players as a floating chat widget', tag: 'Verdikt AI' },
+  company:  { label: 'Ops Assistant',     color: '#6366F1', desc: 'Platform metrics & risk analysis on the Company dashboard', tag: 'Ops AI' },
+  mm_desk:  { label: 'MM Desk Assistant', color: '#F59E0B', desc: 'Repricing & book analysis on the MM Desk', tag: 'MM AI' },
 }
 
 const ALL_TOOLS = [
@@ -40,43 +71,76 @@ const ALL_TOOLS = [
   { id: 'get_market_risk',       label: 'Market Risk (MM)',   agents: ['mm_desk'] },
 ]
 
+const CARD_BG = '#12161D'
+const CARD_BORDER = 'rgba(255,255,255,0.07)'
+
+// ── Section header with accent icon ──────────────────────────────────────────
+function SectionLabel({ children, accent }: { children: React.ReactNode; accent: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+      <span style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: accent }} />
+      <span style={{ color: '#8B95A5', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        {children}
+      </span>
+    </div>
+  )
+}
+
+// ── Slider ───────────────────────────────────────────────────────────────────
 function Slider({
-  label, min, max, step = 1, value, unit = '', onChange,
+  label, min, max, step = 1, value, unit = '', onChange, accent,
 }: {
   label: string; min: number; max: number; step?: number
-  value: number; unit?: string; onChange: (v: number) => void
+  value: number; unit?: string; onChange: (v: number) => void; accent: string
 }) {
+  const pct = ((value - min) / (max - min)) * 100
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 500 }}>{label}</span>
-        <span style={{ color: '#E6EDF3', fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
+        <span style={{
+          color: accent, fontSize: 12.5, fontWeight: 700, fontFamily: 'monospace',
+          backgroundColor: accent + '14', padding: '1px 8px', borderRadius: 6,
+        }}>
           {value}{unit}
         </span>
       </div>
       <input
         type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
-        style={{ width: '100%', accentColor: '#6366F1', cursor: 'pointer' }}
+        style={{
+          width: '100%', cursor: 'pointer', height: 4, borderRadius: 3, appearance: 'none', WebkitAppearance: 'none',
+          background: `linear-gradient(90deg, ${accent} ${pct}%, rgba(255,255,255,0.08) ${pct}%)`,
+          accentColor: accent,
+        }}
       />
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span style={{ color: '#4B5563', fontSize: 10 }}>{min}{unit}</span>
-        <span style={{ color: '#4B5563', fontSize: 10 }}>{max}{unit}</span>
-      </div>
     </div>
   )
 }
 
-function EvalBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0
+// ── Satisfaction ring ────────────────────────────────────────────────────────
+function SatisfactionRing({ pct, color }: { pct: number | null; color: string }) {
+  const r = 26
+  const circ = 2 * Math.PI * r
+  const dash = pct != null ? (pct / 100) * circ : 0
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span style={{ color: '#9CA3AF', fontSize: 11 }}>{label}</span>
-        <span style={{ color: '#E6EDF3', fontSize: 11, fontWeight: 700 }}>{value}/{max}</span>
-      </div>
-      <div style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: color, borderRadius: 2, transition: 'width 0.4s' }} />
+    <div style={{ position: 'relative', width: 68, height: 68 }}>
+      <svg width="68" height="68" viewBox="0 0 68 68" style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx="34" cy="34" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
+        {pct != null && (
+          <circle
+            cx="34" cy="34" r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
+            strokeDasharray={`${dash} ${circ}`} style={{ transition: 'stroke-dasharray 0.5s' }}
+          />
+        )}
+      </svg>
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+        <span style={{ color: '#E6EDF3', fontSize: 16, fontWeight: 800, fontFamily: 'monospace' }}>
+          {pct != null ? `${Math.round(pct)}%` : '—'}
+        </span>
       </div>
     </div>
   )
@@ -167,6 +231,7 @@ export function AgentsTab() {
       if (res.ok) {
         setConfigs(prev => prev.map(c => c.agent_type === editing.agent_type ? editing : c))
         setSaveMsg('Saved successfully.')
+        setTimeout(() => setSaveMsg(null), 2500)
       } else {
         setSaveMsg(`Error: ${d.error ?? 'Unknown'}`)
       }
@@ -191,36 +256,50 @@ export function AgentsTab() {
   const cfg = editing
   const meta = AGENT_LABELS[selected]
   const stats = evalStats[selected]
+  const satisfaction = stats && (stats.thumbsUp + stats.thumbsDown) > 0
+    ? (stats.thumbsUp / (stats.thumbsUp + stats.thumbsDown)) * 100
+    : null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, height: '100%' }}>
 
-      {/* ── Autonomous agents (Vega) — platform overview + kill-switch ─────── */}
+      {/* ── Vega autonomous overview — gradient hero + kill-switch ──────────── */}
       {auto && (
         <div style={{
-          backgroundColor: auto.agents_enabled ? '#161B22' : '#2A1212',
-          border: `1px solid ${auto.agents_enabled ? 'rgba(255,255,255,0.08)' : '#DC262640'}`,
-          borderRadius: 12,
-          padding: '16px 20px',
+          position: 'relative',
+          overflow: 'hidden',
+          background: auto.agents_enabled
+            ? 'linear-gradient(135deg, #12161D 0%, #0F1A14 100%)'
+            : 'linear-gradient(135deg, #1F1212 0%, #2A1212 100%)',
+          border: `1px solid ${auto.agents_enabled ? '#00C85328' : '#DC262640'}`,
+          borderRadius: 14,
+          padding: '18px 22px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* glow accent */}
+          <div style={{
+            position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%',
+            background: auto.agents_enabled ? '#00C85318' : '#DC262618', filter: 'blur(40px)', pointerEvents: 'none',
+          }} />
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
               <div style={{
-                width: 36, height: 36, borderRadius: 9,
+                width: 42, height: 42, borderRadius: 11,
                 backgroundColor: auto.agents_enabled ? '#00C85320' : '#DC262620',
                 color: auto.agents_enabled ? '#00C853' : '#F87171',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: auto.agents_enabled ? '0 0 16px #00C85330' : 'none',
               }}>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <svg width="22" height="22" viewBox="0 0 18 18" fill="none">
                   <path d="M9 1L11 6.5L16.5 7L12.5 11L13.5 16.5L9 13.5L4.5 16.5L5.5 11L1.5 7L7 6.5L9 1Z"
-                    stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                    stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"
+                    fill={auto.agents_enabled ? '#00C85330' : 'none'} />
                 </svg>
               </div>
               <div>
-                <div style={{ color: '#E6EDF3', fontSize: 15, fontWeight: 700 }}>
+                <div style={{ color: '#E6EDF3', fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>
                   Vega — Autonomous Trading
                 </div>
-                <div style={{ color: auto.agents_enabled ? '#6B7280' : '#F87171', fontSize: 12, marginTop: 2 }}>
+                <div style={{ color: auto.agents_enabled ? '#7B8794' : '#F87171', fontSize: 12, marginTop: 3, fontWeight: 500 }}>
                   {auto.agents_enabled
                     ? `${auto.active_count} of ${auto.total_count} player agent${auto.total_count !== 1 ? 's' : ''} active`
                     : 'GLOBALLY PAUSED — no autonomous trades will execute'}
@@ -228,325 +307,379 @@ export function AgentsTab() {
               </div>
             </div>
 
-            {/* Kill-switch */}
             <button
               onClick={toggleKillSwitch}
               disabled={togglingKill}
               style={{
-                padding: '8px 18px',
-                borderRadius: 9,
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '9px 18px',
+                borderRadius: 10,
                 border: `1px solid ${auto.agents_enabled ? '#DC262650' : '#00C85350'}`,
-                backgroundColor: auto.agents_enabled ? '#DC262615' : '#00C85315',
+                backgroundColor: auto.agents_enabled ? '#DC262618' : '#00C85318',
                 color: auto.agents_enabled ? '#F87171' : '#00C853',
-                fontSize: 12.5,
-                fontWeight: 700,
+                fontSize: 12.5, fontWeight: 700,
                 cursor: togglingKill ? 'wait' : 'pointer',
                 opacity: togglingKill ? 0.6 : 1,
                 whiteSpace: 'nowrap',
+                transition: 'all 0.15s',
               }}
             >
-              {togglingKill ? '…' : auto.agents_enabled ? '⏻  Pause all agents' : '▶  Resume all agents'}
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                {auto.agents_enabled
+                  ? <path d="M7 1.5v6M3.5 3.2a5 5 0 107 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  : <path d="M4 2.5l7 4.5-7 4.5z" fill="currentColor" />}
+              </svg>
+              {togglingKill ? 'Working…' : auto.agents_enabled ? 'Pause all agents' : 'Resume all agents'}
             </button>
           </div>
 
-          {/* Aggregate stats */}
-          <div style={{ display: 'flex', gap: 28, marginTop: 16, flexWrap: 'wrap' }}>
+          {/* Aggregate stat strip */}
+          <div style={{
+            position: 'relative',
+            display: 'flex', gap: 0, marginTop: 18,
+            backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: '12px 4px',
+            flexWrap: 'wrap',
+          }}>
             {[
-              { label: 'Capital deployed', value: `₹${auto.total_deployed.toFixed(0)}`, color: '#E6EDF3' },
-              { label: 'Aggregate P&L', value: `${auto.total_pnl >= 0 ? '+' : ''}₹${auto.total_pnl.toFixed(0)}`, color: auto.total_pnl >= 0 ? '#00C853' : '#F87171' },
+              { label: 'Capital deployed', value: auto.total_deployed.toLocaleString(), color: '#E6EDF3' },
+              { label: 'Aggregate P&L', value: `${auto.total_pnl >= 0 ? '+' : ''}${auto.total_pnl.toLocaleString()}`, color: auto.total_pnl >= 0 ? '#00C853' : '#F87171' },
               { label: 'Entries today', value: String(auto.entries_today), color: '#E6EDF3' },
               { label: 'Exits today', value: String(auto.exits_today), color: '#F59E0B' },
               { label: 'Errors today', value: String(auto.errors_today), color: auto.errors_today > 0 ? '#F87171' : '#6B7280' },
-            ].map(s => (
-              <div key={s.label}>
-                <div style={{ color: '#6B7280', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
-                <div style={{ color: s.color, fontSize: 16, fontWeight: 700, fontFamily: 'monospace', marginTop: 2 }}>{s.value}</div>
+            ].map((s, i) => (
+              <div key={s.label} style={{
+                flex: 1, minWidth: 110, padding: '0 16px',
+                borderLeft: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+              }}>
+                <div style={{ color: '#6B7280', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
+                <div style={{ color: s.color, fontSize: 18, fontWeight: 800, fontFamily: 'monospace', marginTop: 3 }}>{s.value}</div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── Agent config row ──────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 0, flex: 1, minHeight: 0 }}>
+      {/* ── Config row ──────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 24, flex: 1, minHeight: 0 }}>
 
-      {/* ── Agent selector sidebar ────────────────────────────────────────── */}
-      <div style={{
-        width: 200,
-        flexShrink: 0,
-        borderRight: '1px solid rgba(255,255,255,0.08)',
-        paddingRight: 0,
-      }}>
-        <p style={{ color: '#4B5563', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-          Agents
-        </p>
-        {Object.entries(AGENT_LABELS).map(([type, m]) => (
-          <button
-            key={type}
-            onClick={() => selectAgent(type)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              width: '100%',
-              padding: '9px 12px',
-              border: 'none',
-              cursor: 'pointer',
-              textAlign: 'left',
-              backgroundColor: selected === type ? m.color + '12' : 'transparent',
-              borderLeft: `2px solid ${selected === type ? m.color : 'transparent'}`,
-              color: selected === type ? m.color : '#6B7280',
-              borderRadius: 0,
-            }}
-          >
-            <span style={{
-              width: 8, height: 8, borderRadius: '50%',
-              backgroundColor: configs.find(c => c.agent_type === type)?.is_active ? m.color : '#374151',
-              flexShrink: 0,
-            }} />
-            <span style={{ fontSize: 13, fontWeight: selected === type ? 700 : 500 }}>{m.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* ── Config panel ─────────────────────────────────────────────────── */}
-      {cfg && meta && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 0 0 28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-          {/* Agent header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ color: '#E6EDF3', fontSize: 15, fontWeight: 700 }}>{meta.label}</div>
-              <div style={{ color: '#6B7280', fontSize: 12, marginTop: 2 }}>{meta.desc}</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {/* Active toggle */}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
-                <div
-                  onClick={() => setEditing({ ...cfg, is_active: !cfg.is_active })}
-                  style={{
-                    width: 36, height: 20, borderRadius: 10,
-                    backgroundColor: cfg.is_active ? meta.color : '#374151',
-                    position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s',
-                  }}
-                >
-                  <div style={{
-                    position: 'absolute', top: 3, left: cfg.is_active ? 19 : 3,
-                    width: 14, height: 14, borderRadius: '50%',
-                    backgroundColor: '#fff', transition: 'left 0.2s',
-                  }} />
-                </div>
-                <span style={{ color: '#9CA3AF', fontSize: 12 }}>{cfg.is_active ? 'Active' : 'Inactive'}</span>
-              </label>
+        {/* ── Agent selector ────────────────────────────────────────────────── */}
+        <div style={{ width: 214, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={{ color: '#4B5563', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px 2px' }}>
+            Assistants
+          </p>
+          {Object.entries(AGENT_LABELS).map(([type, m]) => {
+            const isSel = selected === type
+            const active = configs.find(c => c.agent_type === type)?.is_active
+            return (
               <button
-                onClick={save}
-                disabled={saving}
+                key={type}
+                onClick={() => selectAgent(type)}
                 style={{
-                  padding: '7px 18px',
-                  borderRadius: 8,
-                  backgroundColor: meta.color,
-                  border: 'none',
-                  color: '#fff',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  opacity: saving ? 0.6 : 1,
+                  display: 'flex', alignItems: 'center', gap: 11,
+                  width: '100%', padding: '11px 13px',
+                  cursor: 'pointer', textAlign: 'left',
+                  background: isSel ? `linear-gradient(135deg, ${m.color}1A, ${m.color}08)` : CARD_BG,
+                  border: `1px solid ${isSel ? m.color + '50' : CARD_BORDER}`,
+                  borderRadius: 11,
+                  transition: 'all 0.15s',
                 }}
               >
-                {saving ? 'Saving…' : 'Save Config'}
+                <div style={{
+                  width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                  backgroundColor: m.color + (isSel ? '22' : '12'),
+                  color: isSel ? m.color : '#7B8794',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <AgentGlyph type={type} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: isSel ? '#E6EDF3' : '#9CA3AF', fontSize: 13, fontWeight: isSel ? 700 : 600 }}>
+                    {m.label}
+                  </div>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 3,
+                  }}>
+                    <span style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      backgroundColor: active ? m.color : '#374151',
+                      boxShadow: active ? `0 0 6px ${m.color}` : 'none',
+                    }} />
+                    <span style={{ color: active ? m.color : '#4B5563', fontSize: 10, fontWeight: 600 }}>
+                      {active ? 'Live' : 'Off'}
+                    </span>
+                  </div>
+                </div>
               </button>
-            </div>
-          </div>
+            )
+          })}
+        </div>
 
-          {saveMsg && (
-            <div style={{
-              padding: '8px 12px',
-              borderRadius: 8,
-              backgroundColor: saveMsg.startsWith('Error') ? '#DC262615' : '#00C85315',
-              border: `1px solid ${saveMsg.startsWith('Error') ? '#DC262630' : '#00C85330'}`,
-              color: saveMsg.startsWith('Error') ? '#F87171' : '#4ADE80',
-              fontSize: 12,
-            }}>
-              {saveMsg}
-            </div>
-          )}
+        {/* ── Config panel ──────────────────────────────────────────────────── */}
+        {cfg && meta && (
+          <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* Eval stats */}
-          {stats && (
+            {/* Agent header card */}
             <div style={{
-              backgroundColor: '#161B22',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 12,
+              background: `linear-gradient(135deg, ${meta.color}12, ${CARD_BG})`,
+              border: `1px solid ${meta.color}28`,
+              borderRadius: 13,
               padding: '16px 20px',
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 20,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap',
             }}>
-              <div>
-                <p style={{ color: '#6B7280', fontSize: 11, fontWeight: 600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Feedback (all time)
-                </p>
-                <EvalBar label="Thumbs up"   value={stats.thumbsUp}   max={stats.total} color="#00C853" />
-                <div style={{ marginTop: 8 }}>
-                  <EvalBar label="Thumbs down" value={stats.thumbsDown} max={stats.total} color="#DC2626" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 11,
+                  backgroundColor: meta.color + '20', color: meta.color,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <AgentGlyph type={selected} size={20} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: '#E6EDF3', fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em' }}>{meta.label}</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, color: meta.color,
+                      backgroundColor: meta.color + '18', padding: '2px 7px', borderRadius: 5,
+                    }}>{meta.tag}</span>
+                    <span style={{ color: '#4B5563', fontSize: 10.5, fontFamily: 'monospace' }}>v{cfg.version}</span>
+                  </div>
+                  <div style={{ color: '#7B8794', fontSize: 12, marginTop: 3 }}>{meta.desc}</div>
                 </div>
               </div>
-              <div>
-                <p style={{ color: '#6B7280', fontSize: 11, fontWeight: 600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Performance
-                </p>
-                <div style={{ color: '#9CA3AF', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Total messages</span>
-                    <span style={{ color: '#E6EDF3', fontWeight: 700, fontFamily: 'monospace' }}>{stats.total}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Avg latency</span>
-                    <span style={{ color: '#E6EDF3', fontWeight: 700, fontFamily: 'monospace' }}>
-                      {stats.avgLatencyMs != null ? `${Math.round(stats.avgLatencyMs)}ms` : '—'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Satisfaction</span>
-                    <span style={{ color: meta.color, fontWeight: 700, fontFamily: 'monospace' }}>
-                      {stats.total > 0 ? `${Math.round((stats.thumbsUp / (stats.thumbsUp + stats.thumbsDown || 1)) * 100)}%` : '—'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* System prompt */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                System Prompt
-              </span>
-              <span style={{ color: '#4B5563', fontSize: 11 }}>v{cfg.version}</span>
-            </div>
-            <textarea
-              value={cfg.system_prompt}
-              onChange={e => setEditing({ ...cfg, system_prompt: e.target.value })}
-              rows={12}
-              style={{
-                width: '100%',
-                backgroundColor: '#0D1117',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 10,
-                padding: '12px 14px',
-                color: '#D1D5DB',
-                fontSize: 12,
-                fontFamily: 'monospace',
-                lineHeight: 1.6,
-                resize: 'vertical',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-              onFocus={e => { e.currentTarget.style.borderColor = meta.color + '50' }}
-              onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
-            />
-          </div>
-
-          {/* Parameters */}
-          <div style={{
-            backgroundColor: '#161B22',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 12,
-            padding: '16px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 20,
-          }}>
-            <p style={{ color: '#6B7280', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-              Parameters
-            </p>
-            <Slider label="Temperature" min={0} max={1} step={0.05} value={cfg.temperature} onChange={v => setEditing({ ...cfg, temperature: v })} />
-            <Slider label="Max tokens" min={256} max={4096} step={128} value={cfg.max_tokens} onChange={v => setEditing({ ...cfg, max_tokens: v })} />
-            <Slider label="Rate limit / minute" min={1} max={60} value={cfg.rate_limit_per_minute} onChange={v => setEditing({ ...cfg, rate_limit_per_minute: v })} />
-            <Slider label="Rate limit / day" min={10} max={5000} step={10} value={cfg.rate_limit_per_day} onChange={v => setEditing({ ...cfg, rate_limit_per_day: v })} />
-          </div>
-
-          {/* Tools */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ color: '#6B7280', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-              Tools
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {ALL_TOOLS.filter(t => t.agents.includes(selected)).map(tool => {
-                const active = cfg.tools_enabled.includes(tool.id)
-                return (
-                  <label
-                    key={tool.id}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <div
+                    onClick={() => setEditing({ ...cfg, is_active: !cfg.is_active })}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '10px 14px',
-                      backgroundColor: active ? meta.color + '08' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${active ? meta.color + '30' : 'rgba(255,255,255,0.07)'}`,
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      transition: 'all 0.12s',
+                      width: 38, height: 21, borderRadius: 11,
+                      backgroundColor: cfg.is_active ? meta.color : '#374151',
+                      position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s',
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={active}
-                      onChange={() => toggleTool(tool.id)}
-                      style={{ accentColor: meta.color, cursor: 'pointer' }}
-                    />
-                    <span style={{ color: active ? '#E6EDF3' : '#6B7280', fontSize: 13, fontWeight: 500, flex: 1 }}>
-                      {tool.label}
-                    </span>
-                    <span style={{
-                      fontSize: 10, fontFamily: 'monospace',
-                      color: '#4B5563',
-                    }}>
-                      {tool.id}
-                    </span>
-                  </label>
-                )
-              })}
+                    <div style={{
+                      position: 'absolute', top: 3, left: cfg.is_active ? 20 : 3,
+                      width: 15, height: 15, borderRadius: '50%',
+                      backgroundColor: '#fff', transition: 'left 0.2s',
+                    }} />
+                  </div>
+                  <span style={{ color: cfg.is_active ? '#E6EDF3' : '#6B7280', fontSize: 12, fontWeight: 600 }}>
+                    {cfg.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </label>
+                <button
+                  onClick={save}
+                  disabled={saving}
+                  style={{
+                    padding: '8px 20px', borderRadius: 9,
+                    backgroundColor: meta.color, border: 'none', color: '#fff',
+                    fontSize: 12.5, fontWeight: 700,
+                    cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
+                    boxShadow: `0 2px 12px ${meta.color}40`,
+                  }}
+                >
+                  {saving ? 'Saving…' : 'Save Config'}
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* Guardrails info */}
-          <div style={{
-            backgroundColor: '#161B22',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 12,
-            padding: '16px 20px',
-          }}>
-            <p style={{ color: '#6B7280', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
-              Guardrails (code-enforced)
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[
-                { rule: 'Prompt injection detection', status: 'active', desc: 'Blocks jailbreak / role-switch attempts' },
-                { rule: 'PII stripping', status: 'active', desc: 'Strips card numbers, Aadhaar, PAN before model sees input' },
-                { rule: 'Input length cap', status: 'active', desc: '2,000 characters max per message' },
-                { rule: 'Financial disclaimer', status: selected === 'player' ? 'active' : 'n/a', desc: 'Auto-appended on trading recommendations' },
-                { rule: 'Context window cap', status: 'active', desc: 'Last 20 turns only — prevents context stuffing' },
-                { rule: 'Tool call loop cap', status: 'active', desc: 'Max 3 agentic rounds per request' },
-                { rule: 'Rate limiting', status: 'active', desc: `${cfg.rate_limit_per_minute}/min · ${cfg.rate_limit_per_day}/day (configurable above)` },
-              ].map(g => (
-                <div key={g.rule} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <span style={{
-                    flexShrink: 0, marginTop: 1,
-                    width: 6, height: 6, borderRadius: '50%',
-                    backgroundColor: g.status === 'active' ? '#00C853' : '#374151',
-                  }} />
-                  <div>
-                    <span style={{ color: '#D1D5DB', fontSize: 12, fontWeight: 500 }}>{g.rule}</span>
-                    <span style={{ color: '#4B5563', fontSize: 11, marginLeft: 8 }}>{g.desc}</span>
+            {saveMsg && (
+              <div style={{
+                padding: '9px 14px', borderRadius: 9,
+                backgroundColor: saveMsg.startsWith('Error') ? '#DC262615' : '#00C85315',
+                border: `1px solid ${saveMsg.startsWith('Error') ? '#DC262630' : '#00C85330'}`,
+                color: saveMsg.startsWith('Error') ? '#F87171' : '#4ADE80',
+                fontSize: 12.5, fontWeight: 600,
+              }}>
+                {saveMsg}
+              </div>
+            )}
+
+            {/* Eval stats */}
+            {stats && (
+              <div style={{
+                backgroundColor: CARD_BG, border: `1px solid ${CARD_BORDER}`,
+                borderRadius: 13, padding: '18px 20px',
+              }}>
+                <SectionLabel accent={meta.color}>Evaluations · all time</SectionLabel>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: 24, marginTop: 14, alignItems: 'center' }}>
+                  {/* Satisfaction ring */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <SatisfactionRing pct={satisfaction} color={meta.color} />
+                    <span style={{ color: '#6B7280', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Satisfaction</span>
+                  </div>
+                  {/* Feedback bars */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <FeedbackRow label="Thumbs up"   value={stats.thumbsUp}   total={stats.total} color="#00C853" />
+                    <FeedbackRow label="Thumbs down" value={stats.thumbsDown} total={stats.total} color="#DC2626" />
+                  </div>
+                  {/* Numbers */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: 24 }}>
+                    <Stat label="Total messages" value={String(stats.total)} />
+                    <Stat label="Avg latency" value={stats.avgLatencyMs != null ? `${Math.round(stats.avgLatencyMs)}ms` : '—'} />
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            )}
 
-        </div>
-      )}
+            {/* System prompt */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <SectionLabel accent={meta.color}>System Prompt</SectionLabel>
+              <textarea
+                value={cfg.system_prompt}
+                onChange={e => setEditing({ ...cfg, system_prompt: e.target.value })}
+                rows={12}
+                spellCheck={false}
+                style={{
+                  width: '100%', backgroundColor: '#0B0E13',
+                  border: `1px solid ${CARD_BORDER}`, borderRadius: 11,
+                  padding: '14px 16px', color: '#C9D4E0', fontSize: 12,
+                  fontFamily: 'ui-monospace, SFMono-Regular, monospace', lineHeight: 1.65,
+                  resize: 'vertical', outline: 'none', boxSizing: 'border-box',
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = meta.color + '60' }}
+                onBlur={e => { e.currentTarget.style.borderColor = CARD_BORDER }}
+              />
+            </div>
+
+            {/* Parameters */}
+            <div style={{
+              backgroundColor: CARD_BG, border: `1px solid ${CARD_BORDER}`,
+              borderRadius: 13, padding: '18px 20px',
+              display: 'flex', flexDirection: 'column', gap: 18,
+            }}>
+              <SectionLabel accent={meta.color}>Parameters</SectionLabel>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 28px' }}>
+                <Slider accent={meta.color} label="Temperature" min={0} max={1} step={0.05} value={cfg.temperature} onChange={v => setEditing({ ...cfg, temperature: v })} />
+                <Slider accent={meta.color} label="Max tokens" min={256} max={4096} step={128} value={cfg.max_tokens} onChange={v => setEditing({ ...cfg, max_tokens: v })} />
+                <Slider accent={meta.color} label="Rate limit / minute" min={1} max={60} value={cfg.rate_limit_per_minute} onChange={v => setEditing({ ...cfg, rate_limit_per_minute: v })} />
+                <Slider accent={meta.color} label="Rate limit / day" min={10} max={5000} step={10} value={cfg.rate_limit_per_day} onChange={v => setEditing({ ...cfg, rate_limit_per_day: v })} />
+              </div>
+            </div>
+
+            {/* Tools */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <SectionLabel accent={meta.color}>Tools</SectionLabel>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {ALL_TOOLS.filter(t => t.agents.includes(selected)).map(tool => {
+                  const active = cfg.tools_enabled.includes(tool.id)
+                  return (
+                    <label
+                      key={tool.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '11px 14px',
+                        backgroundColor: active ? meta.color + '0E' : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${active ? meta.color + '38' : CARD_BORDER}`,
+                        borderRadius: 10, cursor: 'pointer', transition: 'all 0.12s',
+                      }}
+                    >
+                      <span style={{
+                        width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                        backgroundColor: active ? meta.color : 'transparent',
+                        border: `1.5px solid ${active ? meta.color : '#4B5563'}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.12s',
+                      }}>
+                        {active && (
+                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                            <path d="M2.5 6.5l2.5 2.5 4.5-5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </span>
+                      <input type="checkbox" checked={active} onChange={() => toggleTool(tool.id)} style={{ display: 'none' }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: active ? '#E6EDF3' : '#8B95A5', fontSize: 13, fontWeight: 600 }}>{tool.label}</div>
+                        <div style={{ color: '#4B5563', fontSize: 10, fontFamily: 'monospace', marginTop: 1 }}>{tool.id}</div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Guardrails */}
+            <div style={{
+              backgroundColor: CARD_BG, border: `1px solid ${CARD_BORDER}`,
+              borderRadius: 13, padding: '18px 20px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <SectionLabel accent={meta.color}>Guardrails · code-enforced</SectionLabel>
+                <span style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: 10, fontWeight: 700, color: '#00C853',
+                  backgroundColor: '#00C85314', padding: '3px 9px', borderRadius: 6,
+                }}>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 1l4 1.5v3C10 8 8.2 10 6 11 3.8 10 2 8 2 5.5v-3L6 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                    <path d="M4.3 6l1.2 1.2L8 4.7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Always on
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {[
+                  { rule: 'Prompt injection detection', status: 'active', desc: 'Blocks jailbreak & role-switch attempts' },
+                  { rule: 'PII stripping', status: 'active', desc: 'Redacts cards, emails, IBANs, phone numbers & national IDs before the model sees input' },
+                  { rule: 'Input length cap', status: 'active', desc: '2,000 characters max per message' },
+                  { rule: 'Financial disclaimer', status: selected === 'player' ? 'active' : 'n/a', desc: 'Auto-appended on trading recommendations' },
+                  { rule: 'Context window cap', status: 'active', desc: 'Last 20 turns only — prevents context stuffing' },
+                  { rule: 'Tool call loop cap', status: 'active', desc: 'Max 3 agentic rounds per request' },
+                  { rule: 'Rate limiting', status: 'active', desc: `${cfg.rate_limit_per_minute}/min · ${cfg.rate_limit_per_day}/day` },
+                ].map(g => {
+                  const on = g.status === 'active'
+                  return (
+                    <div key={g.rule} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10,
+                      padding: '11px 13px', borderRadius: 9,
+                      backgroundColor: on ? 'rgba(0,200,83,0.04)' : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${on ? '#00C85320' : CARD_BORDER}`,
+                    }}>
+                      <span style={{
+                        flexShrink: 0, marginTop: 2, width: 7, height: 7, borderRadius: '50%',
+                        backgroundColor: on ? '#00C853' : '#4B5563',
+                        boxShadow: on ? '0 0 6px #00C85380' : 'none',
+                      }} />
+                      <div>
+                        <div style={{ color: on ? '#D1D5DB' : '#6B7280', fontSize: 12, fontWeight: 600 }}>
+                          {g.rule}
+                          {!on && <span style={{ color: '#4B5563', fontSize: 10, marginLeft: 6, fontWeight: 500 }}>n/a for this agent</span>}
+                        </div>
+                        <div style={{ color: '#6B7280', fontSize: 10.5, marginTop: 2, lineHeight: 1.45 }}>{g.desc}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+          </div>
+        )}
       </div>
+    </div>
+  )
+}
+
+// ── Small helpers ────────────────────────────────────────────────────────────
+function FeedbackRow({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+  const pct = total > 0 ? (value / total) * 100 : 0
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ color: '#9CA3AF', fontSize: 11.5 }}>{label}</span>
+        <span style={{ color: '#E6EDF3', fontSize: 11.5, fontWeight: 700, fontFamily: 'monospace' }}>{value}</span>
+      </div>
+      <div style={{ height: 5, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: color, borderRadius: 3, transition: 'width 0.5s' }} />
+      </div>
+    </div>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+      <span style={{ color: '#7B8794', fontSize: 11.5 }}>{label}</span>
+      <span style={{ color: '#E6EDF3', fontSize: 13, fontWeight: 700, fontFamily: 'monospace' }}>{value}</span>
     </div>
   )
 }
