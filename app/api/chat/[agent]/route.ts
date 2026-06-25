@@ -1,0 +1,440 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
+
+const ALLOWED_AGENTS = ['player', 'company', 'mm_desk'] as const
+type AgentType = (typeof ALLOWED_AGENTS)[number]
+
+// ── Guardrail patterns ────────────────────────────────────────────────────────
+
+const INJECTION_PATTERNS = [
+  /ignore\s+(previous|all|prior)\s+instructions?/i,
+  /you\s+are\s+now\s+(?:a\s+)?(?:DAN|GPT|jailbreak)/i,
+  /pretend\s+(?:you|that)\s+(?:are|you're)/i,
+  /do\s+anything\s+now/i,
+  /disable\s+(?:your\s+)?(?:safety|guardrails|restrictions)/i,
+  /system\s*prompt\s*:/i,
+  /\[INST\]|\[\/INST\]/,
+  /<\|im_start\|>|<\|im_end\|>/,
+]
+
+const PII_PATTERNS = [
+  // Credit card
+  /\b(?:\d{4}[\s-]?){3}\d{4}\b/g,
+  // CVV
+  /\bcvv\s*:?\s*\d{3,4}\b/gi,
+  // Aadhaar
+  /\b\d{4}\s\d{4}\s\d{4}\b/g,
+  // PAN
+  /\b[A-Z]{5}\d{4}[A-Z]\b/g,
+]
+
+function stripPii(text: string): { cleaned: string; hadPii: boolean } {
+  let cleaned = text
+  let hadPii = false
+  for (const re of PII_PATTERNS) {
+    const replaced = cleaned.replace(re, '[REDACTED]')
+    if (replaced !== cleaned) { hadPii = true; cleaned = replaced }
+  }
+  return { cleaned, hadPii }
+}
+
+function detectInjection(text: string): boolean {
+  return INJECTION_PATTERNS.some(re => re.test(text))
+}
+
+// ── Tool definitions exposed to the model ────────────────────────────────────
+
+const TOOL_DEFS: Record<string, object> = {
+  get_player_portfolio: {
+    name: 'get_player_portfolio',
+    description: 'Fetch the current player\'s open positions, P&L, and wallet balance.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  get_market_detail: {
+    name: 'get_market_detail',
+    description: 'Get full details for a specific market including current price, volume, and resolution source.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        market_id: { type: 'string', description: 'UUID of the market' },
+      },
+      required: ['market_id'],
+    },
+  },
+  get_live_markets: {
+    name: 'get_live_markets',
+    description: 'List live markets, optionally filtered by category.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        category: { type: 'string', enum: ['sports', 'finance', 'politics', 'current_affairs', 'custom'] },
+        limit: { type: 'number', default: 10 },
+      },
+      required: [],
+    },
+  },
+  get_platform_metrics: {
+    name: 'get_platform_metrics',
+    description: 'Fetch current platform revenue, volume, fee income, and spread income.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  get_risk_markets: {
+    name: 'get_risk_markets',
+    description: 'Get flagged imbalanced markets with risk tier (orange/green).',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  get_ai_stats: {
+    name: 'get_ai_stats',
+    description: 'Get today\'s AI model usage: call count, latency, cost, cache hit rate.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  get_open_book: {
+    name: 'get_open_book',
+    description: 'Fetch current MM positions across all live markets.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  get_market_risk: {
+    name: 'get_market_risk',
+    description: 'Get risk tier, imbalance ratio, and capital at risk for all markets.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+}
+
+// ── Tool execution ────────────────────────────────────────────────────────────
+
+async function executeTool(
+  name: string,
+  input: Record<string, unknown>,
+  userId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string> {
+  try {
+    switch (name) {
+      case 'get_player_portfolio': {
+        const [posRes, walletRes] = await Promise.all([
+          supabase.from('positions').select('*').eq('player_id', userId).eq('status', 'open'),
+          supabase.from('wallets').select('balance').eq('player_id', userId).single(),
+        ])
+        return JSON.stringify({
+          positions: posRes.data ?? [],
+          balance: walletRes.data?.balance ?? 0,
+        })
+      }
+      case 'get_market_detail': {
+        const { data } = await supabase
+          .from('markets')
+          .select('id, question, yes_price, no_price, volume, ai_confidence, resolution_source, closes_at, status')
+          .eq('id', String(input.market_id ?? ''))
+          .single()
+        return JSON.stringify(data ?? { error: 'Market not found' })
+      }
+      case 'get_live_markets': {
+        let q = supabase
+          .from('markets')
+          .select('id, question, yes_price, no_price, volume, ai_confidence, category')
+          .in('status', ['live', 'ai_ready'])
+          .order('volume', { ascending: false })
+          .limit(Number(input.limit ?? 10))
+        if (input.category) q = q.eq('category', String(input.category))
+        const { data } = await q
+        return JSON.stringify(data ?? [])
+      }
+      case 'get_platform_metrics': {
+        const { data: totals } = await supabase.from('v_platform_totals').select('*').single()
+        return JSON.stringify(totals ?? {})
+      }
+      case 'get_risk_markets': {
+        const { data } = await supabase.from('v_market_risk_status').select('*')
+        return JSON.stringify(data ?? [])
+      }
+      case 'get_ai_stats': {
+        const today = new Date(); today.setHours(0, 0, 0, 0)
+        const { data } = await supabase
+          .from('ai_call_log')
+          .select('success, from_cache, latency_ms, input_tokens, output_tokens')
+          .gte('created_at', today.toISOString())
+        const rows = data ?? []
+        const calls = rows.length
+        const cached = rows.filter(r => r.from_cache).length
+        const latencies = rows.filter(r => !r.from_cache && r.latency_ms != null).map(r => r.latency_ms!)
+        const avgLatency = latencies.length ? latencies.reduce((a, b) => a + b, 0) / latencies.length : null
+        return JSON.stringify({ calls_today: calls, cache_hit_rate: calls > 0 ? cached / calls : 0, avg_latency_ms: avgLatency })
+      }
+      case 'get_open_book': {
+        const { data } = await supabase
+          .from('markets')
+          .select('id, question, yes_price, no_price, volume, spread_cents, ai_confidence')
+          .eq('status', 'live')
+          .order('volume', { ascending: false })
+        return JSON.stringify(data ?? [])
+      }
+      case 'get_market_risk': {
+        const { data } = await supabase.from('v_market_risk_status').select('*')
+        return JSON.stringify(data ?? [])
+      }
+      default:
+        return JSON.stringify({ error: `Unknown tool: ${name}` })
+    }
+  } catch (err) {
+    return JSON.stringify({ error: err instanceof Error ? err.message : 'Tool error' })
+  }
+}
+
+// ── Output guardrail: inject disclaimer for financial content ────────────────
+
+const FINANCIAL_KEYWORDS = /\b(buy|sell|trade|invest|bet|position|recommend|suggest|should\s+(?:you\s+)?(?:buy|sell|trade))\b/i
+
+// ── Main route ────────────────────────────────────────────────────────────────
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { agent: string } },
+) {
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // ── Validate agent type ───────────────────────────────────────────────────
+  const agentType = params.agent as AgentType
+  if (!ALLOWED_AGENTS.includes(agentType)) {
+    return NextResponse.json({ error: 'Unknown agent' }, { status: 400 })
+  }
+
+  // ── Parse body ────────────────────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let messages: Array<{ role: 'user' | 'assistant'; content: any }>
+  let sessionId: string
+  try {
+    const body = await req.json()
+    messages  = Array.isArray(body.messages) ? body.messages : []
+    sessionId = String(body.session_id ?? crypto.randomUUID())
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  if (messages.length === 0) {
+    return NextResponse.json({ error: 'No messages' }, { status: 400 })
+  }
+
+  // ── Rate limiting (per user per agent, 1-min window) ─────────────────────
+  const service = await createServiceClient()
+  const windowStart = new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString()
+  const rateKey = `chat_${agentType}_${user.id}`
+
+  const { data: rateRow } = await service
+    .from('api_rate_limits')
+    .select('call_count')
+    .eq('api_name', rateKey)
+    .gte('window_start', windowStart)
+    .single()
+
+  // Load agent config for rate limits
+  const { data: agentConfig } = await supabase
+    .from('agent_configs')
+    .select('*')
+    .eq('agent_type', agentType)
+    .eq('is_active', true)
+    .single()
+
+  const perMinuteLimit = agentConfig?.rate_limit_per_minute ?? 10
+
+  if (rateRow && rateRow.call_count >= perMinuteLimit) {
+    return NextResponse.json(
+      { error: `Rate limit reached. Max ${perMinuteLimit} messages/minute.` },
+      { status: 429 },
+    )
+  }
+
+  // ── Input guardrails ──────────────────────────────────────────────────────
+  const lastUserMessage = messages.filter(m => m.role === 'user').at(-1)
+  const rawInput = lastUserMessage?.content ?? ''
+
+  // Length cap
+  const trimmedInput = rawInput.slice(0, 2000)
+
+  // Prompt injection detection
+  if (detectInjection(trimmedInput)) {
+    await service.from('guardrail_log').insert({
+      user_id:       user.id,
+      agent_type:    agentType,
+      rule:          'prompt_injection',
+      input_snippet: trimmedInput.slice(0, 200),
+      action_taken:  'blocked',
+    })
+    return NextResponse.json(
+      { error: 'Message contains disallowed content.' },
+      { status: 400 },
+    )
+  }
+
+  // PII stripping
+  const { cleaned: cleanedInput, hadPii } = stripPii(trimmedInput)
+  if (hadPii) {
+    await service.from('guardrail_log').insert({
+      user_id:       user.id,
+      agent_type:    agentType,
+      rule:          'pii_detected',
+      input_snippet: '[redacted]',
+      action_taken:  'stripped',
+    })
+  }
+
+  // Rebuild messages with cleaned last user message
+  const cleanedMessages = messages.map((m, i) =>
+    i === messages.length - 1 && m.role === 'user'
+      ? { ...m, content: cleanedInput }
+      : m,
+  )
+
+  // Trim to last 20 turns to bound context size
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contextMessages: Array<{ role: 'user' | 'assistant'; content: any }> = cleanedMessages.slice(-20)
+
+  // ── Build tool list from config ───────────────────────────────────────────
+  const enabledTools: string[] = Array.isArray(agentConfig?.tools_enabled)
+    ? (agentConfig.tools_enabled as string[])
+    : []
+  const tools = enabledTools
+    .filter(t => TOOL_DEFS[t])
+    .map(t => TOOL_DEFS[t])
+
+  // ── Call Haiku with streaming ─────────────────────────────────────────────
+  const systemPrompt = agentConfig?.system_prompt ?? 'You are a helpful assistant for the Verdikt prediction market platform.'
+  const temperature  = Number(agentConfig?.temperature ?? 0.7)
+  const maxTokens    = Number(agentConfig?.max_tokens ?? 1024)
+
+  const startTime = Date.now()
+
+  // Agentic tool loop (max 3 rounds to prevent infinite loops)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let currentMessages: Array<{ role: 'user' | 'assistant'; content: any }> = [...contextMessages]
+  let finalText = ''
+  let totalInputTokens = 0
+  let totalOutputTokens = 0
+  let toolCallsMade: object[] = []
+  let toolResultsMade: object[] = []
+
+  for (let round = 0; round < 3; round++) {
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type':      'application/json',
+        'x-api-key':         process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta':    'prompt-caching-2024-07-31',
+      },
+      body: JSON.stringify({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: maxTokens,
+        temperature,
+        system: [
+          {
+            type: 'text',
+            text: systemPrompt,
+            cache_control: { type: 'ephemeral' },
+          },
+        ],
+        tools: tools.length > 0 ? tools : undefined,
+        messages: currentMessages,
+      }),
+      signal: AbortSignal.timeout(25_000),
+    })
+
+    if (!aiRes.ok) {
+      const errText = await aiRes.text().catch(() => '')
+      // Log failure
+      await service.from('ai_call_log').insert({
+        call_type:  `chat_${agentType}`,
+        model:      'claude-haiku-4-5-20251001',
+        success:    false,
+        from_cache: false,
+        error_message: `HTTP ${aiRes.status}: ${errText.slice(0, 200)}`,
+      })
+      return NextResponse.json({ error: 'AI service unavailable' }, { status: 502 })
+    }
+
+    const aiData = await aiRes.json()
+    totalInputTokens  += aiData.usage?.input_tokens  ?? 0
+    totalOutputTokens += aiData.usage?.output_tokens ?? 0
+
+    const stopReason = aiData.stop_reason
+    const content    = aiData.content ?? []
+
+    // Extract text blocks
+    const textBlocks = content.filter((c: { type: string }) => c.type === 'text')
+    if (textBlocks.length > 0) {
+      finalText = textBlocks.map((c: { text: string }) => c.text).join('\n')
+    }
+
+    // If no tool use, we're done
+    if (stopReason !== 'tool_use') break
+
+    // Process tool calls
+    const toolUseBlocks = content.filter((c: { type: string }) => c.type === 'tool_use')
+    if (toolUseBlocks.length === 0) break
+
+    toolCallsMade = toolUseBlocks
+    const toolResults = await Promise.all(
+      toolUseBlocks.map(async (block: { id: string; name: string; input: Record<string, unknown> }) => ({
+        type:        'tool_result' as const,
+        tool_use_id: block.id,
+        content:     await executeTool(block.name, block.input, user.id, supabase),
+      })),
+    )
+    toolResultsMade = toolResults
+
+    // Add assistant turn + tool results and loop
+    currentMessages = [
+      ...currentMessages,
+      { role: 'assistant' as const, content },
+      { role: 'user' as const, content: toolResults },
+    ]
+  }
+
+  const latencyMs = Date.now() - startTime
+
+  // ── Output guardrails ─────────────────────────────────────────────────────
+  if (FINANCIAL_KEYWORDS.test(finalText) && agentType === 'player') {
+    finalText += '\n\n*This is not financial advice. Past performance does not guarantee future results.*'
+  }
+
+  // ── Persist chat message ──────────────────────────────────────────────────
+  const { data: savedMsg } = await service.from('chat_messages').insert({
+    session_id:    sessionId,
+    user_id:       user.id,
+    agent_type:    agentType,
+    role:          'assistant',
+    content:       finalText,
+    tool_calls:    toolCallsMade.length > 0 ? toolCallsMade : null,
+    tool_results:  toolResultsMade.length > 0 ? toolResultsMade : null,
+    input_tokens:  totalInputTokens,
+    output_tokens: totalOutputTokens,
+    latency_ms:    latencyMs,
+  }).select('id').single()
+
+  // ── Log AI call ───────────────────────────────────────────────────────────
+  await service.from('ai_call_log').insert({
+    call_type:     `chat_${agentType}`,
+    model:         'claude-haiku-4-5-20251001',
+    input_tokens:  totalInputTokens,
+    output_tokens: totalOutputTokens,
+    latency_ms:    latencyMs,
+    success:       true,
+    from_cache:    false,
+  })
+
+  // ── Update rate limit counter ─────────────────────────────────────────────
+  void service.from('api_rate_limits').upsert({
+    api_name:    rateKey,
+    window_start: windowStart,
+    call_count:  (rateRow?.call_count ?? 0) + 1,
+  }, { onConflict: 'api_name,window_start' })
+
+  return NextResponse.json({
+    message:    finalText,
+    message_id: savedMsg?.id ?? null,
+    session_id: sessionId,
+    usage: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens, latency_ms: latencyMs },
+  })
+}
