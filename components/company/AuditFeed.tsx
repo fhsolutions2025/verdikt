@@ -71,7 +71,15 @@ export function AuditFeed({ initial }: Props) {
             — {todayCount} events today
           </span>
         </div>
-        <span style={{ color: '#4B5563', fontSize: 12 }}>{open ? '▲' : '▼'}</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+          <path
+            d={open ? 'M2 8L6 4L10 8' : 'M2 4L6 8L10 4'}
+            stroke="#4B5563"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
 
       {open && (
@@ -98,7 +106,7 @@ export function AuditFeed({ initial }: Props) {
                       backgroundColor: (TYPE_COLORS[entry.type] ?? '#6B7280') + '18',
                     }}
                   >
-                    {entry.type}
+                    {entry.type.replace(/_/g, ' ')}
                   </span>
                   <div className="flex-1 min-w-0">
                     <p
@@ -126,7 +134,7 @@ export function AuditFeed({ initial }: Props) {
             })}
 
             {entries.length === 0 && (
-              <p className="px-5 py-6 text-sm" style={{ color: '#374151' }}>
+              <p className="px-5 py-6 text-sm" style={{ color: '#6B7280' }}>
                 No activity yet.
               </p>
             )}

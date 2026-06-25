@@ -161,7 +161,7 @@ function PendingCard({ market, onDone }: { market: Market; onDone: (id: string) 
             ⚠ {daysToClose}d to close
           </span>
         )}
-        <span className="text-xs ml-auto" style={{ color: '#374151' }}>
+        <span className="text-xs ml-auto" style={{ color: '#4B5563' }}>
           {new Date(market.created_at).toLocaleTimeString('en-GB', {
             hour: '2-digit', minute: '2-digit',
           })}

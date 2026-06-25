@@ -87,12 +87,17 @@ export function MarketRiskMonitor({ initial }: Props) {
           className="px-5 py-4 flex items-center justify-between border-b"
           style={{ borderColor: 'rgba(255,255,255,0.08)' }}
         >
-          <h2
-            className="text-xs font-bold uppercase tracking-widest"
-            style={{ color: '#6B7280', letterSpacing: '0.08em' }}
-          >
-            Market Risk Monitor
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2
+              className="text-xs font-bold uppercase tracking-widest"
+              style={{ color: '#6B7280', letterSpacing: '0.08em' }}
+            >
+              Market Risk Monitor
+            </h2>
+            <span className="text-xs" style={{ color: '#4B5563' }}>
+              — {markets.length} market{markets.length !== 1 ? 's' : ''}
+            </span>
+          </div>
           {flagged.length > 0 && (
             <span
               className="text-xs font-bold px-2.5 py-1 rounded-full"
@@ -124,10 +129,18 @@ export function MarketRiskMonitor({ initial }: Props) {
                     onClick={() => { setResolving(market); setOutcome('yes') }}
                     className="text-xs font-bold px-2.5 py-1 rounded-lg transition-all active:scale-95"
                     style={{
-                      backgroundColor: '#1F2937',
-                      color: '#9CA3AF',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      backgroundColor: 'transparent',
+                      color: '#6B7280',
+                      border: '1px solid rgba(255,255,255,0.18)',
                       cursor: 'pointer',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#00C853'
+                      ;(e.currentTarget as HTMLButtonElement).style.color = '#00C853'
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.18)'
+                      ;(e.currentTarget as HTMLButtonElement).style.color = '#6B7280'
                     }}
                   >
                     Resolve
@@ -154,7 +167,7 @@ export function MarketRiskMonitor({ initial }: Props) {
           ))}
 
           {markets.length === 0 && (
-            <p className="px-5 py-6 text-sm" style={{ color: '#374151' }}>
+            <p className="px-5 py-6 text-sm" style={{ color: '#6B7280' }}>
               No live markets.
             </p>
           )}

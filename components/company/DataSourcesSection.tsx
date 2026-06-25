@@ -79,13 +79,21 @@ export function DataSourcesSection({ initial }: Props) {
             className="text-xs font-bold uppercase tracking-widest"
             style={{ color: '#6B7280', letterSpacing: '0.08em' }}
           >
-            Configurations
+            Data Sources
           </h2>
           <span className="text-xs" style={{ color: '#4B5563' }}>
             — {enabledCount} of {sources.filter(s => s.category !== 'ai').length} data sources active
           </span>
         </div>
-        <span style={{ color: '#4B5563', fontSize: 12 }}>{open ? '▲' : '▼'}</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+          <path
+            d={open ? 'M2 8L6 4L10 8' : 'M2 4L6 8L10 4'}
+            stroke="#4B5563"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
 
       {open && (
