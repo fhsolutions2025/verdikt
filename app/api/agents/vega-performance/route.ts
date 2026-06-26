@@ -11,14 +11,22 @@ export async function GET() {
 
   const service = await createServiceClient()
 
-  const [logRes, configsRes] = await Promise.all([
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+
+  const [logRes, configsRes, cbTodayRes] = await Promise.all([
     service.from('autonomous_trade_log')
       .select('action, market_id, side, amount, realized_pnl, agent_probability, edge_pp'),
     service.from('autonomous_agent_configs').select('is_active'),
+    service.from('autonomous_trade_log')
+      .select('action', { count: 'exact', head: false })
+      .in('action', ['circuit_breaker', 'belief_failure'])
+      .gte('created_at', todayStart.toISOString()),
   ])
 
   const rows = logRes.data ?? []
   const configs = configsRes.data ?? []
+  const circuit_breaker_hits_today = (cbTodayRes.data ?? []).length
 
   const entries = rows.filter(r => r.action === 'entry')
 
@@ -100,5 +108,6 @@ export async function GET() {
     open_positions,
     active_agents,
     calibration_label,
+    circuit_breaker_hits_today,
   })
 }

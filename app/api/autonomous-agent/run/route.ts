@@ -53,11 +53,36 @@ export async function POST() {
       return NextResponse.json({ error: data.error ?? 'Run failed' }, { status: 502 })
     }
     const mine = (data.results ?? []).find((r: { player_id: string }) => r.player_id === user.id)
-    return NextResponse.json({
-      ok:      true,
-      entries: mine?.entries ?? 0,
-      exits:   mine?.exits ?? 0,
-    })
+    const entries: number = mine?.entries ?? 0
+    const exits:   number = mine?.exits   ?? 0
+
+    // When nothing was entered, fetch the last log action to explain why
+    let note: string | null = null
+    if (entries === 0) {
+      const { data: lastLog } = await supabase
+        .from('autonomous_trade_log')
+        .select('action, rationale')
+        .eq('player_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (lastLog) {
+        if (lastLog.action === 'circuit_breaker') {
+          note = lastLog.rationale ?? 'Circuit breaker active — new entries paused.'
+        } else if (lastLog.action === 'belief_failure') {
+          note = 'AI returned no forecasts for available markets.'
+        } else if (lastLog.action === 'error') {
+          note = 'Last trade attempt hit an execution error — check activity.'
+        } else {
+          note = 'No markets cleared the edge threshold right now.'
+        }
+      } else {
+        note = 'No qualifying markets found in your allowed categories.'
+      }
+    }
+
+    return NextResponse.json({ ok: true, entries, exits, note })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Run failed' },
