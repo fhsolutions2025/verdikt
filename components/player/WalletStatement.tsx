@@ -175,6 +175,17 @@ function BalanceChart({ series }: { series: { t: number; bal: number }[] }) {
         </defs>
         <path d={area} fill="url(#bal-fill)" />
         <path d={d} fill="none" stroke={stroke} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        {/* Peak / trough markers — hidden while scrubbing to avoid clutter */}
+        {hover == null && (() => {
+          const peakI   = vals.indexOf(max)
+          const troughI = vals.indexOf(min)
+          const dots: React.ReactNode[] = []
+          if (max !== min) {
+            dots.push(<circle key="pk" cx={coords[peakI][0]}   cy={coords[peakI][1]}   r={3} fill={GREEN} stroke="var(--bg-surface)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />)
+            dots.push(<circle key="tr" cx={coords[troughI][0]} cy={coords[troughI][1]} r={3} fill={RED}   stroke="var(--bg-surface)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />)
+          }
+          return <>{dots}</>
+        })()}
         {hover != null && (
           <>
             <line x1={hx} y1={0} x2={hx} y2={H} stroke="var(--text-faint)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
@@ -210,6 +221,9 @@ function BalanceChart({ series }: { series: { t: number; bal: number }[] }) {
 export function WalletStatement({ balance, transactions }: { balance: number; transactions: WalletTransaction[] }) {
   const [period, setPeriod] = useState<Period>('30d')
   const [hidden, setHidden] = useState(false)
+  const [explain, setExplain] = useState<{ loading: boolean; text: string | null; error: string | null }>(
+    { loading: false, text: null, error: null },
+  )
 
   // Reconstruct the running balance series. Transactions arrive newest-first;
   // walk backwards from the current balance (balance_before = balance_after −
@@ -271,8 +285,71 @@ export function WalletStatement({ balance, transactions }: { balance: number; tr
       if (tx.type === 'sell' || tx.type === 'payout' || tx.type === 'maker_rebate' || tx.type === 'maker_spread' || tx.type === 'holding_reward' || tx.type === 'creator_royalty') pnlPos += tx.amount
       if (tx.type === 'trade' || tx.type === 'fee') pnlNeg += abs
     }
-    return { volume, fees, deposited, pnl: pnlPos - pnlNeg }
+    return { volume, fees, deposited, gains: pnlPos, pnl: pnlPos - pnlNeg }
   }, [periodTxs])
+
+  // Always-on intelligence: best/worst trading day in the window, plus a plain
+  // sentence that explains the period's move in terms of its real drivers.
+  const insights = useMemo(() => {
+    const dayMap = new Map<string, number>()
+    for (const tx of periodTxs) {
+      const k = new Date(tx.created_at).toISOString().slice(0, 10)
+      let v = 0
+      if (tx.type === 'sell' || tx.type === 'payout' || tx.type === 'maker_rebate' || tx.type === 'maker_spread' || tx.type === 'holding_reward' || tx.type === 'creator_royalty') v = tx.amount
+      else if (tx.type === 'trade' || tx.type === 'fee') v = -Math.abs(tx.amount)
+      if (v !== 0) dayMap.set(k, (dayMap.get(k) ?? 0) + v)
+    }
+    let best: { day: string; pnl: number } | null = null
+    let worst: { day: string; pnl: number } | null = null
+    for (const [day, pnl] of Array.from(dayMap.entries())) {
+      if (!best || pnl > best.pnl) best = { day, pnl }
+      if (!worst || pnl < worst.pnl) worst = { day, pnl }
+    }
+
+    const dir = change >= 0 ? 'up' : 'down'
+    let driver: string
+    if (stats.pnl < 0) {
+      driver = `${fmt(Math.abs(stats.pnl))} in net trading losses`
+      if (stats.fees > 0) driver += ` (incl. ${fmt(stats.fees)} fees)`
+    } else if (stats.pnl > 0) {
+      driver = `${fmt(stats.pnl)} in net trading gains`
+    } else {
+      driver = 'no trading activity'
+    }
+    const sentence = `You're ${dir} ${Math.abs(changePct).toFixed(1)}% over the ${PERIOD_LABEL[period]} — ${driver}.`
+    return { best, worst, sentence }
+  }, [periodTxs, change, changePct, stats, period])
+
+  const dayFmt = (day: string) =>
+    new Date(day + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+
+  async function runExplain() {
+    setExplain({ loading: true, text: null, error: null })
+    try {
+      const res = await fetch('/api/wallet/insight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          period:    PERIOD_LABEL[period],
+          balance,
+          change,
+          changePct,
+          volume:    stats.volume,
+          netPnl:    stats.pnl,
+          gains:     stats.gains,
+          fees:      stats.fees,
+          deposited: stats.deposited,
+          bestDay:   insights.best,
+          worstDay:  insights.worst,
+        }),
+      })
+      const d = await res.json()
+      if (res.ok && d.text) setExplain({ loading: false, text: d.text, error: null })
+      else setExplain({ loading: false, text: null, error: d.error ?? 'Could not generate insight.' })
+    } catch {
+      setExplain({ loading: false, text: null, error: 'Network error.' })
+    }
+  }
 
   const maskedBalance = hidden ? '••••••' : fmt(balance)
 
@@ -392,6 +469,76 @@ export function WalletStatement({ balance, transactions }: { balance: number; tr
           />
           <StatTile label="Fees" value={`−${fmt(stats.fees)}`} color={RED} />
           <StatTile label="Deposited" value={fmt(stats.deposited)} color={GREEN} />
+        </div>
+
+        {/* Insights */}
+        <div
+          className="rounded-2xl p-4"
+          style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+        >
+          <p
+            className="text-xs font-bold uppercase tracking-widest mb-2"
+            style={{ color: 'var(--text-dim)', letterSpacing: '0.08em' }}
+          >
+            Insights
+          </p>
+
+          {/* Plain-English summary */}
+          <p className="text-sm leading-snug" style={{ color: 'var(--text)' }}>
+            {insights.sentence}
+          </p>
+
+          {/* Capital vs performance — kills the "is this profit or my own money?" confusion */}
+          <div className="flex items-stretch gap-2 mt-3">
+            <div className="flex-1 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-inset)' }}>
+              <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-faint)' }}>Capital deposited</p>
+              <p className="font-mono font-bold text-sm" style={{ color: 'var(--text-strong)', fontVariantNumeric: 'tabular-nums' }}>{fmt(stats.deposited)}</p>
+            </div>
+            <div className="flex-1 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-inset)' }}>
+              <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-faint)' }}>Trading performance</p>
+              <p className="font-mono font-bold text-sm" style={{ color: stats.pnl >= 0 ? GREEN : RED, fontVariantNumeric: 'tabular-nums' }}>{signed(stats.pnl)}</p>
+            </div>
+          </div>
+
+          {/* Best / worst day chips */}
+          {(insights.best || insights.worst) && (
+            <div className="flex gap-2 mt-2">
+              {insights.best && insights.best.pnl > 0 && (
+                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: hexAlpha(GREEN, '1A'), color: GREEN }}>
+                  ▲ Best {dayFmt(insights.best.day)} · {signed(insights.best.pnl)}
+                </span>
+              )}
+              {insights.worst && insights.worst.pnl < 0 && (
+                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: hexAlpha(RED, '1A'), color: RED }}>
+                  ▼ Worst {dayFmt(insights.worst.day)} · {signed(insights.worst.pnl)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* On-demand Vega narrative */}
+          <button
+            onClick={runExplain}
+            disabled={explain.loading}
+            className="w-full mt-3 py-2 rounded-lg text-sm font-bold transition-all active:scale-[0.98]"
+            style={{
+              backgroundColor: explain.loading ? 'var(--bg-inset)' : hexAlpha('#818CF8', '14'),
+              border: '1px solid rgba(129,140,248,0.35)',
+              color: '#818CF8',
+              cursor: explain.loading ? 'wait' : 'pointer',
+            }}
+          >
+            {explain.loading ? 'Vega is reviewing…' : '✨ Explain my ' + (period === 'all' ? 'history' : 'period')}
+          </button>
+
+          {explain.error && (
+            <p className="text-xs mt-2" style={{ color: RED }}>{explain.error}</p>
+          )}
+          {explain.text && (
+            <p className="text-sm leading-relaxed mt-2 whitespace-pre-line" style={{ color: 'var(--text)' }}>
+              {explain.text}
+            </p>
+          )}
         </div>
 
         {/* Transaction history */}
