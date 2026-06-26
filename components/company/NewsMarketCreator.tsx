@@ -39,7 +39,7 @@ type FetchState =
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const FEEDS = [
-  { id: 'google-news', label: '🌐 Google News' },
+  { id: 'google-news', label: '🌐 Google World' },
   { id: 'bbc',         label: '🔴 BBC World'   },
   { id: 'al-jazeera', label: '🟢 Al Jazeera'  },
   { id: 'reuters',     label: '🟠 Reuters'      },

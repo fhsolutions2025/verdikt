@@ -3,8 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 
 const ALLOWED_FEEDS: Record<string, { label: string; url: string }> = {
   'google-news': {
-    label: 'Google News',
-    url:   'https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en',
+    label: 'Google World',
+    // World-topic edition, English (GB) — global/Africa-Europe coverage, not India.
+    url:   'https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-GB&gl=GB&ceid=GB:en',
   },
   'bbc': {
     label: 'BBC World',
