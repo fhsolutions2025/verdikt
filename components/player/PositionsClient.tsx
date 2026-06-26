@@ -261,9 +261,14 @@ export function PositionsClient({ initialPositions, playerId }: Props) {
 
 function SummaryCell({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="text-center">
-      <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--text-faint)' }}>{label}</p>
-      <p className="font-mono font-bold text-xs" style={{ color: color ?? 'var(--text-strong)' }}>{value}</p>
+    <div className="text-center min-w-0">
+      <p className="text-[10px] uppercase tracking-wider mb-0.5 truncate" style={{ color: 'var(--text-faint)' }}>{label}</p>
+      <p
+        className="font-mono font-bold text-xs truncate"
+        style={{ color: color ?? 'var(--text-strong)', fontVariantNumeric: 'tabular-nums' }}
+      >
+        {value}
+      </p>
     </div>
   )
 }
@@ -345,9 +350,10 @@ function PositionRow({ pos, selling, onSell }: {
       </div>
 
       {/* P&L grid */}
-      <div className="grid grid-cols-3 gap-2 text-center">
+      <div className="grid grid-cols-4 gap-2 text-center">
+        <MiniCell label="Invested" value={pos.entry_value.toFixed(2)} />
         <MiniCell label="Entry"  value={`${pos.entry_price.toFixed(0)}¢`} />
-        <MiniCell label={isOpen ? 'Current' : 'Exit price'} value={`${price.toFixed(0)}¢`} />
+        <MiniCell label={isOpen ? 'Current' : 'Exit'} value={`${price.toFixed(0)}¢`} />
         <MiniCell
           label={isOpen ? 'Unrealised' : 'Realised'}
           value={pnl != null ? `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}` : '—'}
@@ -377,9 +383,14 @@ function PositionRow({ pos, selling, onSell }: {
 
 function MiniCell({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div>
-      <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>{label}</p>
-      <p className="font-mono font-bold text-xs" style={{ color: color ?? 'var(--text-strong)' }}>{value}</p>
+    <div className="min-w-0">
+      <p className="text-[10px] truncate" style={{ color: 'var(--text-faint)' }}>{label}</p>
+      <p
+        className="font-mono font-bold text-xs truncate"
+        style={{ color: color ?? 'var(--text-strong)', fontVariantNumeric: 'tabular-nums' }}
+      >
+        {value}
+      </p>
     </div>
   )
 }
