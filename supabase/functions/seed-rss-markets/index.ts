@@ -1,14 +1,14 @@
 // seed-rss-markets — Edge Function
-// Fetches BBC / Al Jazeera / Reuters RSS feeds, calls Haiku to convert
-// newsworthy headlines into binary prediction markets, inserts them as
-// pending_ai for the standard BYV review flow.
+// Fetches BBC / Al Jazeera / Reuters RSS feeds, calls Haiku via anthropic-proxy
+// to convert newsworthy headlines into binary prediction markets.
+// Inserts as pending_ai for the standard BYV review flow.
+// Writes a cron_run_log row after each run for pipeline observability.
 // Scheduled every 15 minutes (migration 0020).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ANTHROPIC_API_KEY         = Deno.env.get('ANTHROPIC_API_KEY')!
 
 const RSS_FEEDS = [
   { name: 'BBC RSS',        url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
@@ -21,20 +21,19 @@ interface RssItem {
   description: string
   pubDate:     string
   link:        string
+  source_feed: string
 }
 
 interface MarketDraft {
   question:          string
-  category:          string
   yes_price:         number
-  no_price:          number
   ai_confidence:     number
   resolution_source: string
   closes_at:         string
   viable:            boolean
 }
 
-// ── Simple RSS XML parser (no DOM dependency) ────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function extractTag(xml: string, tag: string): string {
   const re = new RegExp(
@@ -45,7 +44,7 @@ function extractTag(xml: string, tag: string): string {
   return m ? m[1].replace(/<[^>]+>/g, '').trim() : ''
 }
 
-function parseRssItems(xml: string): RssItem[] {
+function parseRssItems(xml: string, source_feed: string): RssItem[] {
   const items: RssItem[] = []
   const itemRe = /<item>([\s\S]*?)<\/item>/g
   let m: RegExpExecArray | null
@@ -58,63 +57,89 @@ function parseRssItems(xml: string): RssItem[] {
       description: extractTag(block, 'description'),
       pubDate:     extractTag(block, 'pubDate'),
       link:        extractTag(block, 'link'),
+      source_feed,
     })
   }
   return items
 }
 
-// ── Fetch helpers ────────────────────────────────────────────────────────────
-
-async function safeFetch(url: string, options: RequestInit = {}): Promise<Response | null> {
+async function safeFetch(url: string, options: RequestInit = {}, timeoutMs = 10_000): Promise<Response | null> {
   try {
-    return await fetch(url, { ...options, signal: AbortSignal.timeout(5000) })
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) })
   } catch {
     return null
   }
+}
+
+// Route Anthropic calls through the proxy — key lives in Supabase secrets only
+async function callAnthropicProxy(body: Record<string, unknown>): Promise<Response | null> {
+  return safeFetch(
+    `${SUPABASE_URL}/functions/v1/anthropic-proxy`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify(body),
+    },
+    30_000,
+  )
 }
 
 async function fetchRssItems(feed: { name: string; url: string }): Promise<RssItem[]> {
   const res = await safeFetch(feed.url)
   if (!res?.ok) return []
   const xml = await res.text()
-  return parseRssItems(xml).slice(0, 10) // max 10 items per feed
+  return parseRssItems(xml, feed.name).slice(0, 10)
 }
 
-// ── Haiku market generation ──────────────────────────────────────────────────
+// ── Market generation ────────────────────────────────────────────────────────
 
 async function generateMarket(item: RssItem): Promise<MarketDraft | null> {
-  const today = new Date()
-  const sixMonths = new Date(today)
-  sixMonths.setMonth(sixMonths.getMonth() + 6)
-  const defaultClose = sixMonths.toISOString().slice(0, 10)
+  const today    = new Date()
+  const todayStr = today.toISOString().slice(0, 10)
+  const minClose = new Date(Date.now() +  3 * 86_400_000).toISOString().slice(0, 10)
+  const maxClose = new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10)
 
-  const userPrompt = `News headline: "${item.title}"
-Summary: "${item.description.slice(0, 300)}"
-Today's date: ${today.toISOString().slice(0, 10)}
+  const userPrompt = `=== BEGIN NEWS INPUT ===
+HEADLINE: ${item.title}
+CONTEXT: ${item.description.slice(0, 300)}
+=== END NEWS INPUT ===
 
-Create a binary prediction market (YES/NO) about a verifiable future outcome related to this news. The question must:
-- Be phrased as "Will X happen by [date]?"
-- Have a clear, objective resolution criteria
-- Close within 1–12 months from today
-- NOT be about something already resolved
+Today's date: ${todayStr}
 
-If the headline is not suitable for a prediction market (e.g. it's purely historical, an opinion, or a soft feature), return {"viable":false}.`
+Generate a binary YES/NO prediction market from the headline above.
+
+CRITICAL — closes_at: Set it to the date when THIS SPECIFIC outcome will be publicly known.
+  • Sports match / tournament result → day of the match or the day after
+  • Election / vote → the day results are announced
+  • Economic data release → next scheduled release date
+  • Sanctions / diplomatic event → 2–4 weeks (impacts show quickly)
+  • Humanitarian / crisis → 3–6 weeks
+  • Do NOT default to months away — anchor to the actual event
+  • closes_at MUST be between ${minClose} and ${maxClose}
+
+The predicted outcome must be a direct, verifiable consequence of the headline event.
+If the headline is historical, an opinion, a soft feature, or produces no meaningful binary prediction, return {"viable":false}.
+
+Otherwise return exactly this JSON (no other text, no markdown):
+{
+  "viable": true,
+  "question": "Will [specific measurable thing] happen by [Day Month YYYY]?",
+  "yes_price": <integer 5-95>,
+  "closes_at": "YYYY-MM-DD",
+  "resolution_source": "<how outcome is publicly verified>",
+  "ai_confidence": <integer 40-95>
+}`
 
   let body: string
   try {
-    const res = await safeFetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type':      'application/json',
-        'x-api-key':         ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        system: 'You are a JSON-only API that creates binary prediction markets. Output raw JSON only — no markdown, no code fences. First character must be {.',
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
+    const res = await callAnthropicProxy({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      system:     'You are a JSON-only API that creates binary prediction markets. Output raw JSON only — no markdown fences, no explanation. First character must be {.',
+      messages:   [{ role: 'user', content: userPrompt }],
     })
     if (!res?.ok) return null
     const data = await res.json()
@@ -123,34 +148,32 @@ If the headline is not suitable for a prediction market (e.g. it's purely histor
     return null
   }
 
-  // Strip markdown fences if Haiku wraps anyway
-  body = body.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+  body = body.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  const braceIdx = body.indexOf('{')
+  if (braceIdx > 0) body = body.slice(braceIdx)
+  const lastBrace = body.lastIndexOf('}')
+  if (lastBrace >= 0) body = body.slice(0, lastBrace + 1)
 
   try {
     const draft = JSON.parse(body) as MarketDraft
     if (!draft.viable) return null
     if (!draft.question || !draft.closes_at) return null
-    // Ensure yes + no sum to 100
+
+    // Clamp closes_at to allowed window
+    const raw = draft.closes_at
+    draft.closes_at = raw < minClose ? minClose : raw > maxClose ? maxClose : raw
+
     const yes = Math.min(Math.max(Math.round(draft.yes_price ?? 50), 5), 95)
-    return {
-      ...draft,
-      yes_price: yes,
-      no_price:  100 - yes,
-      category:  'current_affairs',
-    }
+    return { ...draft, yes_price: yes }
   } catch {
     return null
   }
 }
 
-// ── Deduplicate against existing markets ─────────────────────────────────────
+// ── Deduplication ────────────────────────────────────────────────────────────
 
 function keywordsOf(text: string): Set<string> {
-  return new Set(
-    text.toLowerCase()
-      .split(/\W+/)
-      .filter(w => w.length > 4)
-  )
+  return new Set(text.toLowerCase().split(/\W+/).filter(w => w.length > 4))
 }
 
 function isTooSimilar(question: string, existing: string[]): boolean {
@@ -165,6 +188,7 @@ function isTooSimilar(question: string, existing: string[]): boolean {
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async () => {
+  const runStart = new Date()
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
   // Load enabled RSS sources
@@ -173,14 +197,20 @@ Deno.serve(async () => {
     .select('name, enabled')
     .eq('category', 'news')
 
-  const enabledNames = new Set((sources ?? []).filter(s => s.enabled).map(s => s.name))
-  const activeFeedrs = RSS_FEEDS.filter(f => enabledNames.has(f.name))
+  const enabledNames  = new Set((sources ?? []).filter(s => s.enabled).map(s => s.name))
+  const activeFeeds   = RSS_FEEDS.filter(f => enabledNames.has(f.name))
 
-  if (activeFeedrs.length === 0) {
+  if (activeFeeds.length === 0) {
+    await supabase.from('cron_run_log').insert({
+      job_name: 'seed-rss-markets', started_at: runStart.toISOString(),
+      feeds_active: 0, headlines_fetched: 0, viable_count: 0,
+      inserted_count: 0, skipped_count: 0,
+      duration_ms: Date.now() - runStart.getTime(),
+    })
     return new Response(JSON.stringify({ ok: true, message: 'All RSS sources disabled' }), { status: 200 })
   }
 
-  // Fetch existing live/pending questions for deduplication
+  // Load existing questions for deduplication
   const { data: existingMarkets } = await supabase
     .from('markets')
     .select('question')
@@ -191,14 +221,15 @@ Deno.serve(async () => {
 
   const existingQuestions = (existingMarkets ?? []).map(m => m.question)
 
-  // Collect candidate headlines from all active feeds
+  // Fetch all feeds and track each call in api_rate_limits
   const allItems: RssItem[] = []
-  for (const feed of activeFeedrs) {
+  for (const feed of activeFeeds) {
     const items = await fetchRssItems(feed)
+    await supabase.rpc('track_api_call', { p_api_name: feed.name })
     allItems.push(...items)
   }
 
-  // Deduplicate headline level
+  // Deduplicate at headline level
   const seen = new Set<string>()
   const candidates = allItems.filter(item => {
     const key = item.title.toLowerCase().slice(0, 60)
@@ -207,7 +238,7 @@ Deno.serve(async () => {
     return true
   })
 
-  // Filter to recent items (< 6 hours old) when pubDate is parseable
+  // Filter to recent items (< 6 hours old)
   const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000
   const fresh = candidates.filter(item => {
     if (!item.pubDate) return true
@@ -218,11 +249,9 @@ Deno.serve(async () => {
   let inserted = 0
   let skipped  = 0
 
-  // Process max 6 items per run (rate-limit Haiku usage)
   for (const item of fresh.slice(0, 6)) {
     const draft = await generateMarket(item)
     if (!draft) { skipped++; continue }
-
     if (isTooSimilar(draft.question, existingQuestions)) { skipped++; continue }
 
     const { error } = await supabase.from('markets').insert({
@@ -236,7 +265,7 @@ Deno.serve(async () => {
       creator_type:      'ai_system',
       resolution_source: draft.resolution_source ?? 'Public record',
       closes_at:         draft.closes_at,
-      est_volume:        null,
+      source_feed:       item.source_feed,
       volume:            0,
     })
 
@@ -245,6 +274,17 @@ Deno.serve(async () => {
       inserted++
     }
   }
+
+  await supabase.from('cron_run_log').insert({
+    job_name:          'seed-rss-markets',
+    started_at:        runStart.toISOString(),
+    feeds_active:      activeFeeds.length,
+    headlines_fetched: allItems.length,
+    viable_count:      Math.min(fresh.length, 6),
+    inserted_count:    inserted,
+    skipped_count:     skipped,
+    duration_ms:       Date.now() - runStart.getTime(),
+  })
 
   return new Response(
     JSON.stringify({ ok: true, inserted, skipped, candidates: fresh.length }),

@@ -20,7 +20,29 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ANTHROPIC_API_KEY         = Deno.env.get('ANTHROPIC_API_KEY')!
+async function safeFetch(url: string, options: RequestInit = {}, timeoutMs = 30_000): Promise<Response | null> {
+  try {
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) })
+  } catch {
+    return null
+  }
+}
+
+// Route Anthropic calls through the proxy — key lives in Supabase secrets only
+async function callAnthropicProxy(body: Record<string, unknown>): Promise<Response | null> {
+  return safeFetch(
+    `${SUPABASE_URL}/functions/v1/anthropic-proxy`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify(body),
+    },
+    25_000,
+  )
+}
 
 // ── Forecaster tuning constants ──────────────────────────────────────────────
 const EDGE_THRESHOLD_PP = 8     // min |belief − market| in percentage points to trade
@@ -107,23 +129,14 @@ async function getBeliefs(
   ].join('\n')
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type':      'application/json',
-        'x-api-key':         ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 1000,
-        temperature: 0.3,
-        system: 'You are a disciplined, calibrated forecaster that outputs only raw JSON arrays. You never see or infer market prices; you reason purely from base rates and evidence.',
-        messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: AbortSignal.timeout(20_000),
+    const res = await callAnthropicProxy({
+      model:       'claude-haiku-4-5-20251001',
+      max_tokens:  1000,
+      temperature: 0.3,
+      system:      'You are a disciplined, calibrated forecaster that outputs only raw JSON arrays. You never see or infer market prices; you reason purely from base rates and evidence.',
+      messages:    [{ role: 'user', content: prompt }],
     })
-    if (!res.ok) return []
+    if (!res?.ok) return []
 
     const data = await res.json()
     let raw = (data.content?.[0]?.text ?? '').trim()

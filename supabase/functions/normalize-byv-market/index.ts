@@ -8,7 +8,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ANTHROPIC_API_KEY         = Deno.env.get('ANTHROPIC_API_KEY')!
 const ALPHA_VANTAGE_KEY         = Deno.env.get('ALPHA_VANTAGE_KEY') ?? ''
 const FOOTBALL_DATA_KEY         = Deno.env.get('FOOTBALL_DATA_KEY') ?? ''
 const COINGECKO_API_KEY         = Deno.env.get('COINGECKO_API_KEY') ?? ''
@@ -49,6 +48,22 @@ async function safeFetch(url: string, options: RequestInit = {}, timeoutMs = 300
   } catch {
     return null
   }
+}
+
+// Route Anthropic calls through the proxy — key lives in Supabase secrets only
+async function callAnthropicProxy(body: Record<string, unknown>): Promise<Response | null> {
+  return safeFetch(
+    `${SUPABASE_URL}/functions/v1/anthropic-proxy`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify(body),
+    },
+    30_000,
+  )
 }
 
 async function trackCall(supabase: ReturnType<typeof createClient>, apiName: string): Promise<void> {
@@ -344,19 +359,11 @@ Deno.serve(async (_req) => {
     let errorMessage: string | null  = null
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type':      'application/json',
-          'x-api-key':         ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model:      'claude-haiku-4-5-20251001',
-          max_tokens: 512,
-          system:     'You are a JSON-only API. Output raw JSON with no markdown, no code fences, no explanation. First character must be {.',
-          messages:   [{ role: 'user', content: prompt }],
-        }),
+      const res = await callAnthropicProxy({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 512,
+        system:     'You are a JSON-only API. Output raw JSON with no markdown, no code fences, no explanation. First character must be {.',
+        messages:   [{ role: 'user', content: prompt }],
       })
 
       latencyMs = Date.now() - callStart
