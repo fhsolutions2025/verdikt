@@ -108,28 +108,36 @@ function hexAlpha(color: string, alpha: string): string {
   return color.startsWith('#') ? `${color}${alpha}` : 'var(--bg-inset)'
 }
 
-// --- sparkline -----------------------------------------------------------
+// --- interactive balance chart -------------------------------------------
 
-function Sparkline({ points }: { points: number[] }) {
+function BalanceChart({ series }: { series: { t: number; bal: number }[] }) {
   const W = 380
   const H = 120
-  if (points.length < 2) {
+  const [hover, setHover] = useState<number | null>(null)
+
+  if (series.length < 2) {
     return (
       <div style={{ height: H }} className="flex items-center justify-center">
         <span className="text-xs" style={{ color: 'var(--text-faint)' }}>Not enough data to chart</span>
       </div>
     )
   }
-  const min = Math.min(...points)
-  const max = Math.max(...points)
+
+  const vals  = series.map(s => s.bal)
+  const min   = Math.min(...vals)
+  const max   = Math.max(...vals)
   const range = max - min || 1
-  const stepX = W / (points.length - 1)
-  const coords = points.map((p, i) => {
+  const stepX = W / (series.length - 1)
+  // Colour by the direction of the window, so a falling balance never reads green.
+  const up    = series[series.length - 1].bal >= series[0].bal
+  const stroke = up ? GREEN : RED
+
+  const coords = series.map((s, i) => {
     const x = i * stepX
-    const y = H - ((p - min) / range) * (H - 8) - 4
+    const y = H - ((s.bal - min) / range) * (H - 14) - 7
     return [x, y] as const
   })
-  // smooth path
+
   let d = `M ${coords[0][0]} ${coords[0][1]}`
   for (let i = 1; i < coords.length; i++) {
     const [px, py] = coords[i - 1]
@@ -138,17 +146,62 @@ function Sparkline({ points }: { points: number[] }) {
     d += ` Q ${px} ${py} ${mx} ${(py + cy) / 2} T ${cx} ${cy}`
   }
   const area = `${d} L ${W} ${H} L 0 ${H} Z`
+
+  const onMove = (clientX: number, rect: DOMRect) => {
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    setHover(Math.round(frac * (series.length - 1)))
+  }
+
+  const hi = hover != null ? series[hover] : null
+  const hx = hover != null ? coords[hover][0] : 0
+  const hy = hover != null ? coords[hover][1] : 0
+  // Keep the tooltip inside the card.
+  const leftPct = hover != null ? (hover / (series.length - 1)) * 100 : 0
+  const tipAlign = leftPct > 70 ? 'right' : leftPct < 30 ? 'left' : 'center'
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block' }}>
-      <defs>
-        <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={GREEN} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={GREEN} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#spark-fill)" />
-      <path d={d} fill="none" stroke={GREEN} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-    </svg>
+    <div
+      style={{ position: 'relative', touchAction: 'none' }}
+      onPointerMove={e => onMove(e.clientX, e.currentTarget.getBoundingClientRect())}
+      onPointerDown={e => onMove(e.clientX, e.currentTarget.getBoundingClientRect())}
+      onPointerLeave={() => setHover(null)}
+    >
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block' }}>
+        <defs>
+          <linearGradient id="bal-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#bal-fill)" />
+        <path d={d} fill="none" stroke={stroke} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        {hover != null && (
+          <>
+            <line x1={hx} y1={0} x2={hx} y2={H} stroke="var(--text-faint)" strokeWidth={1} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+            <circle cx={hx} cy={hy} r={3.5} fill={stroke} stroke="var(--bg-surface)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          </>
+        )}
+      </svg>
+
+      {hi && (
+        <div
+          style={{
+            position: 'absolute', top: -6, left: `${leftPct}%`,
+            transform: tipAlign === 'center' ? 'translateX(-50%)' : tipAlign === 'right' ? 'translateX(-100%)' : 'translateX(0)',
+            pointerEvents: 'none', whiteSpace: 'nowrap',
+            backgroundColor: 'var(--bg-inset)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '5px 9px', boxShadow: '0 6px 18px rgba(0,0,0,0.4)', zIndex: 5,
+          }}
+        >
+          <div className="font-mono font-bold text-xs" style={{ color: 'var(--text-strong)', fontVariantNumeric: 'tabular-nums' }}>
+            {fmt(hi.bal)}
+          </div>
+          <div className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
+            {new Date(hi.t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -158,17 +211,23 @@ export function WalletStatement({ balance, transactions }: { balance: number; tr
   const [period, setPeriod] = useState<Period>('30d')
   const [hidden, setHidden] = useState(false)
 
-  // transactions arrive newest-first. Reconstruct running balance series.
-  // Walk backwards from current balance: balance_before = balance_after - amount.
-  const runningSeries = useMemo(() => {
-    // produce array of { created_at(ms), balanceAfter } oldest->newest
-    const out: { t: number; bal: number }[] = []
+  // Reconstruct the running balance series. Transactions arrive newest-first;
+  // walk backwards from the current balance (balance_before = balance_after −
+  // amount). After the loop, `after` is the opening balance before the very
+  // first transaction — we keep it as an anchor point so the chart and the
+  // change figure start from real starting capital, not from zero.
+  const seriesFull = useMemo(() => {
+    const pts: { t: number; bal: number }[] = []
     let after = balance
     for (const tx of transactions) {
-      out.push({ t: new Date(tx.created_at).getTime(), bal: after })
-      after = after - tx.amount // balance before this tx
+      pts.push({ t: new Date(tx.created_at).getTime(), bal: after })
+      after = after - tx.amount
     }
-    return out.reverse() // oldest -> newest
+    const oldestT = transactions.length
+      ? new Date(transactions[transactions.length - 1].created_at).getTime()
+      : Date.now()
+    pts.push({ t: oldestT - 1, bal: after }) // opening anchor
+    return pts.reverse() // oldest -> newest
   }, [balance, transactions])
 
   const start = periodStart(period)
@@ -178,23 +237,27 @@ export function WalletStatement({ balance, transactions }: { balance: number; tr
     [transactions, start],
   )
 
-  const sparkPoints = useMemo(() => {
-    const pts = runningSeries.filter(p => p.t >= start).map(p => p.bal)
-    return pts
-  }, [runningSeries, start])
-
-  // all-time change
-  const totalNetDeposits = useMemo(() => {
-    let dep = 0, wd = 0
-    for (const tx of transactions) {
-      if (tx.type === 'deposit') dep += tx.amount
-      else if (tx.type === 'withdrawal') wd += Math.abs(tx.amount)
+  // The hero "change" is the balance delta across the SELECTED WINDOW, anchored
+  // to the balance entering the window. This equals real P&L over the period and
+  // always agrees in sign with the chart's slope — so we never show a green gain
+  // above a falling line. (The old metric was balance − net_deposits, which read
+  // the entire starting balance as profit when no deposit tx was recorded.)
+  const { chartSeries, change, changePct } = useMemo(() => {
+    if (seriesFull.length === 0) {
+      return { chartSeries: [] as { t: number; bal: number }[], change: 0, changePct: 0 }
     }
-    return dep - wd
-  }, [transactions])
-
-  const change = balance - totalNetDeposits
-  const changePct = totalNetDeposits !== 0 ? (change / totalNetDeposits) * 100 : 0
+    const before   = seriesFull.filter(p => p.t < start)
+    const inWindow  = seriesFull.filter(p => p.t >= start)
+    const baseline = before.length ? before[before.length - 1].bal : seriesFull[0].bal
+    const baseT    = period === 'all' ? seriesFull[0].t : start
+    const cs = before.length
+      ? [{ t: baseT, bal: baseline }, ...inWindow]
+      : (inWindow.length ? inWindow : [{ t: baseT, bal: baseline }])
+    const endBal = cs[cs.length - 1].bal
+    const ch     = endBal - baseline
+    const pct    = baseline !== 0 ? (ch / baseline) * 100 : 0
+    return { chartSeries: cs, change: ch, changePct: pct }
+  }, [seriesFull, start, period])
 
   // stat tiles over period
   const stats = useMemo(() => {
@@ -286,12 +349,12 @@ export function WalletStatement({ balance, transactions }: { balance: number; tr
               {signed(change)} ({change >= 0 ? '+' : '−'}{Math.abs(changePct).toFixed(1)}%)
             </span>
             <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
-              all time
+              {PERIOD_LABEL[period]}
             </span>
           </div>
 
           <div className="mt-4 -mx-1">
-            <Sparkline points={sparkPoints} />
+            <BalanceChart series={chartSeries} />
           </div>
         </div>
 
