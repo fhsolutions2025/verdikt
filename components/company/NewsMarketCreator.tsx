@@ -534,8 +534,6 @@ export function NewsMarketCreator() {
   // ── Render ─────────────────────────────────────────────────────
 
   const items = fetchState.status === 'loaded' ? fetchState.items : []
-  const selectedItem  = selectedIdx !== null ? items[selectedIdx]  ?? null : null
-  const selectedState = selectedIdx !== null ? headlineStates[selectedIdx] ?? { status: 'idle' } : null
 
   const publishedCount = Object.values(headlineStates).filter(s => s.status === 'published').length
 
@@ -681,34 +679,38 @@ export function NewsMarketCreator() {
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {items.map((item, idx) => (
-                <HeadlineCard
-                  key={idx}
-                  item={item}
-                  state={headlineStates[idx] ?? { status: 'idle' }}
-                  isSelected={selectedIdx === idx}
-                  onSelect={() => {
-                    if (selectedIdx !== idx) {
-                      setSelectedIdx(idx)
-                      setPublishError(null)
-                    }
-                  }}
-                  onGenerate={() => generateMarket(item, idx)}
-                />
-              ))}
-            </div>
+              {items.map((item, idx) => {
+                const st = headlineStates[idx] ?? { status: 'idle' as const }
+                return (
+                  <div key={idx}>
+                    <HeadlineCard
+                      item={item}
+                      state={st}
+                      isSelected={selectedIdx === idx}
+                      onSelect={() => {
+                        if (selectedIdx !== idx) {
+                          setSelectedIdx(idx)
+                          setPublishError(null)
+                        }
+                      }}
+                      onGenerate={() => generateMarket(item, idx)}
+                    />
 
-            {/* Preview panel for selected headline */}
-            {selectedIdx !== null && selectedItem && selectedState?.status === 'preview' && (
-              <PreviewPanel
-                draft={selectedState.draft}
-                onChange={d => updateDraft(selectedIdx, d)}
-                onPublish={() => publishMarket(selectedIdx, selectedState.draft)}
-                onCancel={() => cancelPreview(selectedIdx)}
-                publishing={publishing}
-                publishError={publishError}
-              />
-            )}
+                    {/* Preview panel renders inline, directly under the headline it belongs to */}
+                    {selectedIdx === idx && st.status === 'preview' && (
+                      <PreviewPanel
+                        draft={st.draft}
+                        onChange={d => updateDraft(idx, d)}
+                        onPublish={() => publishMarket(idx, st.draft)}
+                        onCancel={() => cancelPreview(idx)}
+                        publishing={publishing}
+                        publishError={publishError}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
