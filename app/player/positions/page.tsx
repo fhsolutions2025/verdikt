@@ -2,9 +2,12 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { PositionsClient } from '@/components/player/PositionsClient'
 import { PlayerTabBar } from '@/components/player/PlayerTabBar'
-import type { Wallet, Position, Market } from '@/lib/types'
+import type { Position, Market, Wallet } from '@/lib/types'
 
-type PositionWithMarket = Position & { markets: Pick<Market, 'id' | 'question' | 'yes_price' | 'no_price' | 'status' | 'closes_at' | 'category'> }
+export type PositionWithMarket = Position & {
+  markets: Pick<Market, 'id' | 'question' | 'yes_price' | 'no_price' | 'status' | 'closes_at' | 'category' | 'outcome'>
+  isVega: boolean
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -14,28 +17,41 @@ export default async function PositionsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: positions } = await supabase
-    .from('positions')
-    .select(`
-      *,
-      markets (id, question, yes_price, no_price, status, closes_at, category)
-    `)
-    .eq('player_id', user.id)
-    .eq('status', 'open')
-    .order('entry_at', { ascending: false })
+  const [positionsRes, vegaLogsRes, walletRes] = await Promise.all([
+    supabase
+      .from('positions')
+      .select(`*, markets (id, question, yes_price, no_price, status, closes_at, category, outcome)`)
+      .eq('player_id', user.id)
+      .order('entry_at', { ascending: false }),
 
-  const walletRes = await supabase
-    .from('wallets')
-    .select('balance')
-    .eq('player_id', user.id)
-    .single()
+    supabase
+      .from('autonomous_trade_log')
+      .select('position_id')
+      .eq('player_id', user.id)
+      .eq('action', 'entry')
+      .not('position_id', 'is', null),
+
+    supabase
+      .from('wallets')
+      .select('balance')
+      .eq('player_id', user.id)
+      .single(),
+  ])
+
+  const vegaPositionIds = new Set(
+    (vegaLogsRes.data ?? []).map((r: { position_id: string }) => r.position_id)
+  )
+
+  const positions: PositionWithMarket[] = (positionsRes.data ?? []).map((p: Position & { markets: PositionWithMarket['markets'] }) => ({
+    ...p,
+    isVega: vegaPositionIds.has(p.id),
+  }))
+
   const wallet = walletRes.data as Pick<Wallet, 'balance'> | null
 
   return (
     <main className="min-h-screen pb-24" style={{ backgroundColor: 'var(--bg-base)' }}>
       <div className="max-w-[420px] mx-auto px-4 pt-4">
-
-        {/* Wallet strip */}
         <div
           className="flex items-center justify-between px-4 py-3 rounded-2xl mb-4"
           style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
@@ -49,7 +65,7 @@ export default async function PositionsPage() {
         </div>
 
         <PositionsClient
-          initialPositions={(positions ?? []) as PositionWithMarket[]}
+          initialPositions={positions}
           playerId={user.id}
         />
       </div>

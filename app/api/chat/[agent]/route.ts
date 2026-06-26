@@ -221,6 +221,28 @@ OUTPUT RULES — always follow:
 - Currency: NEVER use the Indian Rupee symbol (₹) or the words "INR" / "Rupee" / "Rs". The platform serves Africa, Europe and global markets and has no India-specific context. Present monetary amounts as plain numbers with thousands separators (e.g. "1.38M", "8,731.70") and NO currency symbol, unless the user explicitly names a currency.
 - Do not invent country, locale or regulatory framing that was not provided in the data.`
 
+// ── Vega Analyst mode prompt (player agent only) ──────────────────────────────
+// Teaches the player-facing AI to emit structured <vega-rec> recommendation
+// blocks that the ChatWidget renders as interactive trade cards. Appended
+// server-side so players cannot disable it via system-prompt edits.
+const ANALYST_PROMPT = `
+
+VEGA ANALYST MODE: You are an expert prediction market analyst named Vega. When the user asks for trade ideas, market analysis, or what to bet on, use your available market data tools to identify opportunities with a genuine edge (market price vs. true probability divergence).
+
+When recommending a specific trade, output EXACTLY this block — on its own line, no extra characters around it — before your written explanation:
+<vega-rec>{"market_id":"REPLACE","market_question":"REPLACE","side":"yes","vega_probability":65,"market_probability":52,"edge_pp":13,"confidence":0.72,"reasons":["Key reason one","Key reason two"],"current_price":52}</vega-rec>
+
+Rules for the block:
+- market_id: exact UUID from the market data
+- side: "yes" or "no" only
+- vega_probability: your estimated true probability (0-100)
+- market_probability: current market price in cents (same as current_price)
+- edge_pp: vega_probability minus market_probability (can be negative if fading)
+- confidence: 0.0-1.0 reflecting certainty in the edge
+- reasons: 2-4 concise bullet strings
+- current_price: current market price in cents
+Only output one <vega-rec> block per message. If you have no high-confidence recommendations, say so in plain text without the block.`
+
 // Hard output filter — strip any rupee / INR notation the model still emits.
 function stripCurrencyLeak(text: string): string {
   return text
@@ -371,7 +393,7 @@ export async function POST(
 
   // ── Call Haiku with streaming ─────────────────────────────────────────────
   const baseSystemPrompt = agentConfig?.system_prompt ?? 'You are a helpful assistant for the Verdikt prediction market platform.'
-  const systemPrompt = baseSystemPrompt + LOCALE_GUARDRAIL
+  const systemPrompt = baseSystemPrompt + LOCALE_GUARDRAIL + (agentType === 'player' ? ANALYST_PROMPT : '')
   const temperature  = Number(agentConfig?.temperature ?? 0.7)
   const maxTokens    = Number(agentConfig?.max_tokens ?? 1024)
 

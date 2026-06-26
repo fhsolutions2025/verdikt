@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { VegaPanel } from '@/components/shared/VegaPanel'
+import { createClient } from '@/lib/supabase/client'
 
 export type AgentType = 'player' | 'company' | 'mm_desk'
 
@@ -22,8 +23,8 @@ interface AgentMeta {
 
 const AGENT_META: Record<AgentType, AgentMeta> = {
   player: {
-    label:       'Verdikt AI',
-    description: 'Market insights & trading help',
+    label:       'Vega Analyst',
+    description: 'Market analysis & trade recommendations',
     accentColor: '#00C853',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -55,6 +56,175 @@ const AGENT_META: Record<AgentType, AgentMeta> = {
       </svg>
     ),
   },
+}
+
+// ── Vega trade recommendation types & parsing ────────────────────────────────
+
+interface VegaRec {
+  market_id:          string
+  market_question:    string
+  side:               'yes' | 'no'
+  vega_probability:   number
+  market_probability: number
+  edge_pp:            number
+  confidence:         number
+  reasons:            string[]
+  current_price:      number
+}
+
+type MsgPart = { type: 'text'; value: string } | { type: 'rec'; data: VegaRec }
+
+function parseMessageParts(content: string): MsgPart[] {
+  const parts: MsgPart[] = []
+  const re = /<vega-rec>([\s\S]*?)<\/vega-rec>/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = re.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', value: content.slice(lastIndex, match.index).trim() })
+    }
+    try {
+      const data = JSON.parse(match[1]) as VegaRec
+      parts.push({ type: 'rec', data })
+    } catch {
+      parts.push({ type: 'text', value: match[0] })
+    }
+    lastIndex = re.lastIndex
+  }
+  if (lastIndex < content.length) {
+    const tail = content.slice(lastIndex).trim()
+    if (tail) parts.push({ type: 'text', value: tail })
+  }
+  return parts.length > 0 ? parts : [{ type: 'text', value: content }]
+}
+
+function TradeRecommendationCard({ rec, accentColor }: { rec: VegaRec; accentColor: string }) {
+  const [amount, setAmount]   = useState('10')
+  const [status, setStatus]   = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [errMsg, setErrMsg]   = useState('')
+  const isYes                 = rec.side === 'yes'
+  const edgeColor             = rec.edge_pp >= 0 ? '#00A844' : '#DC2626'
+
+  async function approve() {
+    const amt = parseFloat(amount)
+    if (!amt || amt <= 0) return
+    setStatus('loading')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setStatus('error'); setErrMsg('Not signed in'); return }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc('execute_trade', {
+      p_market_id:    rec.market_id,
+      p_taker_id:     user.id,
+      p_side:         rec.side,
+      p_amount:       amt,
+      p_is_simulated: false,
+    }) as { error: { message: string } | null }
+
+    if (error) { setStatus('error'); setErrMsg(error.message) }
+    else setStatus('done')
+  }
+
+  return (
+    <div style={{
+      margin:          '8px 0',
+      borderRadius:    12,
+      border:          `1px solid ${accentColor}30`,
+      backgroundColor: accentColor + '08',
+      overflow:        'hidden',
+    }}>
+      {/* Card header */}
+      <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${accentColor}20` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <span style={{
+            fontSize: 9, fontWeight: 800, letterSpacing: '0.07em',
+            color: accentColor, backgroundColor: accentColor + '15',
+            padding: '1px 6px', borderRadius: 999,
+          }}>VEGA REC</span>
+          <span style={{
+            fontSize: 9, fontWeight: 700,
+            color: isYes ? '#00A844' : '#E05C20',
+            backgroundColor: isYes ? 'rgba(0,168,68,0.10)' : 'rgba(224,92,32,0.08)',
+            padding: '1px 6px', borderRadius: 999,
+          }}>{rec.side.toUpperCase()}</span>
+        </div>
+        <p style={{ fontSize: 12, fontWeight: 600, color: '#D1D5DB', lineHeight: 1.4, margin: 0 }}>
+          {rec.market_question}
+        </p>
+      </div>
+
+      {/* Stats row */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3,1fr)',
+        gap: 0, borderBottom: `1px solid ${accentColor}20`,
+      }}>
+        {[
+          { label: 'Vega prob', value: `${rec.vega_probability}%` },
+          { label: 'Market', value: `${rec.current_price}¢` },
+          { label: 'Edge', value: `${rec.edge_pp >= 0 ? '+' : ''}${rec.edge_pp}pp`, color: edgeColor },
+        ].map(s => (
+          <div key={s.label} style={{ padding: '8px 10px', textAlign: 'center' }}>
+            <p style={{ fontSize: 9, color: '#6B7280', marginBottom: 2 }}>{s.label}</p>
+            <p style={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: s.color ?? '#E6EDF3' }}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Reasons */}
+      <div style={{ padding: '8px 12px', borderBottom: `1px solid ${accentColor}20` }}>
+        {rec.reasons.map((r, i) => (
+          <p key={i} style={{ fontSize: 11, color: '#9CA3AF', margin: '2px 0', paddingLeft: 8, borderLeft: `2px solid ${accentColor}40` }}>
+            {r}
+          </p>
+        ))}
+      </div>
+
+      {/* Confidence + trade action */}
+      <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 9, color: '#6B7280', marginBottom: 2 }}>Confidence</p>
+          <div style={{ height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${rec.confidence * 100}%`, backgroundColor: accentColor, borderRadius: 2 }} />
+          </div>
+        </div>
+        {status === 'done' ? (
+          <span style={{ fontSize: 11, color: '#00A844', fontWeight: 700 }}>✓ Traded</span>
+        ) : (
+          <>
+            <input
+              type="number"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              min="1"
+              step="1"
+              disabled={status === 'loading'}
+              style={{
+                width: 56, padding: '4px 6px', borderRadius: 6, fontSize: 12, fontFamily: 'monospace',
+                backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                color: '#E6EDF3', outline: 'none', textAlign: 'center',
+              }}
+            />
+            <button
+              onClick={approve}
+              disabled={status === 'loading'}
+              style={{
+                padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                backgroundColor: status === 'loading' ? 'rgba(255,255,255,0.06)' : accentColor,
+                color: status === 'loading' ? '#6B7280' : '#fff',
+                border: 'none', cursor: status === 'loading' ? 'wait' : 'pointer',
+              }}
+            >
+              {status === 'loading' ? '…' : 'Approve'}
+            </button>
+          </>
+        )}
+      </div>
+      {status === 'error' && (
+        <p style={{ fontSize: 10, color: '#F87171', padding: '0 12px 8px', margin: 0 }}>{errMsg}</p>
+      )}
+    </div>
+  )
 }
 
 function TypingDots({ color }: { color: string }) {
@@ -285,7 +455,20 @@ export function ChatWidget({ agentType }: { agentType: AgentType }) {
           }}>
             <span style={{ color: meta.accentColor }}>{meta.icon}</span>
             <div style={{ flex: 1 }}>
-              <div style={{ color: '#E6EDF3', fontSize: 13, fontWeight: 700 }}>{meta.label}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: '#E6EDF3', fontSize: 13, fontWeight: 700 }}>{meta.label}</span>
+                {agentType === 'player' && (
+                  <span style={{
+                    fontSize:        9,
+                    fontWeight:      800,
+                    color:           '#818CF8',
+                    backgroundColor: 'rgba(99,102,241,0.12)',
+                    padding:         '1px 6px',
+                    borderRadius:    999,
+                    letterSpacing:   '0.07em',
+                  }}>VEGA ANALYST</span>
+                )}
+              </div>
               <div style={{ color: '#6B7280', fontSize: 11 }}>{meta.description}</div>
             </div>
             <span style={{
@@ -396,7 +579,14 @@ export function ChatWidget({ agentType }: { agentType: AgentType }) {
                     whiteSpace:      'pre-wrap',
                     wordBreak:       'break-word',
                   }}>
-                    {msg.content}
+                    {msg.role === 'assistant' && agentType === 'player'
+                      ? parseMessageParts(msg.content).map((part, pi) =>
+                          part.type === 'rec'
+                            ? <TradeRecommendationCard key={pi} rec={part.data} accentColor={meta.accentColor} />
+                            : <span key={pi}>{part.value}</span>
+                        )
+                      : msg.content
+                    }
                   </div>
                   {/* Feedback row for assistant messages */}
                   {msg.role === 'assistant' && msg.messageId && (
