@@ -147,16 +147,17 @@ function SatisfactionRing({ pct, color }: { pct: number | null; color: string })
 }
 
 interface VegaPerformance {
-  total_deployed:    number
-  total_pnl:         number
-  trades:            number
-  resolved_count:    number
-  win_rate:          number | null
-  brier:             number | null
-  avg_edge_pp:       number | null
-  open_positions:    number
-  active_agents:     number
-  calibration_label: string
+  total_deployed:              number
+  total_pnl:                   number
+  trades:                      number
+  resolved_count:              number
+  win_rate:                    number | null
+  brier:                       number | null
+  avg_edge_pp:                 number | null
+  open_positions:              number
+  active_agents:               number
+  calibration_label:           string
+  circuit_breaker_hits_today:  number
 }
 
 interface AutonomousOverview {
@@ -340,6 +341,12 @@ export function AgentsTab() {
               <VegaMetric label="Trades" value={String(vega.trades)} />
               <VegaMetric label="Open Positions" value={String(vega.open_positions)} />
               <VegaMetric label="Active Agents" value={String(vega.active_agents)} />
+              <VegaMetric
+                label="CB Hits Today"
+                value={String(vega.circuit_breaker_hits_today ?? 0)}
+                color={(vega.circuit_breaker_hits_today ?? 0) > 0 ? '#F59E0B' : undefined}
+                sub={(vega.circuit_breaker_hits_today ?? 0) > 0 ? 'breaker triggered' : 'all clear'}
+              />
             </div>
           )}
         </div>

@@ -23,8 +23,13 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANTHROPIC_API_KEY         = Deno.env.get('ANTHROPIC_API_KEY')!
 
 // ── Forecaster tuning constants ──────────────────────────────────────────────
-const EDGE_THRESHOLD_PP = 8     // min |belief − market| in percentage points to trade
-const KELLY_MULT        = 0.35  // fractional Kelly multiplier (conservative sizing)
+const EDGE_THRESHOLD_PP         = 8     // min |belief − market| in percentage points to trade
+const KELLY_MULT                = 0.35  // fractional Kelly multiplier (conservative sizing)
+
+// ── Circuit breaker constants ─────────────────────────────────────────────────
+const DAILY_LOSS_LIMIT_PCT      = 20    // halt entries if realized loss today > this % of budget_cap
+const MAX_CONSECUTIVE_ERRORS    = 3     // halt if last N log entries for this player are all 'error'
+const BELIEF_FAILURE_LIMIT      = 3     // halt if Haiku returned 0 beliefs this many consecutive times
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supabase = ReturnType<typeof createClient>
@@ -73,6 +78,76 @@ interface SizedTrade {
   p_yes:          number   // 0–100
   kelly_fraction: number
   rationale:      string
+}
+
+// ── Circuit breaker check ─────────────────────────────────────────────────────
+// Returns { halted: true, reason } when any breaker is triggered; entry pass skipped.
+// Queries are lightweight (recent rows only, count/aggregate).
+async function checkCircuitBreakers(
+  supabase: Supabase,
+  cfg: VegaConfig,
+  todayStart: Date,
+): Promise<{ halted: boolean; reason?: string }> {
+
+  // 1. DAILY LOSS LIMIT — sum today's realized_pnl from stop_loss actions
+  const { data: lossRows } = await supabase
+    .from('autonomous_trade_log')
+    .select('realized_pnl')
+    .eq('player_id', cfg.player_id)
+    .eq('action', 'stop_loss')
+    .gte('created_at', todayStart.toISOString())
+
+  const dailyLoss = (lossRows ?? []).reduce(
+    (acc: number, r: { realized_pnl: number | null }) => acc + Math.min(0, Number(r.realized_pnl ?? 0)),
+    0,
+  )
+  const lossLimit = -(cfg.budget_cap_inr * DAILY_LOSS_LIMIT_PCT / 100)
+  if (dailyLoss < lossLimit) {
+    return {
+      halted: true,
+      reason: `Daily loss circuit breaker: realized loss ${dailyLoss.toFixed(0)} exceeds limit ${lossLimit.toFixed(0)} (${DAILY_LOSS_LIMIT_PCT}% of budget)`,
+    }
+  }
+
+  // 2. CONSECUTIVE ERROR LIMIT — look at last N log entries for this player
+  const { data: recentLogs } = await supabase
+    .from('autonomous_trade_log')
+    .select('action')
+    .eq('player_id', cfg.player_id)
+    .order('created_at', { ascending: false })
+    .limit(MAX_CONSECUTIVE_ERRORS)
+
+  if (
+    recentLogs &&
+    recentLogs.length >= MAX_CONSECUTIVE_ERRORS &&
+    recentLogs.every((r: { action: string }) => r.action === 'error')
+  ) {
+    return {
+      halted: true,
+      reason: `Consecutive error circuit breaker: last ${MAX_CONSECUTIVE_ERRORS} log entries are all errors`,
+    }
+  }
+
+  // 3. BELIEF FAILURE LIMIT — look at last N entries for belief_failure action
+  const { data: beliefFailLogs } = await supabase
+    .from('autonomous_trade_log')
+    .select('action')
+    .eq('player_id', cfg.player_id)
+    .order('created_at', { ascending: false })
+    .limit(BELIEF_FAILURE_LIMIT)
+
+  if (
+    beliefFailLogs &&
+    beliefFailLogs.length >= BELIEF_FAILURE_LIMIT &&
+    beliefFailLogs.every((r: { action: string }) => r.action === 'belief_failure')
+  ) {
+    return {
+      halted: true,
+      reason: `Belief failure circuit breaker: LLM returned no beliefs ${BELIEF_FAILURE_LIMIT} consecutive times`,
+    }
+  }
+
+  return { halted: false }
 }
 
 // ── STAGE 1: BELIEF (LLM, blind to price) ────────────────────────────────────
@@ -222,6 +297,19 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
   }
 
   // ── PASS 2: ENTRY ──────────────────────────────────────────────────────────
+  // Circuit breaker check before any new entries
+  const cb = await checkCircuitBreakers(supabase, cfg, todayStart)
+  if (cb.halted) {
+    await supabase.from('autonomous_trade_log').insert({
+      player_id: cfg.player_id,
+      config_id: cfg.id,
+      action:    'circuit_breaker',
+      rationale: cb.reason?.slice(0, 400) ?? 'Circuit breaker triggered',
+    })
+    await touchLastRun(supabase, cfg.id)
+    return { entries, exits }
+  }
+
   // Daily trade budget remaining
   const { count: tradesToday } = await supabase
     .from('autonomous_trade_log')
@@ -274,6 +362,20 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
 
   // STAGE 1: form beliefs BLIND to price.
   const beliefs = await getBeliefs(candidates, cfg)
+
+  // If Haiku returned nothing for a non-empty candidate set, log as belief_failure.
+  // This feeds the consecutive belief-failure circuit breaker.
+  if (beliefs.length === 0 && candidates.length > 0) {
+    await supabase.from('autonomous_trade_log').insert({
+      player_id: cfg.player_id,
+      config_id: cfg.id,
+      action:    'belief_failure',
+      rationale: `LLM Stage 1 returned 0 beliefs for ${candidates.length} candidates`,
+    })
+    await touchLastRun(supabase, cfg.id)
+    return { entries, exits }
+  }
+
   const marketById = new Map(candidates.map((m: MarketRow) => [m.id, m]))
 
   // STAGE 2: edge + sizing (pure code, no LLM).
