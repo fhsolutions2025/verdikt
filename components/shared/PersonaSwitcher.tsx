@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { VerdiktLogo } from './VerdiktLogo'
 import { ThemeToggle } from './ThemeToggle'
+import { SkinToggle } from './SkinToggle'
 
 const PORTALS = [
   { label: 'Company',  href: '/company',  key: '/company'  },
@@ -16,6 +17,7 @@ export function PersonaSwitcher() {
   if (pathname.startsWith('/(auth)') || pathname === '/') return null
 
   const isCompany  = pathname.startsWith('/company')
+  const isPlayer   = pathname.startsWith('/player')
 
   // Company portal has its own full-screen layout with embedded header
   if (isCompany) return null
@@ -59,6 +61,7 @@ export function PersonaSwitcher() {
           )
         })}
         <span className="mx-1" style={{ width: 1, height: 18, backgroundColor: 'var(--border-strong)' }} />
+        {isPlayer && <SkinToggle compact />}
         <ThemeToggle compact />
       </nav>
     </header>

@@ -4,6 +4,9 @@ import Link from 'next/link'
 import { Market, PriceTick } from '@/lib/types'
 import { LiveDot } from '@/components/shared/LiveDot'
 import { formatVolume } from '@/lib/calculations'
+import { useTheme } from '@/components/shared/ThemeProvider'
+import { ThemeImage } from '@/components/shared/PageAssets'
+import { thumbnailSlotCandidates } from '@/lib/pageAssets'
 
 interface LivePrice {
   label:  string   // e.g. 'BTC/USD'
@@ -48,17 +51,13 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
   const closingSoon   = closesAt > now && closesAt - now < 24 * 60 * 60 * 1000
   const sourceLabel   = market.source_feed ? (SOURCE_LABEL[market.source_feed] ?? market.source_feed) : null
 
-  return (
-    <Link href={`/player/${market.id}`} className="block">
-      <div
-        className="rounded-2xl p-4 space-y-3 transition-transform active:scale-[0.98]"
-        style={{
-          backgroundColor: 'var(--bg-surface)',
-          border: `1px solid ${isHot ? '#E05C2030' : 'var(--border)'}`,
-          cursor: 'pointer',
-        }}
-      >
-        {/* Row 1: category + confidence + badges */}
+  const { skin }   = useTheme()
+  const isVisual   = skin === 'visual'
+  const thumbSlots = thumbnailSlotCandidates(market.id, market.category)
+
+  // Rows 1 (badges) + 2 (heading). In the visual skin they sit to the right of a
+  // thumbnail; in classic they're plain children so the card's space-y-3 holds.
+  const badges = (
         <div className="flex items-center gap-2 flex-wrap">
           <span
             className="text-xs font-bold uppercase px-2 py-0.5 rounded-full"
@@ -114,17 +113,54 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
             </span>
           )}
         </div>
+  )
 
-        {/* Row 2: question + relative time */}
-        <p
-          className="font-bold leading-snug line-clamp-2"
-          style={{ fontSize: 14, color: 'var(--text-strong)' }}
-        >
-          {market.question}
-        </p>
-        <p style={{ fontSize: 11, color: 'var(--text-faintest)', marginTop: -6 }}>
-          created {relativeCreatedTime(market.created_at)}
-        </p>
+  const heading = (
+    <>
+      <p
+        className="font-bold leading-snug line-clamp-2"
+        style={{ fontSize: 14, color: 'var(--text-strong)' }}
+      >
+        {market.question}
+      </p>
+      <p style={{ fontSize: 11, color: 'var(--text-faintest)', marginTop: -6 }}>
+        created {relativeCreatedTime(market.created_at)}
+      </p>
+    </>
+  )
+
+  return (
+    <Link href={`/player/${market.id}`} className="block">
+      <div
+        className="rounded-2xl p-4 space-y-3 transition-transform active:scale-[0.98]"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: `1px solid ${isHot ? '#E05C2030' : 'var(--border)'}`,
+          cursor: 'pointer',
+        }}
+      >
+        {/* Rows 1–2: thumbnail + heading (visual) or plain badges + heading (classic) */}
+        {isVisual ? (
+          <div className="flex gap-3 items-start">
+            <ThemeImage
+              slot={thumbSlots}
+              width={72}
+              height={72}
+              rounded={14}
+              placeholderLabel={market.category.replace('_', ' ')}
+              style={{ marginTop: 2 }}
+            />
+            <div className="flex-1 min-w-0 space-y-2">
+              {badges}
+              {heading}
+            </div>
+          </div>
+        ) : (
+          <>
+            {badges}
+            {heading}
+          </>
+        )}
 
         {/* Row 3: live data strip — shown when a relevant price is available */}
         {livePrice && (
