@@ -23,10 +23,18 @@ function fmtCost(usd: number): string {
   return `$${usd.toFixed(2)}`
 }
 
+interface IdeogramStats {
+  spendToday:   number
+  spend30d:     number
+  imagesTotal:  number
+  spendTotal:   number
+}
+
 interface Props {
-  sources:  ApiSource[]
-  callsToday: Record<string, number>  // api_name → call_count total for today
-  aiStats:  AiStats
+  sources:       ApiSource[]
+  callsToday:    Record<string, number>
+  aiStats:       AiStats
+  ideogramStats: IdeogramStats
 }
 
 const LICENSE_LABELS: Record<string, { label: string; color: string; tooltip: string }> = {
@@ -40,7 +48,7 @@ interface PropsWithOpen extends Props {
   defaultOpen?: boolean
 }
 
-export function ApiHealthMonitor({ sources, callsToday, aiStats, defaultOpen = false }: PropsWithOpen) {
+export function ApiHealthMonitor({ sources, callsToday, aiStats, ideogramStats, defaultOpen = false }: PropsWithOpen) {
   const [open, setOpen]     = useState(defaultOpen)
   const externalSources     = sources.filter(s => s.category !== 'ai')
   const aiSource            = sources.find(s => s.category === 'ai')
@@ -147,6 +155,55 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats, defaultOpen = f
             {externalSources.length === 0 && (
               <p className="text-xs" style={{ color: 'var(--text-dim)' }}>No external sources registered.</p>
             )}
+          </div>
+        </section>
+
+        {/* Creative AI — Ideogram */}
+        <section className="space-y-2">
+          <p className="text-xs font-bold uppercase" style={{ color: 'var(--text-faintest)' }}>
+            Creative AI
+          </p>
+          <div
+            className="rounded-xl p-4 space-y-3"
+            style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#00C853' }} />
+                <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>Ideogram V_2</span>
+              </div>
+              <span className="text-xs font-bold" style={{ color: '#6C3FC5' }}>metered</span>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="flex-1 rounded-lg px-3 py-2.5" style={{ backgroundColor: '#6C3FC512', border: '1px solid #6C3FC528' }}>
+                <p className="text-xs" style={{ color: 'var(--text-dim)', margin: 0 }}>Spend today</p>
+                <p className="font-mono font-bold" style={{ color: '#9B6FF5', fontSize: 18, margin: '2px 0 0' }}>
+                  {fmtCost(ideogramStats.spendToday)}
+                </p>
+              </div>
+              <div className="flex-1 rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
+                <p className="text-xs" style={{ color: 'var(--text-dim)', margin: 0 }}>Spend (30d)</p>
+                <p className="font-mono font-bold" style={{ color: 'var(--text)', fontSize: 18, margin: '2px 0 0' }}>
+                  {fmtCost(ideogramStats.spend30d)}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs" style={{ color: 'var(--text-dim)' }}>
+              <span>Images generated</span>
+              <span className="font-mono text-right" style={{ color: 'var(--text)' }}>
+                {ideogramStats.imagesTotal.toLocaleString()}
+              </span>
+              <span>Total spend</span>
+              <span className="font-mono text-right" style={{ color: 'var(--text)' }}>
+                {fmtCost(ideogramStats.spendTotal)}
+              </span>
+            </div>
+
+            <p className="text-xs" style={{ color: 'var(--text-faintest)' }}>
+              $0.08 / image (V_2). API key stored in Supabase secrets.
+            </p>
           </div>
         </section>
 

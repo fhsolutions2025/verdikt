@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { CompanyDashboard } from '@/components/company/CompanyDashboard'
 import type {
   PlatformTotals, MmConfig, AuditLogEntry,
@@ -13,6 +13,9 @@ const HAIKU_OUTPUT_PRICE_PER_M = 4.00
 
 export default async function CompanyPage() {
   const supabase = await createClient()
+  // Service client bypasses RLS for internal observability tables
+  // (ai_call_log, api_rate_limits, marketing_assets)
+  const service = await createServiceClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -33,6 +36,7 @@ export default async function CompanyPage() {
     rateLimitsRes,
     spreadRes,
     aiCalls30dRes,
+    ideogramAssetsRes,
   ] = await Promise.all([
     supabase.from('v_platform_totals').select('*').single(),
     supabase.from('mm_config').select('*').eq('id', '20000000-0000-0000-0000-000000000001').single(),
@@ -41,15 +45,19 @@ export default async function CompanyPage() {
     supabase.from('markets').select('*').in('status', ['live', 'ai_ready', 'pending_mm_review']),
     supabase.from('markets').select('*').eq('status', 'ai_ready').eq('creator_type', 'player_mm').order('created_at', { ascending: false }),
     supabase.from('api_sources').select('*').order('category'),
-    supabase.from('ai_call_log')
+    // Use service client for observability tables — bypasses RLS that could
+    // silently return 0 rows if the admin-read policy wasn't applied.
+    service.from('ai_call_log')
       .select('success, from_cache, error_message, latency_ms, input_tokens, output_tokens, created_at')
       .gte('created_at', todayISO),
-    supabase.from('api_rate_limits').select('api_name, call_count').gte('window_start', todayISO),
+    service.from('api_rate_limits').select('api_name, call_count').gte('window_start', todayISO),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).rpc('get_realized_spread_income'),
-    supabase.from('ai_call_log')
+    service.from('ai_call_log')
       .select('input_tokens, output_tokens')
       .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString()),
+    // Ideogram spend from saved assets
+    service.from('marketing_assets').select('cost_usd, created_at'),
   ])
 
   const totals      = totalsRes.data      as PlatformTotals | null
@@ -106,6 +114,18 @@ export default async function CompanyPage() {
     return acc
   }, {})
 
+  // Ideogram spend from saved marketing assets
+  const allAssets = (ideogramAssetsRes.data ?? []) as { cost_usd: number | null; created_at: string }[]
+  const ideogramSpendToday  = allAssets
+    .filter(a => a.created_at >= todayISO)
+    .reduce((s, a) => s + Number(a.cost_usd ?? 0), 0)
+  const ideogramSpend30d    = allAssets
+    .filter(a => a.created_at >= new Date(Date.now() - 30 * 86_400_000).toISOString())
+    .reduce((s, a) => s + Number(a.cost_usd ?? 0), 0)
+  const ideogramImagesTotal = allAssets.length
+  const ideogramSpendTotal  = allAssets.reduce((s, a) => s + Number(a.cost_usd ?? 0), 0)
+  const ideogramStats = { spendToday: ideogramSpendToday, spend30d: ideogramSpend30d, imagesTotal: ideogramImagesTotal, spendTotal: ideogramSpendTotal }
+
   const aiStats = {
     calls_today:    rows.length,
     avg_latency_ms: avgLatency,
@@ -127,6 +147,7 @@ export default async function CompanyPage() {
       pendingReview={pendingReview}
       apiSources={apiSources}
       aiStats={aiStats}
+      ideogramStats={ideogramStats}
       callsToday={callsToday}
       spreadIncome={spreadIncome}
     />
