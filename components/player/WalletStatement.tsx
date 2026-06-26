@@ -110,7 +110,7 @@ function hexAlpha(color: string, alpha: string): string {
 
 // --- interactive balance chart -------------------------------------------
 
-function BalanceChart({ series }: { series: { t: number; bal: number }[] }) {
+function BalanceChart({ series, positive }: { series: { t: number; bal: number }[]; positive?: boolean }) {
   const W = 380
   const H = 120
   const [hover, setHover] = useState<number | null>(null)
@@ -128,8 +128,10 @@ function BalanceChart({ series }: { series: { t: number; bal: number }[] }) {
   const max   = Math.max(...vals)
   const range = max - min || 1
   const stepX = W / (series.length - 1)
-  // Colour by the direction of the window, so a falling balance never reads green.
-  const up    = series[series.length - 1].bal >= series[0].bal
+  // Colour by trading performance (P&L sign), not by raw endpoints — a deposit can
+  // lift the balance line while trading is down, so we never want a rising-because-
+  // of-a-deposit line to read green when the period's P&L is negative.
+  const up    = positive ?? (series[series.length - 1].bal >= series[0].bal)
   const stroke = up ? GREEN : RED
 
   const coords = series.map((s, i) => {
@@ -251,11 +253,11 @@ export function WalletStatement({ balance, transactions }: { balance: number; tr
     [transactions, start],
   )
 
-  // The hero "change" is the balance delta across the SELECTED WINDOW, anchored
-  // to the balance entering the window. This equals real P&L over the period and
-  // always agrees in sign with the chart's slope — so we never show a green gain
-  // above a falling line. (The old metric was balance − net_deposits, which read
-  // the entire starting balance as profit when no deposit tx was recorded.)
+  // The hero "change" is the period's true P&L: the balance delta across the
+  // window MINUS external cashflows (deposits/withdrawals) inside it. Subtracting
+  // flows is essential — otherwise a deposit reads as profit (the original bug).
+  // The chart still plots raw balance (deposits included), but is coloured by this
+  // P&L sign so a deposit-driven rise never shows green while trading is down.
   const { chartSeries, change, changePct } = useMemo(() => {
     if (seriesFull.length === 0) {
       return { chartSeries: [] as { t: number; bal: number }[], change: 0, changePct: 0 }
@@ -268,10 +270,18 @@ export function WalletStatement({ balance, transactions }: { balance: number; tr
       ? [{ t: baseT, bal: baseline }, ...inWindow]
       : (inWindow.length ? inWindow : [{ t: baseT, bal: baseline }])
     const endBal = cs[cs.length - 1].bal
-    const ch     = endBal - baseline
-    const pct    = baseline !== 0 ? (ch / baseline) * 100 : 0
+
+    // Net external cashflow inside the window (deposits +, withdrawals −).
+    const netFlow = periodTxs.reduce(
+      (s, tx) => s + (tx.type === 'deposit' || tx.type === 'withdrawal' ? tx.amount : 0),
+      0,
+    )
+    const ch = (endBal - baseline) - netFlow
+    // % is performance over the capital base for the window.
+    const capitalBase = Math.abs(baseline) > 1 ? Math.abs(baseline) : Math.abs(baseline + netFlow)
+    const pct = capitalBase > 0 ? (ch / capitalBase) * 100 : 0
     return { chartSeries: cs, change: ch, changePct: pct }
-  }, [seriesFull, start, period])
+  }, [seriesFull, start, period, periodTxs])
 
   // stat tiles over period
   const stats = useMemo(() => {
@@ -426,12 +436,12 @@ export function WalletStatement({ balance, transactions }: { balance: number; tr
               {signed(change)} ({change >= 0 ? '+' : '−'}{Math.abs(changePct).toFixed(1)}%)
             </span>
             <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
-              {PERIOD_LABEL[period]}
+              P&amp;L · {PERIOD_LABEL[period]}
             </span>
           </div>
 
           <div className="mt-4 -mx-1">
-            <BalanceChart series={chartSeries} />
+            <BalanceChart series={chartSeries} positive={change >= 0} />
           </div>
         </div>
 
