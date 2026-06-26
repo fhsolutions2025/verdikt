@@ -327,6 +327,68 @@ function PositionRow({ pos, selling, onSell }: {
     return () => clearTimeout(t)
   }, [confirming])
 
+  // ── (a) No-network decision hint, from existing data only ──────────────────
+  // currentPrice moved in *our side's* favour when it's higher than entry (the
+  // share we hold is worth more cents). We pick the single most relevant line.
+  const priceDelta = isOpen ? currentPrice(pos) - pos.entry_price : 0 // cents, signed (+ = favourable)
+  let hintText: string | null = null
+  let hintColor = 'var(--text-faint)'
+  if (priceDelta >= 8)       { hintText = 'Up — good moment to lock in';            hintColor = '#00A844' }
+  else if (priceDelta <= -8) { hintText = 'Down vs entry — selling locks the loss'; hintColor = '#DC2626' }
+  else if (Math.abs(priceDelta) <= 2) { hintText = 'Near your entry — little gained by selling now' }
+
+  // Days to resolution (muted) — holding to resolution may beat the mid.
+  let resolveText: string | null = null
+  if (isOpen && m.closes_at) {
+    const msLeft = new Date(m.closes_at).getTime() - Date.now()
+    if (msLeft > 0) {
+      const days = Math.ceil(msLeft / 86_400_000)
+      if (days <= 5) resolveText = `Resolves in ${days} day${days === 1 ? '' : 's'}`
+    }
+  }
+
+  // ── (b) Hold-to-win marker — a winning share settles at 100¢ = 1.00 ────────
+  const worthIfWins = pos.shares * 1.0
+
+  // ── (c) On-demand "Ask Vega" opinion — per-row local state ──────────────────
+  type Opinion = { fair_yes: number; market_yes: number; rationale: string }
+  const [vegaLoading, setVegaLoading] = useState(false)
+  const [vegaError, setVegaError]     = useState<string | null>(null)
+  const [opinion, setOpinion]         = useState<Opinion | null>(null)
+
+  async function askVega() {
+    if (vegaLoading) return
+    setVegaLoading(true)
+    setVegaError(null)
+    setOpinion(null)
+    try {
+      const res = await fetch('/api/autonomous-agent/position-opinion', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ market_id: m.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setVegaError(data.error ?? 'Vega is unavailable.'); return }
+      setOpinion({ fair_yes: data.fair_yes, market_yes: data.market_yes, rationale: data.rationale ?? '' })
+    } catch {
+      setVegaError('Could not reach Vega.')
+    } finally {
+      setVegaLoading(false)
+    }
+  }
+
+  // Per-side stance: compare what WE hold (cents) against Vega's fair value.
+  // YES → market_yes vs fair_yes;  NO → no_price vs (100 − fair_yes).
+  let stance: { label: string; tone: string; note: string } | null = null
+  if (opinion) {
+    const fairSide   = isYes ? opinion.fair_yes : 100 - opinion.fair_yes
+    const marketSide = isYes ? opinion.market_yes : m.no_price
+    const delta      = marketSide - fairSide // + = market rich vs Vega
+    if (Math.abs(delta) <= 4)      stance = { label: 'FAIR',  tone: '#9CA3AF', note: 'Priced fairly' }
+    else if (delta > 0)            stance = { label: 'RICH',  tone: '#00A844', note: 'Market rich vs Vega — selling favoured' }
+    else                           stance = { label: 'CHEAP', tone: '#E05C20', note: 'Market cheap vs Vega — holding favoured' }
+  }
+
   return (
     <div
       className="rounded-xl p-3 space-y-2.5"
@@ -375,6 +437,68 @@ function PositionRow({ pos, selling, onSell }: {
           color={pnl == null ? undefined : pnl >= 0 ? '#00A844' : '#DC2626'}
         />
       </div>
+
+      {/* ── Sell intelligence (open positions only) ── */}
+      {isOpen && (
+        <div className="space-y-1.5">
+          {/* (a) decision hint + days-to-resolution */}
+          {(hintText || resolveText) && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] leading-tight">
+              {hintText && <span style={{ color: hintColor }}>{hintText}</span>}
+              {resolveText && <span style={{ color: 'var(--text-faint)' }}>{resolveText}</span>}
+            </div>
+          )}
+
+          {/* (b) buyback-now vs hold-to-win marker */}
+          <p className="text-[11px] leading-tight" style={{ color: 'var(--text-faint)' }}>
+            Buyback now {proceeds.toFixed(2)} · worth {worthIfWins.toFixed(2)} if your side wins
+          </p>
+
+          {/* (c) Ask Vega */}
+          {!opinion && (
+            <button
+              onClick={askVega}
+              disabled={vegaLoading}
+              className="w-full py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-[0.98]"
+              style={{
+                backgroundColor: 'rgba(99,102,241,0.10)',
+                color:           '#818CF8',
+                border:          '1px solid rgba(99,102,241,0.25)',
+                cursor:          vegaLoading ? 'wait' : 'pointer',
+              }}
+            >
+              {vegaLoading ? 'Vega is thinking…' : '★ Ask Vega'}
+            </button>
+          )}
+
+          {vegaError && (
+            <p className="text-[11px] leading-tight" style={{ color: '#DC2626' }}>{vegaError}</p>
+          )}
+
+          {opinion && stance && (
+            <div
+              className="rounded-lg p-2 space-y-1"
+              style={{ backgroundColor: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.20)' }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
+                  Vega fair {isYes ? opinion.fair_yes : 100 - opinion.fair_yes}¢ · market {isYes ? opinion.market_yes : m.no_price}¢
+                </span>
+                <span
+                  className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0"
+                  style={{ backgroundColor: 'rgba(99,102,241,0.12)', color: '#818CF8' }}
+                >
+                  ★ {stance.label}
+                </span>
+              </div>
+              <p className="text-[11px] leading-tight" style={{ color: stance.tone }}>{stance.note}</p>
+              {opinion.rationale && (
+                <p className="text-[11px] leading-tight" style={{ color: 'var(--text-faint)' }}>{opinion.rationale}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sell button for open positions only */}
       {isOpen && (
