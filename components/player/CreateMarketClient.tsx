@@ -110,6 +110,9 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
     setQuestion('')
     setGut(50)
     setClosesAt(defaultCloseDate())
+
+    // Kick off AI normalization immediately rather than waiting for the 2-min cron.
+    fetch('/api/normalize-byv', { method: 'POST' }).catch(() => {})
   }
 
   return (
