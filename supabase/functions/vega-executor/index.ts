@@ -3,12 +3,15 @@
 //
 // Per active config it does two passes:
 //   1. STOP-LOSS  — exits any Vega position down >= stop_loss_pct
-//   2. ENTRY      — asks Haiku to pick the best opportunities from the
-//                   player's allowed live markets, then opens positions
-//                   within every server-side guardrail.
+//   2. ENTRY      — a two-stage calibrated forecaster:
+//        Stage 1 (belief): Haiku estimates P(YES) BLIND to the market price
+//                          (anti-anchoring / circular-reference guard).
+//        Stage 2 (edge):   code computes edge = |agent_p - market_p|, gates on
+//                          an edge floor + confidence + near-50 straddle, then
+//                          sizes via fractional Kelly within every limit.
 //
-// EVERY limit (budget cap, max position, daily trades, confidence) is
-// enforced here in code — the model only proposes, the executor disposes.
+// EVERY limit (budget cap, max position, daily trades, confidence, edge) is
+// enforced here in code — the model only forecasts, the executor disposes.
 //
 // Scheduled hourly via cron; respects each config's run_schedule
 // (manual configs are skipped by the scheduler call).
@@ -18,6 +21,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANTHROPIC_API_KEY         = Deno.env.get('ANTHROPIC_API_KEY')!
+
+// ── Forecaster tuning constants ──────────────────────────────────────────────
+const EDGE_THRESHOLD_PP = 8     // min |belief − market| in percentage points to trade
+const KELLY_MULT        = 0.35  // fractional Kelly multiplier (conservative sizing)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supabase = ReturnType<typeof createClient>
@@ -45,39 +52,57 @@ interface MarketRow {
   ai_confidence: number | null
   volume:        number
   category:      string
+  closes_at:     string | null
 }
 
-interface Decision {
-  market_id:  string
-  side:       'yes' | 'no'
-  confidence: number
-  rationale:  string
+// A calibrated belief about one market, formed BLIND to the market price.
+interface Belief {
+  market_id: string
+  p_yes:     number   // integer 0–100: P(YES resolves true)
+  rationale: string
 }
 
-// ── Ask Haiku which markets to trade ─────────────────────────────────────────
-async function getDecisions(
+// A market that survived all gates, with its computed size and metrics.
+interface SizedTrade {
+  market_id:      string
+  side:           'yes' | 'no'
+  stake:          number   // INR, pre-floor
+  edge_pp:        number
+  p_side:         number   // belief chosen side wins, 0–100
+  market_p_yes:   number   // 0–100
+  p_yes:          number   // 0–100
+  kelly_fraction: number
+  rationale:      string
+}
+
+// ── STAGE 1: BELIEF (LLM, blind to price) ────────────────────────────────────
+// Ask Haiku for a calibrated P(YES) per market. The prompt MUST NOT contain
+// yes_price / no_price or any market-implied probability — this is the
+// circular-reference guard + anti-anchoring rule. The model forms its belief
+// first; Stage 2 (pure code) compares it to price to find edge.
+async function getBeliefs(
   candidates: MarketRow[],
   cfg: VegaConfig,
-  maxPicks: number,
-): Promise<Decision[]> {
-  if (candidates.length === 0 || maxPicks <= 0) return []
+): Promise<Belief[]> {
+  if (candidates.length === 0) return []
 
+  // NOTE: no price fields here. Only neutral, non-anchoring context.
   const marketLines = candidates.map(m =>
-    `- id:${m.id} | "${m.question}" | YES ${m.yes_price}¢ / NO ${m.no_price}¢ | ai_confidence:${m.ai_confidence ?? 'n/a'} | category:${m.category}`,
+    `- id:${m.id} | "${m.question}" | category:${m.category} | closes_at:${m.closes_at ?? 'n/a'} | ai_confidence:${m.ai_confidence ?? 'n/a'}`,
   ).join('\n')
 
   const prompt = [
-    'You are Vega, an autonomous prediction-market trading agent.',
-    `You may select AT MOST ${maxPicks} markets to enter this run.`,
-    `Only pick a market if your confidence the chosen side resolves correctly is >= ${cfg.confidence_threshold}.`,
-    'Prefer markets where the current price looks mispriced relative to the likely outcome.',
-    'Be selective — it is correct to return an empty array if nothing is compelling.',
+    'You are Vega, a calibrated forecaster for prediction markets.',
+    'For each market below, estimate P(YES resolves true) as an INTEGER 0-100.',
+    'Anchor FIRST on the base rate for the event class, then adjust for the specifics of this question.',
+    'You are NOT told the market price, and you must not guess it — form your own honest belief.',
+    'Returning nothing, or a low-conviction estimate near 50, is completely fine when you are unsure.',
     '',
-    'Candidate markets:',
+    'Markets:',
     marketLines,
     '',
     'Return ONLY a JSON array (no prose, no markdown fences). Each element:',
-    '{"market_id":"<id>","side":"yes"|"no","confidence":<integer 0-100>,"rationale":"<one sentence>"}',
+    '{"market_id":"<id>","p_yes":<integer 0-100>,"rationale":"<one sentence, base-rate anchored>"}',
     'First character of your reply MUST be [.',
   ].join('\n')
 
@@ -91,9 +116,9 @@ async function getDecisions(
       },
       body: JSON.stringify({
         model:      'claude-haiku-4-5-20251001',
-        max_tokens: 800,
-        temperature: 0.4,
-        system: 'You are a disciplined trading agent that outputs only raw JSON arrays.',
+        max_tokens: 1000,
+        temperature: 0.3,
+        system: 'You are a disciplined, calibrated forecaster that outputs only raw JSON arrays. You never see or infer market prices; you reason purely from base rates and evidence.',
         messages: [{ role: 'user', content: prompt }],
       }),
       signal: AbortSignal.timeout(20_000),
@@ -112,12 +137,15 @@ async function getDecisions(
 
     const validIds = new Set(candidates.map(c => c.id))
     return parsed
-      .filter((d: Decision) =>
-        validIds.has(d.market_id) &&
-        (d.side === 'yes' || d.side === 'no') &&
-        Number(d.confidence) >= cfg.confidence_threshold,
-      )
-      .slice(0, maxPicks)
+      .filter((b: Belief) => {
+        const p = Number(b.p_yes)
+        return validIds.has(b.market_id) && Number.isFinite(p) && p >= 0 && p <= 100
+      })
+      .map((b: Belief) => ({
+        market_id: b.market_id,
+        p_yes:     Math.round(Number(b.p_yes)),
+        rationale: b.rationale,
+      }))
   } catch {
     return []
   }
@@ -235,7 +263,7 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
 
   const { data: liveMarkets } = await supabase
     .from('markets')
-    .select('id, question, yes_price, no_price, ai_confidence, volume, category')
+    .select('id, question, yes_price, no_price, ai_confidence, volume, category, closes_at')
     .eq('status', 'live')
     .in('category', cfg.allowed_categories)
     .gte('ai_confidence', cfg.confidence_threshold)
@@ -244,32 +272,88 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
 
   const candidates = (liveMarkets ?? []).filter((m: MarketRow) => !heldMarketIds.has(m.id))
 
-  const maxPicks   = Math.min(remainingTrades, Math.floor(remainingBudget / Math.min(cfg.max_position_size, remainingBudget)))
-  const decisions  = await getDecisions(candidates, cfg, Math.max(1, maxPicks))
+  // STAGE 1: form beliefs BLIND to price.
+  const beliefs = await getBeliefs(candidates, cfg)
+  const marketById = new Map(candidates.map((m: MarketRow) => [m.id, m]))
+
+  // STAGE 2: edge + sizing (pure code, no LLM).
+  const sized: SizedTrade[] = []
+  for (const b of beliefs) {
+    const m = marketById.get(b.market_id)
+    if (!m) continue
+
+    const market_p_yes = m.yes_price            // 0–100
+    const p_yes        = b.p_yes                // 0–100
+    const edge_pp      = Math.abs(p_yes - market_p_yes)
+
+    const chosen: 'yes' | 'no' = p_yes > market_p_yes ? 'yes' : 'no'
+    const p_side     = chosen === 'yes' ? p_yes : (100 - p_yes)            // belief chosen side wins, 0–100
+    const price_side = (chosen === 'yes' ? m.yes_price : m.no_price) / 100 // cost per share, 0–1
+
+    // GATES
+    if (edge_pp < EDGE_THRESHOLD_PP) continue
+    if (p_side < cfg.confidence_threshold) continue
+    // straddle guard: both belief and market sit in the coin-flip zone
+    if (market_p_yes >= 45 && market_p_yes <= 55 && p_yes >= 45 && p_yes <= 55) continue
+
+    // KELLY sizing (fractional)
+    const denom = 1 - price_side
+    if (denom <= 0) continue
+    let f_star = (p_side / 100 - price_side) / denom
+    if (f_star < 0) f_star = 0
+    const kelly_fraction = f_star * KELLY_MULT
+    let stake = kelly_fraction * cfg.budget_cap_inr
+
+    // cap to max_position_size and remaining budget
+    stake = Math.min(stake, cfg.max_position_size, cfg.budget_cap_inr - cfg.total_deployed)
+    if (stake < 1) continue
+
+    sized.push({
+      market_id:      b.market_id,
+      side:           chosen,
+      stake,
+      edge_pp,
+      p_side,
+      market_p_yes,
+      p_yes,
+      kelly_fraction,
+      rationale:      b.rationale,
+    })
+  }
+
+  // Rank by edge_pp descending, take up to remainingTrades.
+  sized.sort((a, b) => b.edge_pp - a.edge_pp)
+  const picks = sized.slice(0, remainingTrades)
 
   let deployedThisRun = 0
-  for (const d of decisions) {
+  for (const t of picks) {
     const budgetLeft = remainingBudget - deployedThisRun
-    if (budgetLeft < 10) break
+    if (budgetLeft < 1) break
     if (entries >= remainingTrades) break
 
-    // Position size: capped by max_position_size, remaining budget, and wallet
-    const amount = Math.floor(Math.min(cfg.max_position_size, budgetLeft, balance - deployedThisRun))
-    if (amount < 10) continue
+    // Final size: capped by chosen stake, remaining run budget, and wallet.
+    const amount = Math.floor(Math.min(t.stake, budgetLeft, balance - deployedThisRun))
+    if (amount < 1) continue
 
     const { data: trade, error } = await supabase.rpc('execute_trade', {
-      p_market_id:    d.market_id,
+      p_market_id:    t.market_id,
       p_taker_id:     cfg.player_id,
-      p_side:         d.side,
+      p_side:         t.side,
       p_amount:       amount,
       p_is_simulated: false,
     })
 
+    const model_confidence = Math.round(t.p_side)
+
     if (error) {
       await supabase.from('autonomous_trade_log').insert({
         player_id: cfg.player_id, config_id: cfg.id, action: 'error',
-        market_id: d.market_id, side: d.side, amount,
-        model_confidence: d.confidence,
+        market_id: t.market_id, side: t.side, amount,
+        model_confidence,
+        agent_probability:  Math.round(t.p_side),
+        market_probability: Math.round(t.side === 'yes' ? t.market_p_yes : (100 - t.market_p_yes)),
+        edge_pp:            Math.round(t.edge_pp * 100) / 100,
+        kelly_fraction:     Math.round(t.kelly_fraction * 10000) / 10000,
         rationale: `Execution failed: ${error.message}`.slice(0, 400),
       })
       continue
@@ -280,23 +364,27 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
       .from('positions')
       .select('id')
       .eq('player_id', cfg.player_id)
-      .eq('market_id', d.market_id)
-      .eq('side', d.side)
+      .eq('market_id', t.market_id)
+      .eq('side', t.side)
       .eq('status', 'open')
       .limit(1)
       .single()
 
     await supabase.from('autonomous_trade_log').insert({
-      player_id:        cfg.player_id,
-      config_id:        cfg.id,
-      action:           'entry',
-      market_id:        d.market_id,
-      position_id:      pos?.id ?? null,
-      side:             d.side,
+      player_id:          cfg.player_id,
+      config_id:          cfg.id,
+      action:             'entry',
+      market_id:          t.market_id,
+      position_id:        pos?.id ?? null,
+      side:               t.side,
       amount,
-      shares:           (trade as { shares?: number })?.shares ?? null,
-      model_confidence: d.confidence,
-      rationale:        d.rationale?.slice(0, 400) ?? null,
+      shares:             (trade as { shares?: number })?.shares ?? null,
+      model_confidence,
+      rationale:          t.rationale?.slice(0, 400) ?? null,
+      agent_probability:  Math.round(t.p_side),
+      market_probability: Math.round(t.side === 'yes' ? t.market_p_yes : (100 - t.market_p_yes)),
+      edge_pp:            Math.round(t.edge_pp * 100) / 100,
+      kelly_fraction:     Math.round(t.kelly_fraction * 10000) / 10000,
     })
 
     deployedThisRun += amount

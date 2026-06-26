@@ -146,6 +146,19 @@ function SatisfactionRing({ pct, color }: { pct: number | null; color: string })
   )
 }
 
+interface VegaPerformance {
+  total_deployed:    number
+  total_pnl:         number
+  trades:            number
+  resolved_count:    number
+  win_rate:          number | null
+  brier:             number | null
+  avg_edge_pp:       number | null
+  open_positions:    number
+  active_agents:     number
+  calibration_label: string
+}
+
 interface AutonomousOverview {
   agents_enabled: boolean
   paused_reason:  string | null
@@ -166,6 +179,7 @@ export function AgentsTab() {
   const [saveMsg, setSaveMsg]     = useState<string | null>(null)
   const [evalStats, setEvalStats] = useState<Record<string, EvalStats>>({})
   const [auto, setAuto]           = useState<AutonomousOverview | null>(null)
+  const [vega, setVega]           = useState<VegaPerformance | null>(null)
   const [togglingKill, setTogglingKill] = useState(false)
   const [toolsOpen, setToolsOpen] = useState<string | null>(null)
 
@@ -194,6 +208,11 @@ export function AgentsTab() {
       .catch(() => {})
 
     loadAutonomous()
+
+    fetch('/api/agents/vega-performance')
+      .then(r => r.json())
+      .then(d => { if (typeof d.trades === 'number') setVega(d) })
+      .catch(() => {})
   }, [])
 
   const toggleKillSwitch = async () => {
@@ -263,6 +282,68 @@ export function AgentsTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, height: '100%' }}>
+
+      {/* ── Vega Performance — headline calibration & P&L panel ─────────────── */}
+      {vega && (
+        <div style={{
+          backgroundColor: CARD_BG,
+          border: `1px solid ${CARD_BORDER}`,
+          borderRadius: 14,
+          padding: '18px 22px',
+        }}>
+          <SectionLabel accent="#9B72E8">Vega Performance · all time</SectionLabel>
+
+          {vega.trades === 0 ? (
+            <div style={{
+              marginTop: 16, padding: '22px 18px',
+              backgroundColor: 'var(--bg-inset)',
+              border: `1px dashed ${CARD_BORDER}`,
+              borderRadius: 11, textAlign: 'center',
+            }}>
+              <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>
+                No Vega trades yet
+              </div>
+              <div style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 5, lineHeight: 1.5 }}>
+                Performance &amp; calibration will populate once Vega starts trading.
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))',
+              gap: 1,
+              marginTop: 14,
+              backgroundColor: 'var(--border)',
+              border: `1px solid ${CARD_BORDER}`,
+              borderRadius: 12,
+              overflow: 'hidden',
+            }}>
+              <VegaMetric
+                label="Total P&L"
+                value={`${vega.total_pnl >= 0 ? '+' : ''}${vega.total_pnl.toLocaleString()}`}
+                color={vega.total_pnl >= 0 ? '#00C853' : '#DC2626'}
+              />
+              <VegaMetric label="Deployed" value={vega.total_deployed.toLocaleString()} />
+              <VegaMetric
+                label="Win Rate"
+                value={vega.win_rate != null ? `${(vega.win_rate * 100).toFixed(0)}%` : '—'}
+              />
+              <VegaMetric
+                label="Brier"
+                value={vega.brier != null ? vega.brier.toFixed(3) : '—'}
+                sub={vega.calibration_label}
+              />
+              <VegaMetric
+                label="Avg Edge"
+                value={vega.avg_edge_pp != null ? `${vega.avg_edge_pp.toFixed(1)} pp` : '—'}
+              />
+              <VegaMetric label="Trades" value={String(vega.trades)} />
+              <VegaMetric label="Open Positions" value={String(vega.open_positions)} />
+              <VegaMetric label="Active Agents" value={String(vega.active_agents)} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Vega autonomous overview — gradient hero + kill-switch ──────────── */}
       {auto && (
@@ -727,6 +808,24 @@ function FeedbackRow({ label, value, total, color }: { label: string; value: num
       <div style={{ height: 5, backgroundColor: 'var(--border-soft)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, backgroundColor: color, borderRadius: 3, transition: 'width 0.5s' }} />
       </div>
+    </div>
+  )
+}
+
+function VegaMetric({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
+  return (
+    <div style={{ backgroundColor: CARD_BG, padding: '13px 15px' }}>
+      <div style={{ color: 'var(--text-dim)', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        {label}
+      </div>
+      <div style={{ color: color ?? 'var(--text-strong)', fontSize: 19, fontWeight: 800, fontFamily: 'monospace', marginTop: 4 }}>
+        {value}
+      </div>
+      {sub && (
+        <div style={{ color: 'var(--text-faint)', fontSize: 10, fontWeight: 600, marginTop: 3 }}>
+          {sub}
+        </div>
+      )}
     </div>
   )
 }
