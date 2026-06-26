@@ -27,21 +27,29 @@ import type {
 type Tab = 'overview' | 'markets' | 'review' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing'
 
 interface AiStats {
-  calls_today:    number
-  avg_latency_ms: number | null
-  cost_today_usd: number
-  cost_30d_usd?:   number
+  calls_today:         number
+  cached_calls_today?: number
+  avg_latency_ms:      number | null
+  cost_today_usd:      number
+  cost_30d_usd?:       number
   input_tokens_today?:  number
   output_tokens_today?: number
-  cache_hit_rate: number
-  last_error:     string | null
+  cache_hit_rate:      number
+  last_error:          string | null
+}
+
+interface DailyCost {
+  date:  string
+  cost:  number
+  calls: number
 }
 
 interface IdeogramStats {
-  spendToday:   number
-  spend30d:     number
-  imagesTotal:  number
-  spendTotal:   number
+  spendToday:  number
+  spend30d:    number
+  imagesTotal: number
+  spendTotal:  number
+  daily:       { date: string; count: number; cost: number }[]
 }
 
 export interface CompanyDashboardProps {
@@ -53,6 +61,7 @@ export interface CompanyDashboardProps {
   pendingReview: Market[]
   apiSources:    ApiSource[]
   aiStats:       AiStats
+  aiDaily7d:     DailyCost[]
   ideogramStats: IdeogramStats
   callsToday:    Record<string, number>
   spreadIncome:  number
@@ -226,7 +235,7 @@ function TabSection({ title, subtitle, children }: { title: string; subtitle?: s
 export function CompanyDashboard({
   totals, mmConfig, auditLog, riskMarkets,
   allMarkets, pendingReview, apiSources,
-  aiStats, ideogramStats, callsToday, spreadIncome,
+  aiStats, aiDaily7d, ideogramStats, callsToday, spreadIncome,
 }: CompanyDashboardProps) {
   const [tab, setTab] = useState<Tab>('overview')
 
@@ -525,7 +534,7 @@ export function CompanyDashboard({
               title="API Health"
               subtitle="External data source status and Claude usage today"
             >
-              <ApiHealthMonitor sources={apiSources} callsToday={callsToday} aiStats={aiStats} ideogramStats={ideogramStats} defaultOpen />
+              <ApiHealthMonitor sources={apiSources} callsToday={callsToday} aiStats={aiStats} aiDaily7d={aiDaily7d} ideogramStats={ideogramStats} defaultOpen />
             </TabSection>
           )}
 
