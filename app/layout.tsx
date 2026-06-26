@@ -5,8 +5,9 @@ import { ToastProvider } from '@/components/shared/Toast'
 import { PersonaSwitcher } from '@/components/shared/PersonaSwitcher'
 import { ThemeProvider } from '@/components/shared/ThemeProvider'
 
-// Set data-theme before first paint to avoid a flash of the wrong theme.
-const themeScript = `(function(){try{var m=localStorage.getItem('verdikt_theme')||'dark';var d=m==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m;document.documentElement.dataset.theme=d;}catch(e){document.documentElement.dataset.theme='dark';}})();`
+// Set data-theme and data-skin before first paint to avoid a flash of the
+// wrong theme/skin.
+const themeScript = `(function(){try{var m=localStorage.getItem('verdikt_theme')||'dark';var d=m==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m;document.documentElement.dataset.theme=d;var s=localStorage.getItem('verdikt_skin')||'classic';document.documentElement.dataset.skin=s;}catch(e){document.documentElement.dataset.theme='dark';document.documentElement.dataset.skin='classic';}})();`
 
 const inter = Inter({
   subsets: ['latin'],
@@ -31,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} data-theme="dark">
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} data-theme="dark" data-skin="classic">
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

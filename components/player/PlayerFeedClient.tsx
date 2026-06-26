@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Market, PriceTick, PriceCache } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { MarketCard } from './MarketCard'
+import { VisualHero } from './VisualHero'
 
 type Category = 'all' | 'sports' | 'finance' | 'current_affairs' | 'custom'
 
@@ -139,6 +140,9 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: 
       className="max-w-[420px] mx-auto"
       style={{ backgroundColor: 'var(--bg-surface)' }}
     >
+      {/* Hero / CTA — Visual skin only */}
+      <VisualHero />
+
       {/* Search */}
       <div className="px-4 pt-4 pb-3">
         <input

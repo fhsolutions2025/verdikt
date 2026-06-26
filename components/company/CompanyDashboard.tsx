@@ -15,6 +15,7 @@ import { AuditFeed } from '@/components/company/AuditFeed'
 import { AgentsTab } from '@/components/company/AgentsTab'
 import { PlayersTab } from '@/components/company/PlayersTab'
 import { MarketingTab } from '@/components/company/MarketingTab'
+import { PageDesignTab, type ActivePageAsset } from '@/components/company/PageDesignTab'
 import { MarketsPipelineTab } from '@/components/company/MarketsPipelineTab'
 import type { CronRunRow, PipelineMarket, LiquidityRow } from '@/components/company/MarketsPipelineTab'
 import { ChatWidget } from '@/components/shared/ChatWidget'
@@ -26,7 +27,7 @@ import type {
   RiskMarket, ApiSource, Market,
 } from '@/lib/types'
 
-type Tab = 'overview' | 'markets' | 'review' | 'pipeline' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing'
+type Tab = 'overview' | 'markets' | 'review' | 'pipeline' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing' | 'page-design'
 
 interface AiStats {
   calls_today:         number
@@ -70,6 +71,7 @@ export interface CompanyDashboardProps {
   cronRunLog:      CronRunRow[]
   pipelineMarkets: PipelineMarket[]
   tradeLiquidity:  LiquidityRow[]
+  pageAssets:      ActivePageAsset[]
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -171,6 +173,16 @@ function IconMegaphone() {
     </svg>
   )
 }
+function IconImageStack() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <rect x="1.5" y="1.5" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <circle cx="5" cy="5" r="1.2" stroke="currentColor" strokeWidth="1.2"/>
+      <path d="M2 9L5.5 6L8 8L10.5 5.5L13 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M3.5 13.5h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  )
+}
 
 // ── Nav item ─────────────────────────────────────────────────────────────────
 
@@ -248,7 +260,7 @@ export function CompanyDashboard({
   totals, mmConfig, auditLog, riskMarkets,
   allMarkets, pendingReview, apiSources,
   aiStats, aiDaily7d, ideogramStats, callsToday, spreadIncome,
-  cronRunLog, pipelineMarkets, tradeLiquidity,
+  cronRunLog, pipelineMarkets, tradeLiquidity, pageAssets,
 }: CompanyDashboardProps) {
   const [tab, setTab] = useState<Tab>('overview')
 
@@ -389,6 +401,7 @@ export function CompanyDashboard({
           </p>
           <NavItem icon={<IconUsers />}    label="Players (PAM)" active={tab === 'players'}   onClick={() => setTab('players')} />
           <NavItem icon={<IconMegaphone />} label="Marketing"    active={tab === 'marketing'} onClick={() => setTab('marketing')} />
+          <NavItem icon={<IconImageStack />} label="Page Design" active={tab === 'page-design'} onClick={() => setTab('page-design')} />
 
           {/* Bottom: MM status */}
           <div style={{ marginTop: 'auto', padding: '12px 14px 0', borderTop: '1px solid var(--border-soft)' }}>
@@ -606,6 +619,16 @@ export function CompanyDashboard({
               subtitle="AI campaign generator · Ideogram media studio · Audience segments"
             >
               <MarketingTab />
+            </TabSection>
+          )}
+
+          {/* Page Design */}
+          {tab === 'page-design' && (
+            <TabSection
+              title="Page Design"
+              subtitle="Generate the Visual theme's imagery with Ideogram · slot-keyed · stored in Supabase"
+            >
+              <PageDesignTab pageAssets={pageAssets} />
             </TabSection>
           )}
 

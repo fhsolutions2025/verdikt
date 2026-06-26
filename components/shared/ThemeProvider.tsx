@@ -3,14 +3,20 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
+export type ThemeSkin = 'classic' | 'visual'
 
 interface ThemeCtx {
   mode:     ThemeMode
   resolved: 'dark' | 'light'
   setMode:  (m: ThemeMode) => void
+  skin:     ThemeSkin
+  setSkin:  (s: ThemeSkin) => void
 }
 
-const Ctx = createContext<ThemeCtx>({ mode: 'dark', resolved: 'dark', setMode: () => {} })
+const Ctx = createContext<ThemeCtx>({
+  mode: 'dark', resolved: 'dark', setMode: () => {},
+  skin: 'classic', setSkin: () => {},
+})
 
 export const useTheme = () => useContext(Ctx)
 
@@ -27,15 +33,26 @@ function apply(mode: ThemeMode): 'dark' | 'light' {
   return resolved
 }
 
+function applySkin(skin: ThemeSkin) {
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.skin = skin
+  }
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>('dark')
+  const [mode, setModeState]   = useState<ThemeMode>('dark')
   const [resolved, setResolved] = useState<'dark' | 'light'>('dark')
+  const [skin, setSkinState]   = useState<ThemeSkin>('classic')
 
   // Hydrate from localStorage on mount
   useEffect(() => {
     const stored = (localStorage.getItem('verdikt_theme') as ThemeMode | null) ?? 'dark'
     setModeState(stored)
     setResolved(apply(stored))
+
+    const storedSkin = (localStorage.getItem('verdikt_skin') as ThemeSkin | null) ?? 'classic'
+    setSkinState(storedSkin)
+    applySkin(storedSkin)
   }, [])
 
   // React to system changes while in system mode
@@ -53,5 +70,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setResolved(apply(m))
   }, [])
 
-  return <Ctx.Provider value={{ mode, resolved, setMode }}>{children}</Ctx.Provider>
+  const setSkin = useCallback((s: ThemeSkin) => {
+    setSkinState(s)
+    localStorage.setItem('verdikt_skin', s)
+    applySkin(s)
+  }, [])
+
+  return (
+    <Ctx.Provider value={{ mode, resolved, setMode, skin, setSkin }}>
+      {children}
+    </Ctx.Provider>
+  )
 }
