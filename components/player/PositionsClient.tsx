@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/shared/Toast'
+import { useTheme } from '@/components/shared/ThemeProvider'
+import { ThemeImage } from '@/components/shared/PageAssets'
 import type { Position, Market, PositionStatus } from '@/lib/types'
 
 type PositionWithMarket = Position & {
@@ -51,6 +53,7 @@ function positionPnl(pos: PositionWithMarket): number | null {
 }
 
 export function PositionsClient({ initialPositions, playerId }: Props) {
+  const { skin } = useTheme()
   const [positions, setPositions] = useState<PositionWithMarket[]>(initialPositions)
   const [selling, setSelling]     = useState<string | null>(null)
   const [dateRange, setDateRange] = useState<DateRange>('all')
@@ -213,7 +216,12 @@ export function PositionsClient({ initialPositions, playerId }: Props) {
 
       {/* ── Empty state ── */}
       {days.length === 0 && (
-        <div className="py-16 text-center">
+        <div className="py-16 text-center flex flex-col items-center">
+          {skin === 'visual' && positions.length === 0 && (
+            <div className="mb-4">
+              <ThemeImage slot="empty_positions" rounded={16} fit="contain" />
+            </div>
+          )}
           <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
             {positions.length === 0 ? 'No positions yet' : 'No positions match your filters'}
           </p>

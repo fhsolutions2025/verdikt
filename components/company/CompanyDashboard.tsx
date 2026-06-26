@@ -628,7 +628,10 @@ export function CompanyDashboard({
               title="Page Design"
               subtitle="Generate the Visual theme's imagery with Ideogram · slot-keyed · stored in Supabase"
             >
-              <PageDesignTab pageAssets={pageAssets} />
+              <PageDesignTab
+                pageAssets={pageAssets}
+                markets={allMarkets.map(m => ({ id: m.id, question: m.question, category: m.category }))}
+              />
             </TabSection>
           )}
 

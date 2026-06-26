@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { slotsByGroup, type AssetSlot } from '@/lib/pageAssets'
+import { useMemo, useState } from 'react'
+import {
+  slotsByGroup, categorySlotKey, getSlot, marketOverrideKey, type AssetSlot,
+} from '@/lib/pageAssets'
 
 const IDEOGRAM_COST = 0.08
 
@@ -16,11 +18,35 @@ export interface ActivePageAsset {
   created_at:   string
 }
 
-interface Props {
-  pageAssets: ActivePageAsset[]
+export interface MarketLite {
+  id:       string
+  question: string
+  category: string
 }
 
-export function PageDesignTab({ pageAssets }: Props) {
+interface Props {
+  pageAssets: ActivePageAsset[]
+  markets:    MarketLite[]
+}
+
+// Build a synthetic slot for a per-market thumbnail override (96×96, 1:1),
+// seeded with the market's category default prompt (kept generic/abstract).
+function marketSlot(m: MarketLite): AssetSlot {
+  const base = getSlot(categorySlotKey(m.category))
+  return {
+    key:         marketOverrideKey(m.id),
+    group:       'Market Cards',
+    label:       m.question,
+    width:       96,
+    height:      96,
+    ratio:       'ASPECT_1_1',
+    prompt:      base?.prompt ?? '',
+    altTemplate: m.question.slice(0, 90),
+    seoTags:     [m.category, 'thumbnail'],
+  }
+}
+
+export function PageDesignTab({ pageAssets, markets }: Props) {
   const initial: Record<string, ActivePageAsset> = {}
   for (const a of pageAssets) initial[a.slot_key] = a
   const [assets, setAssets] = useState(initial)
@@ -65,6 +91,74 @@ export function PageDesignTab({ pageAssets }: Props) {
           </div>
         </div>
       ))}
+
+      <MarketOverrides
+        markets={markets}
+        assets={assets}
+        onSaved={(key, a) => setAssets(prev => ({ ...prev, [key]: a }))}
+      />
+    </div>
+  )
+}
+
+// Per-market thumbnail overrides. Markets with an existing override are shown
+// first; the rest are reachable by search. Each card generates a bespoke 1:1
+// thumbnail stored under slot_key "market:<id>", which the player card prefers
+// over the category default.
+function MarketOverrides({
+  markets, assets, onSaved,
+}: {
+  markets: MarketLite[]
+  assets: Record<string, ActivePageAsset>
+  onSaved: (key: string, a: ActivePageAsset) => void
+}) {
+  const [search, setSearch] = useState('')
+
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const withOverride = markets.filter(m => assets[marketOverrideKey(m.id)])
+    if (q) {
+      return markets.filter(m => m.question.toLowerCase().includes(q)).slice(0, 12)
+    }
+    // Default view: markets that already have a bespoke image, plus a few more.
+    const rest = markets.filter(m => !assets[marketOverrideKey(m.id)]).slice(0, 6)
+    return [...withOverride, ...rest].slice(0, 12)
+  }, [markets, assets, search])
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 10px', flexWrap: 'wrap' }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>
+          Per-market overrides
+        </p>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search markets to give a bespoke image…"
+          style={{ ...inputStyle, maxWidth: 320, marginLeft: 'auto' }}
+        />
+      </div>
+      <p style={{ fontSize: 11, color: 'var(--text-faint)', margin: '0 0 10px' }}>
+        Optional. Featured markets can have their own thumbnail; everything else uses the category image.
+        Images stay generic/abstract — no real logos, teams, or people.
+      </p>
+      {shown.length === 0 ? (
+        <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>No markets match.</p>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+          {shown.map(m => {
+            const slot = marketSlot(m)
+            return (
+              <SlotCard
+                key={slot.key}
+                slot={slot}
+                active={assets[slot.key] ?? null}
+                onSaved={a => onSaved(slot.key, a)}
+              />
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -149,8 +243,8 @@ function SlotCard({
     <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
       {/* Slot header */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)' }}>{slot.label}</span>
-        <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace', marginLeft: 'auto' }}>
+        <span title={slot.label} style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>{slot.label}</span>
+        <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace', marginLeft: 'auto', flexShrink: 0 }}>
           {slot.width}×{slot.height}
         </span>
         {active && !genUrl && (
