@@ -20,8 +20,10 @@ export async function POST(req: NextRequest) {
 
   const today        = new Date()
   const todayStr     = today.toISOString().slice(0, 10)
-  const minCloseDate = new Date(today.getTime() +  14 * 24 * 3600_000).toISOString().slice(0, 10)
-  const maxCloseDate = new Date(today.getTime() + 180 * 24 * 3600_000).toISOString().slice(0, 10)
+  // Hard floor: 3 days (gives time to trade). Hard ceiling: 90 days.
+  // The model should anchor on when THIS story's outcome will be known, not fill the window.
+  const minCloseDate = new Date(today.getTime() +  3 * 24 * 3600_000).toISOString().slice(0, 10)
+  const maxCloseDate = new Date(today.getTime() + 90 * 24 * 3600_000).toISOString().slice(0, 10)
 
   // ── Sandwich prompt (prevents injection via headline content) ─
   const userPrompt = [
@@ -32,29 +34,32 @@ export async function POST(req: NextRequest) {
     '',
     `Today's date: ${todayStr}`,
     '',
-    'Generate a binary YES/NO prediction market from the headline above.',
+    'Generate a binary YES/NO prediction market from the news headline above.',
+    '',
+    'CRITICAL RULE — closes_at: Set it to the date when THIS SPECIFIC outcome will be publicly known.',
+    '  • Sports match / tournament result → the day of the match or the day after',
+    '  • Election / vote → the day results are announced',
+    '  • Economic data release → the next scheduled release date',
+    '  • Sanctions / diplomatic event → 2–4 weeks (impacts show quickly in news)',
+    '  • Humanitarian / crisis outcome → 3–6 weeks',
+    '  • Do NOT use a generic "3 months" or "6 months" — anchor to the event itself',
+    `  • closes_at must be between ${minCloseDate} and ${maxCloseDate}`,
+    '',
     'The predicted outcome must be:',
-    '• Verifiable from public record (news, official results, market data)',
-    '• Tightly tied to the SPECIFIC event in the headline — not a vague 12-month outlook',
-    '• Resolvable within 2 weeks to 6 months from today (prefer shorter windows for breaking news)',
-    `• closes_at MUST be between ${minCloseDate} and ${maxCloseDate} — do NOT pick the maximum by default`,
-    '• NOT already resolved or a certainty',
+    '• A direct consequence of the specific event in the headline',
+    '• Verifiable from public record (news wires, official results, government data)',
+    '• NOT already resolved, and NOT a near-certainty',
     '',
-    'Choose the closes_at date based on when the outcome will REALISTICALLY be known.',
-    'For sports events and elections pick the event date ± 1 week.',
-    'For geopolitical/economic developments pick 1–3 months out.',
-    'Only use the 6-month maximum for genuinely long-run questions.',
-    '',
-    'If the headline is historical fact, an opinion, a soft feature, or cannot be',
-    'turned into a meaningful binary prediction, return {"viable":false}.',
+    'If the headline is a historical fact, a soft feature, an opinion, or cannot produce',
+    'a meaningful binary prediction, return {"viable":false}.',
     '',
     'Otherwise return exactly this JSON (no other text):',
     '{',
     '  "viable": true,',
-    '  "question": "Will [specific, measurable thing] happen by [Month YYYY]?",',
+    '  "question": "Will [specific, measurable thing] happen by [Day Month YYYY]?",',
     '  "yes_price": <integer 5-95>,',
     '  "closes_at": "YYYY-MM-DD",',
-    '  "resolution_source": "<how outcome is publicly verified, e.g. Reuters, government announcement>",',
+    '  "resolution_source": "<how the outcome is publicly verified>",',
     '  "rationale": "<one sentence: why this probability>",',
     '  "ai_confidence": <integer 40-95>',
     '}',
