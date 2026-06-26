@@ -312,6 +312,21 @@ function PositionRow({ pos, selling, onSell }: {
   const pnl         = positionPnl(pos)
   const badge       = statusBadge(pos.status)
 
+  // Option A — instant buyback at the live mid. Proceeds = shares × current
+  // price (sell_position credits exactly this, no exit fee). We surface the
+  // cash you receive and the P&L it locks, and gate the irreversible sell
+  // behind a confirm tap so a loss is never locked by accident.
+  const [confirming, setConfirming] = useState(false)
+  const proceeds  = pos.shares * currentPrice(pos) / 100
+  const lockedPnl = proceeds - pos.entry_value
+  const lockGain  = lockedPnl >= 0
+
+  useEffect(() => {
+    if (!confirming) return
+    const t = setTimeout(() => setConfirming(false), 4000)
+    return () => clearTimeout(t)
+  }, [confirming])
+
   return (
     <div
       className="rounded-xl p-3 space-y-2.5"
@@ -364,17 +379,38 @@ function PositionRow({ pos, selling, onSell }: {
       {/* Sell button for open positions only */}
       {isOpen && (
         <button
-          onClick={() => onSell(pos.id)}
+          onClick={() => {
+            if (isSelling) return
+            if (!confirming) { setConfirming(true); return }
+            setConfirming(false)
+            onSell(pos.id)
+          }}
           disabled={isSelling}
           className="w-full py-2 rounded-lg text-sm font-bold transition-all active:scale-[0.97]"
           style={{
-            backgroundColor: isSelling ? 'var(--border)' : 'transparent',
-            color:           isSelling ? 'var(--text-faint)' : 'var(--text)',
-            border:          '1px solid var(--border)',
-            cursor:          isSelling ? 'wait' : 'pointer',
+            backgroundColor: isSelling
+              ? 'var(--border)'
+              : confirming
+                ? (lockGain ? 'rgba(0,168,68,0.12)' : 'rgba(220,38,38,0.10)')
+                : 'transparent',
+            color: isSelling
+              ? 'var(--text-faint)'
+              : confirming
+                ? (lockGain ? '#00A844' : '#DC2626')
+                : 'var(--text)',
+            border: `1px solid ${
+              isSelling ? 'var(--border)'
+              : confirming ? (lockGain ? 'rgba(0,168,68,0.4)' : 'rgba(220,38,38,0.35)')
+              : 'var(--border)'
+            }`,
+            cursor: isSelling ? 'wait' : 'pointer',
           }}
         >
-          {isSelling ? 'Selling…' : `Sell at ${currentPrice(pos).toFixed(0)}¢`}
+          {isSelling
+            ? 'Selling…'
+            : confirming
+              ? `Confirm · get ${proceeds.toFixed(2)} (${lockGain ? '+' : ''}${lockedPnl.toFixed(2)})`
+              : `Sell for ${proceeds.toFixed(2)}`}
         </button>
       )}
     </div>
