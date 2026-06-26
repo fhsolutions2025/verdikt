@@ -304,7 +304,7 @@ export function VegaPanel() {
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [running, setRunning]   = useState(false)
-  const [msg, setMsg]           = useState<{ text: string; ok: boolean } | null>(null)
+  const [msg, setMsg]           = useState<{ text: string; kind: 'ok' | 'info' | 'err' } | null>(null)
   const [activity, setActivity] = useState<ActivityRow[]>([])
   const [theme, setTheme]       = useState<Theme>('dark')
   const [tab, setTab]           = useState<BodyTab>('settings')
@@ -342,9 +342,9 @@ export function VegaPanel() {
     loadActivity()
   }, [])
 
-  const flash = (text: string, ok: boolean) => {
-    setMsg({ text, ok })
-    setTimeout(() => setMsg(null), 3000)
+  const flash = (text: string, kind: 'ok' | 'info' | 'err', durationMs = 3000) => {
+    setMsg({ text, kind })
+    setTimeout(() => setMsg(null), durationMs)
   }
 
   const save = async (overrides?: Partial<VegaConfig>) => {
@@ -357,9 +357,9 @@ export function VegaPanel() {
         body: JSON.stringify(next),
       })
       const d = await res.json()
-      if (res.ok && d.config) { setCfg(d.config); flash('Settings saved', true) }
-      else flash(d.error ?? 'Save failed', false)
-    } catch { flash('Network error', false) }
+      if (res.ok && d.config) { setCfg(d.config); flash('Settings saved', 'ok') }
+      else flash(d.error ?? 'Save failed', 'err')
+    } catch { flash('Network error', 'err') }
     finally { setSaving(false) }
   }
 
@@ -369,10 +369,18 @@ export function VegaPanel() {
       const res = await fetch('/api/autonomous-agent/run', { method: 'POST' })
       const d   = await res.json()
       if (res.ok) {
-        flash(`${d.entries} entered · ${d.exits} exited`, true)
-        // Pull the fresh activity, then bring the newest trade into view: jump to
-        // the Activity tab, scroll it to top, and flash the newest row so the user
-        // never has to hunt for what Vega just did.
+        const acted = (d.entries ?? 0) > 0 || (d.exits ?? 0) > 0
+        const summary = `${d.entries ?? 0} entered · ${d.exits ?? 0} exited`
+        // When Vega placed nothing, the run API explains why (no qualifying
+        // markets, edge too thin, daily cap, circuit breaker…). Surface it so a
+        // quiet run reads as "working, nothing to do" rather than "broken".
+        flash(
+          d.note ? `${summary} — ${d.note}` : summary,
+          acted ? 'ok' : 'info',
+          d.note ? 6000 : 3000,
+        )
+        // Bring whatever Vega just did into view: jump to the Activity tab, scroll
+        // it to top, and flash the newest row so the user never has to hunt for it.
         const before = new Set(activity.map(a => a.id))
         const updated = await fetch('/api/autonomous-agent/activity').then(r => r.json()).catch(() => null)
         if (updated && Array.isArray(updated.activity)) {
@@ -388,8 +396,8 @@ export function VegaPanel() {
           })
         }
         fetch('/api/autonomous-agent').then(r => r.json()).then(x => { if (x.config) setCfg(x.config) }).catch(() => {})
-      } else flash(d.error ?? 'Run failed', false)
-    } catch { flash('Network error', false) }
+      } else flash(d.error ?? 'Run failed', 'err')
+    } catch { flash('Network error', 'err') }
     finally { setRunning(false) }
   }
 
@@ -580,17 +588,22 @@ export function VegaPanel() {
         </div>
 
         {/* Status message */}
-        {msg && (
-          <div className="vega-msg" style={{
-            marginTop: 8, padding: '7px 12px', borderRadius: 8, textAlign: 'center',
-            backgroundColor: msg.ok ? ACCENT + '12' : 'rgba(248,113,113,0.1)',
-            border: `1px solid ${msg.ok ? ACCENT + '30' : 'rgba(248,113,113,0.25)'}`,
-            color: msg.ok ? 'var(--vp-accent-text)' : '#F87171',
-            fontSize: 12, fontWeight: 600,
-          }}>
-            {msg.ok ? '✓ ' : '✕ '}{msg.text}
-          </div>
-        )}
+        {msg && (() => {
+          const tone = msg.kind === 'ok'
+            ? { bg: ACCENT + '12', bd: ACCENT + '30', fg: 'var(--vp-accent-text)', icon: '✓ ' }
+            : msg.kind === 'info'
+            ? { bg: 'var(--vp-surface)', bd: 'var(--vp-border)', fg: 'var(--vp-text)', icon: 'ⓘ ' }
+            : { bg: 'rgba(248,113,113,0.1)', bd: 'rgba(248,113,113,0.25)', fg: '#F87171', icon: '✕ ' }
+          return (
+            <div className="vega-msg" style={{
+              marginTop: 8, padding: '7px 12px', borderRadius: 8, textAlign: 'center',
+              backgroundColor: tone.bg, border: `1px solid ${tone.bd}`,
+              color: tone.fg, fontSize: 12, fontWeight: 600, lineHeight: 1.45,
+            }}>
+              {tone.icon}{msg.text}
+            </div>
+          )
+        })()}
 
         {/* Tab switcher */}
         <div style={{ marginTop: 12 }}>
