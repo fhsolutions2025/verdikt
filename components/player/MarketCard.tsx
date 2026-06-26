@@ -18,6 +18,27 @@ interface Props {
   isHot?:     boolean
 }
 
+function relativeCreatedTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 2)  return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)  return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  'BBC RSS':           'BBC',
+  'Al Jazeera RSS':    'AJ',
+  'Reuters RSS':       'Reuters',
+  'football-data.org': 'Football',
+  'CoinGecko':         'CoinGecko',
+  'Alpha Vantage':     'Alpha Vantage',
+  'Frankfurter':       'Forex',
+}
+
 export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
   const isLive        = market.status === 'live'
   const now           = Date.now()
@@ -25,6 +46,7 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
   const closesAt      = new Date(market.closes_at).getTime()
   const isNew         = now - createdAt < 24 * 60 * 60 * 1000
   const closingSoon   = closesAt > now && closesAt - now < 24 * 60 * 60 * 1000
+  const sourceLabel   = market.source_feed ? (SOURCE_LABEL[market.source_feed] ?? market.source_feed) : null
 
   return (
     <Link href={`/player/${market.id}`} className="block">
@@ -48,6 +70,15 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
           >
             {CATEGORY_ICON[market.category]} {market.category.replace('_', ' ')}
           </span>
+
+          {sourceLabel && (
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text-faint)' }}
+            >
+              {sourceLabel}
+            </span>
+          )}
 
           {market.ai_confidence != null && (
             <span
@@ -84,12 +115,15 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
           )}
         </div>
 
-        {/* Row 2: question */}
+        {/* Row 2: question + relative time */}
         <p
           className="font-bold leading-snug line-clamp-2"
           style={{ fontSize: 14, color: 'var(--text-strong)' }}
         >
           {market.question}
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--text-faintest)', marginTop: -6 }}>
+          created {relativeCreatedTime(market.created_at)}
         </p>
 
         {/* Row 3: live data strip — shown when a relevant price is available */}

@@ -63,6 +63,7 @@ export interface Market {
   updated_at:               string
   player_original_question: string | null
   rejection_reason:         string | null
+  source_feed:              string | null
 }
 
 export interface PriceTick {

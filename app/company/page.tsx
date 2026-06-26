@@ -5,6 +5,7 @@ import type {
   PlatformTotals, MmConfig, AuditLogEntry,
   RiskMarket, ApiSource, Market,
 } from '@/lib/types'
+import type { CronRunRow, PipelineMarket, LiquidityRow } from '@/components/company/MarketsPipelineTab'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,8 @@ export default async function CompanyPage() {
     spreadRes,
     aiCalls30dRes,
     ideogramAssetsRes,
+    cronRunLogRes,
+    pipelineMarketsRes,
   ] = await Promise.all([
     supabase.from('v_platform_totals').select('*').single(),
     supabase.from('mm_config').select('*').eq('id', '20000000-0000-0000-0000-000000000001').single(),
@@ -58,6 +61,12 @@ export default async function CompanyPage() {
       .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString()),
     // Ideogram spend from saved assets
     service.from('marketing_assets').select('cost_usd, created_at'),
+    // Pipeline observability
+    service.from('cron_run_log').select('*').order('started_at', { ascending: false }).limit(20),
+    service.from('markets')
+      .select('id, question, status, creator_type, source_feed, created_at, volume, category')
+      .order('created_at', { ascending: false })
+      .limit(100),
   ])
 
   const totals      = totalsRes.data      as PlatformTotals | null
@@ -69,7 +78,29 @@ export default async function CompanyPage() {
   const apiSources  = (apiSourcesRes.data ?? []) as ApiSource[]
   const aiCalls     = aiCallsRes.data     ?? []
   const rateLimitRows = (rateLimitsRes.data ?? []) as { api_name: string; call_count: number }[]
-  const spreadIncome  = (spreadRes.data as number | null) ?? 0
+  const spreadIncome     = (spreadRes.data as number | null) ?? 0
+  const cronRunLog       = (cronRunLogRes.data   ?? []) as CronRunRow[]
+  const pipelineMarkets  = (pipelineMarketsRes.data ?? []) as PipelineMarket[]
+
+  // Compute real vs simulated volume per live market
+  const liveIds = pipelineMarkets.filter(m => m.status === 'live').map(m => m.id)
+  let tradeLiquidity: LiquidityRow[] = []
+  if (liveIds.length > 0) {
+    const { data: tradeRows } = await service
+      .from('trades')
+      .select('market_id, is_simulated, amount')
+      .in('market_id', liveIds.slice(0, 50))
+
+    const liqMap = new Map<string, { sim_vol: number; total_vol: number }>()
+    for (const t of (tradeRows ?? []) as { market_id: string; is_simulated: boolean; amount: number }[]) {
+      const cur = liqMap.get(t.market_id) ?? { sim_vol: 0, total_vol: 0 }
+      liqMap.set(t.market_id, {
+        sim_vol:   cur.sim_vol   + (t.is_simulated ? t.amount : 0),
+        total_vol: cur.total_vol + t.amount,
+      })
+    }
+    tradeLiquidity = Array.from(liqMap.entries()).map(([market_id, v]) => ({ market_id, ...v }))
+  }
 
   // AI stats from call log
   type AiRow = {
@@ -189,6 +220,9 @@ export default async function CompanyPage() {
       ideogramStats={ideogramStats}
       callsToday={callsToday}
       spreadIncome={spreadIncome}
+      cronRunLog={cronRunLog}
+      pipelineMarkets={pipelineMarkets}
+      tradeLiquidity={tradeLiquidity}
     />
   )
 }

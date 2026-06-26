@@ -1,15 +1,12 @@
 -- 0023: pipeline observability, source feed tracking, missing RPC + CoinGecko registration
 
--- ── 1. source_feed on markets ─────────────────────────────────────────────────
+-- ── 1. source_feed on markets (unconstrained — sports/finance sources added later) ──
 alter table markets
   add column if not exists source_feed text;
 
+-- Drop any previous constraint from dev iterations
 alter table markets
   drop constraint if exists markets_source_feed_check;
-
-alter table markets
-  add constraint markets_source_feed_check
-  check (source_feed in ('BBC RSS', 'Al Jazeera RSS', 'Reuters RSS') or source_feed is null);
 
 -- ── 2. from_cache on ai_call_log (idempotent — 0014 may already have it) ──────
 alter table ai_call_log

@@ -15,6 +15,8 @@ import { AuditFeed } from '@/components/company/AuditFeed'
 import { AgentsTab } from '@/components/company/AgentsTab'
 import { PlayersTab } from '@/components/company/PlayersTab'
 import { MarketingTab } from '@/components/company/MarketingTab'
+import { MarketsPipelineTab } from '@/components/company/MarketsPipelineTab'
+import type { CronRunRow, PipelineMarket, LiquidityRow } from '@/components/company/MarketsPipelineTab'
 import { ChatWidget } from '@/components/shared/ChatWidget'
 import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { Tooltip, InfoIcon } from '@/components/shared/Tooltip'
@@ -24,7 +26,7 @@ import type {
   RiskMarket, ApiSource, Market,
 } from '@/lib/types'
 
-type Tab = 'overview' | 'markets' | 'review' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing'
+type Tab = 'overview' | 'markets' | 'review' | 'pipeline' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing'
 
 interface AiStats {
   calls_today:         number
@@ -53,18 +55,21 @@ interface IdeogramStats {
 }
 
 export interface CompanyDashboardProps {
-  totals:        PlatformTotals | null
-  mmConfig:      MmConfig | null
-  auditLog:      AuditLogEntry[]
-  riskMarkets:   RiskMarket[]
-  allMarkets:    Market[]
-  pendingReview: Market[]
-  apiSources:    ApiSource[]
-  aiStats:       AiStats
-  aiDaily7d:     DailyCost[]
-  ideogramStats: IdeogramStats
-  callsToday:    Record<string, number>
-  spreadIncome:  number
+  totals:          PlatformTotals | null
+  mmConfig:        MmConfig | null
+  auditLog:        AuditLogEntry[]
+  riskMarkets:     RiskMarket[]
+  allMarkets:      Market[]
+  pendingReview:   Market[]
+  apiSources:      ApiSource[]
+  aiStats:         AiStats
+  aiDaily7d:       DailyCost[]
+  ideogramStats:   IdeogramStats
+  callsToday:      Record<string, number>
+  spreadIncome:    number
+  cronRunLog:      CronRunRow[]
+  pipelineMarkets: PipelineMarket[]
+  tradeLiquidity:  LiquidityRow[]
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -147,6 +152,13 @@ function IconUsers() {
       <path d="M1 14C1 11.2 3.3 9 6 9C8.7 9 11 11.2 11 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
       <path d="M11 6C11.8 6 12.5 6.7 12.5 7.5C12.5 8.3 11.8 9 11 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
       <path d="M13 12C13.8 12.5 14 13.5 14 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function IconFunnel() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <path d="M1 2h13l-5 6v5l-3-1.5V8L1 2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
     </svg>
   )
 }
@@ -236,6 +248,7 @@ export function CompanyDashboard({
   totals, mmConfig, auditLog, riskMarkets,
   allMarkets, pendingReview, apiSources,
   aiStats, aiDaily7d, ideogramStats, callsToday, spreadIncome,
+  cronRunLog, pipelineMarkets, tradeLiquidity,
 }: CompanyDashboardProps) {
   const [tab, setTab] = useState<Tab>('overview')
 
@@ -245,7 +258,9 @@ export function CompanyDashboard({
   const activeMarkets = allMarkets.length
   const liveCount     = riskMarkets.length
   const flaggedCount  = riskMarkets.filter(m => m.is_imbalanced).length
-  const pendingCount  = pendingReview.length
+  const pendingCount    = pendingReview.length
+  const today0          = new Date(); today0.setHours(0,0,0,0)
+  const pipelineToday   = pipelineMarkets.filter(m => new Date(m.created_at) >= today0).length
   const isMMOn        = mmConfig?.is_verdikt_acting_as_mm ?? false
 
   return (
@@ -344,6 +359,8 @@ export function CompanyDashboard({
             badge={flaggedCount > 0 ? flaggedCount : undefined} badgeColor="#E05C20" />
           <NavItem icon={<IconInbox />}    label="Review"        active={tab === 'review'}   onClick={() => setTab('review')}
             badge={pendingCount > 0 ? pendingCount : undefined} badgeColor="#E05C20" />
+          <NavItem icon={<IconFunnel />}   label="Pipeline"      active={tab === 'pipeline'} onClick={() => setTab('pipeline')}
+            badge={pipelineToday > 0 ? pipelineToday : undefined} badgeColor="#3B82F6" />
           <NavItem icon={<IconNews />}     label="News → Market" active={tab === 'news'}     onClick={() => setTab('news')} />
 
           {/* Divider */}
@@ -505,6 +522,20 @@ export function CompanyDashboard({
               ) : (
                 <PendingReviewSection initial={pendingReview} />
               )}
+            </TabSection>
+          )}
+
+          {/* Pipeline */}
+          {tab === 'pipeline' && (
+            <TabSection
+              title="Market Pipeline"
+              subtitle="Evidence of all market creation: RSS, sports, finance, and player submissions"
+            >
+              <MarketsPipelineTab
+                cronRunLog={cronRunLog}
+                pipelineMarkets={pipelineMarkets}
+                tradeLiquidity={tradeLiquidity}
+              />
             </TabSection>
           )}
 
