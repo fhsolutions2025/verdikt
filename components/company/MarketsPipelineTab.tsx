@@ -1,5 +1,8 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
 export interface CronRunRow {
   id:               string
   job_name:         string
@@ -228,21 +231,95 @@ function TodayStats({ markets }: { markets: PipelineMarket[] }) {
   )
 }
 
-function CronLog({ rows }: { rows: CronRunRow[] }) {
-  const JOB_LABELS: Record<string, string> = {
-    'seed-rss-markets':     'RSS (News)',
-    'seed-sports-markets':  'Sports',
-    'seed-finance-markets': 'Finance',
+// The seeders driven by pg_cron, with their schedules. Cadences mirror the
+// cron.schedule() entries in migration 0024 (+ 0023 for RSS).
+const SEEDERS = [
+  { job: 'seed-rss-markets',     label: 'RSS (News)', cadence: 'every 15m' },
+  { job: 'seed-sports-markets',  label: 'Sports',     cadence: 'every 6h'  },
+  { job: 'seed-finance-markets', label: 'Finance',    cadence: 'every 4h'  },
+] as const
+
+const JOB_LABELS: Record<string, string> = Object.fromEntries(
+  SEEDERS.map(s => [s.job, s.label]),
+)
+
+function SeedControls() {
+  const router = useRouter()
+  const [running, setRunning] = useState<string | null>(null)
+  const [msg, setMsg]         = useState<string | null>(null)
+
+  const run = async (job: string) => {
+    setRunning(job)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/company/seed', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ job }),
+      })
+      const d = await res.json()
+      if (res.ok) {
+        setMsg(`${JOB_LABELS[job]}: ${d.inserted} created, ${d.skipped} skipped`)
+        router.refresh()
+      } else {
+        setMsg(d.error ?? 'Run failed')
+      }
+    } catch {
+      setMsg('Network error')
+    } finally {
+      setRunning(null)
+    }
   }
 
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      {SEEDERS.map(s => (
+        <div key={s.job} style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          backgroundColor: 'var(--bg-inset)', borderRadius: 999, padding: '4px 4px 4px 12px',
+        }}>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>
+            {s.label}
+          </span>
+          <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace' }}>
+            {s.cadence}
+          </span>
+          <button
+            onClick={() => run(s.job)}
+            disabled={running !== null}
+            style={{
+              fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
+              border: 'none', cursor: running ? 'wait' : 'pointer',
+              backgroundColor: running === s.job ? 'var(--border)' : '#00C853',
+              color: running === s.job ? 'var(--text-faint)' : '#FFFFFF',
+              opacity: running !== null && running !== s.job ? 0.4 : 1,
+            }}
+          >
+            {running === s.job ? 'Running…' : 'Run now'}
+          </button>
+        </div>
+      ))}
+      {msg && (
+        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{msg}</span>
+      )}
+    </div>
+  )
+}
+
+function CronLog({ rows }: { rows: CronRunRow[] }) {
   return (
     <div style={{
       backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden',
     }}>
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{
+        padding: '14px 20px', borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 16, flexWrap: 'wrap',
+      }}>
         <p style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           Cron Run Log
         </p>
+        <SeedControls />
       </div>
       {rows.length === 0 ? (
         <p style={{ color: 'var(--text-faint)', fontSize: 12, padding: '20px', textAlign: 'center' }}>No runs recorded yet.</p>

@@ -47,6 +47,12 @@ async function callAnthropicProxy(body: Record<string, unknown>): Promise<Respon
 // ── Forecaster tuning constants ──────────────────────────────────────────────
 const EDGE_THRESHOLD_PP = 8     // min |belief − market| in percentage points to trade
 const KELLY_MULT        = 0.35  // fractional Kelly multiplier (conservative sizing)
+// Win-probability floor for the CHOSEN side. This is deliberately separate from
+// the per-config `confidence_threshold` (which is a candidacy filter on each
+// market's ai_confidence). Reusing the 70 candidacy knob here was over-binding:
+// it required Vega to be ≥70% sure AND have ≥8pp edge AND clear the straddle
+// guard simultaneously, which silently produced zero trades on almost every run.
+const MIN_WIN_PROB      = 55
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supabase = ReturnType<typeof createClient>
@@ -274,12 +280,16 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
     for (const p of heldPos ?? []) heldMarketIds.add(p.market_id)
   }
 
+  // Candidacy filter. A live market is eligible if its ai_confidence meets the
+  // config threshold OR is unknown (null). Previously a bare `.gte()` silently
+  // dropped every null-confidence live market — Postgres comparisons against
+  // NULL are never true — which alone could starve Vega of all candidates.
   const { data: liveMarkets } = await supabase
     .from('markets')
     .select('id, question, yes_price, no_price, ai_confidence, volume, category, closes_at')
     .eq('status', 'live')
     .in('category', cfg.allowed_categories)
-    .gte('ai_confidence', cfg.confidence_threshold)
+    .or(`ai_confidence.is.null,ai_confidence.gte.${cfg.confidence_threshold}`)
     .order('volume', { ascending: false })
     .limit(15)
 
@@ -305,7 +315,7 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
 
     // GATES
     if (edge_pp < EDGE_THRESHOLD_PP) continue
-    if (p_side < cfg.confidence_threshold) continue
+    if (p_side < MIN_WIN_PROB) continue
     // straddle guard: both belief and market sit in the coin-flip zone
     if (market_p_yes >= 45 && market_p_yes <= 55 && p_yes >= 45 && p_yes <= 55) continue
 
@@ -372,23 +382,31 @@ async function runConfig(supabase: Supabase, cfg: VegaConfig): Promise<{ entries
       continue
     }
 
-    // Find the position this trade created/merged into
-    const { data: pos } = await supabase
-      .from('positions')
-      .select('id')
-      .eq('player_id', cfg.player_id)
-      .eq('market_id', t.market_id)
-      .eq('side', t.side)
-      .eq('status', 'open')
-      .limit(1)
-      .single()
+    // Link the agent log to the position this trade created/merged into.
+    // execute_trade now returns position_id directly — authoritative, and
+    // immune to the read-after-write race / "already held this side" ambiguity
+    // that made a re-query occasionally miss and drop the ★ Vega badge. Fall
+    // back to a re-query only if an older RPC build omits the field.
+    let positionId = (trade as { position_id?: string })?.position_id ?? null
+    if (!positionId) {
+      const { data: pos } = await supabase
+        .from('positions')
+        .select('id')
+        .eq('player_id', cfg.player_id)
+        .eq('market_id', t.market_id)
+        .eq('side', t.side)
+        .eq('status', 'open')
+        .limit(1)
+        .single()
+      positionId = pos?.id ?? null
+    }
 
     await supabase.from('autonomous_trade_log').insert({
       player_id:          cfg.player_id,
       config_id:          cfg.id,
       action:             'entry',
       market_id:          t.market_id,
-      position_id:        pos?.id ?? null,
+      position_id:        positionId,
       side:               t.side,
       amount,
       shares:             (trade as { shares?: number })?.shares ?? null,

@@ -491,7 +491,7 @@ export function ChatWidget({ agentType }: { agentType: AgentType }) {
               borderBottom: '1px solid rgba(255,255,255,0.08)',
               backgroundColor: '#0D1117',
             }}>
-              {([['chat', 'Chat'], ['vega', 'Vega']] as const).map(([id, label]) => {
+              {([['chat', 'Chat'], ['vega', 'Auto-Trade']] as const).map(([id, label]) => {
                 const active = view === id
                 return (
                   <button
