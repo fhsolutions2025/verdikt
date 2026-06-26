@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
 
   const today        = new Date()
   const todayStr     = today.toISOString().slice(0, 10)
-  const minCloseDate = new Date(today.getTime() + 30  * 24 * 3600_000).toISOString().slice(0, 10)
-  const maxCloseDate = new Date(today.getTime() + 365 * 24 * 3600_000).toISOString().slice(0, 10)
+  const minCloseDate = new Date(today.getTime() +  14 * 24 * 3600_000).toISOString().slice(0, 10)
+  const maxCloseDate = new Date(today.getTime() + 180 * 24 * 3600_000).toISOString().slice(0, 10)
 
   // ── Sandwich prompt (prevents injection via headline content) ─
   const userPrompt = [
@@ -35,9 +35,15 @@ export async function POST(req: NextRequest) {
     'Generate a binary YES/NO prediction market from the headline above.',
     'The predicted outcome must be:',
     '• Verifiable from public record (news, official results, market data)',
-    '• Resolvable within 1–12 months from today',
-    `• Closes between ${minCloseDate} and ${maxCloseDate}`,
+    '• Tightly tied to the SPECIFIC event in the headline — not a vague 12-month outlook',
+    '• Resolvable within 2 weeks to 6 months from today (prefer shorter windows for breaking news)',
+    `• closes_at MUST be between ${minCloseDate} and ${maxCloseDate} — do NOT pick the maximum by default`,
     '• NOT already resolved or a certainty',
+    '',
+    'Choose the closes_at date based on when the outcome will REALISTICALLY be known.',
+    'For sports events and elections pick the event date ± 1 week.',
+    'For geopolitical/economic developments pick 1–3 months out.',
+    'Only use the 6-month maximum for genuinely long-run questions.',
     '',
     'If the headline is historical fact, an opinion, a soft feature, or cannot be',
     'turned into a meaningful binary prediction, return {"viable":false}.',

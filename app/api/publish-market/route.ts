@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       category:          'current_affairs',
       fee_category:      'current_affairs',
       yes_price,
-      no_price:          100 - yes_price,
+      // no_price is GENERATED ALWAYS AS (100 - yes_price) — never insert it
       spread_cents:      2,
       ai_confidence,
       status:            'pending_ai',
