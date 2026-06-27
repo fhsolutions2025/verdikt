@@ -74,9 +74,12 @@ function veoInput(p: FalVideoParams): Record<string, unknown> {
   return input
 }
 
-// Kling uses `tail_image_url` for the end frame rather than `end_image_url`.
+// Kling: end frame is `tail_image_url` (not end_image_url), and Kling's schema has
+// no `resolution` input (it's tier-fixed) — sending it 422s the submit. Duration is
+// an enum string ("5"/"10"), which commonInput already produces.
 function klingInput(p: FalVideoParams): Record<string, unknown> {
   const input = commonInput(p)
+  delete (input as Record<string, unknown>).resolution
   if (p.endUrl) { delete (input as Record<string, unknown>).end_image_url; input.tail_image_url = p.endUrl }
   return input
 }
