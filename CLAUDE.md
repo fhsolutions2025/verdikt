@@ -169,9 +169,12 @@ pending_ai ──normalize──> ai_ready ──┐
     `/player/profile` is the user's own account (not CMS).
 - Company: `app/company/page.tsx`, `components/company/*` (CompanyDashboard, ApiHealthMonitor,
   MarketsPipelineTab, PendingReviewSection, marketing/*). Marketing workspace: `app/company/marketing/*`.
-  - **Content** tab (`ContentPagesTab` → `/api/company/cms`) edits `cms_pages`; **Banners**
-    tab (`BannersTab` → `/api/company/banners` + `/banners/image`) manages the carousel,
-    generating art via the Ideogram + Storage re-host pipeline (bucket `marketing-media`).
+  - **Content** tab (`ContentPagesTab` → `/api/company/cms`) edits `cms_pages`. The home
+    **carousel is managed inside Marketing → Media Studio** (`MarketingTab.tsx`): pick the
+    **Home Carousel** size (or a saved **Custom…** preset, localStorage `verdikt_custom_sizes`),
+    generate, then **Publish to Home Carousel** (→ `/api/company/banners/image` re-host-from-url
+    + `/api/company/banners`); the embedded `CarouselManager` reorders/edits/activates slides.
+    `promo_banners` table + routes unchanged; the standalone Banners tab was removed.
   - Admin writes use the **service client** (RLS bypass); player/anon reads are gated to
     `is_published` / `is_active` (mirrors `page_assets`).
 - MM desk: `components/mm-desk/*` (AiReadyMarketCard, MmDeskClient).
