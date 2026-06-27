@@ -36,17 +36,19 @@ Supabase project id: `mqptajyjasrgsfcxkhnw`.
 ## 2. Market lifecycle (state machine)
 
 ```
-pending_ai ──price──> ai_ready ──Company approve──> pending_mm_review ──MM seed──> live
-                                                                                   │
+pending_ai ──normalize──> ai_ready ──┐
+        └──────────────(Company approve, either state)──> pending_mm_review ──MM seed──> live
+                                                                                          │
                                           live ──closes_at reached / manual──> resolved | voided
 ```
 
 | Edge | Who / what | Mechanism |
 |------|-----------|-----------|
-| seed → `pending_ai` | AI generators | `seed-rss/sports/finance-markets`, `normalize-byv-market` |
-| `pending_ai` → `ai_ready` | pricing step | `price-ai-market` |
-| `ai_ready` → `pending_mm_review` | **Company gate** | `company_approve_market` (admin) |
-| `ai_ready`/`pending_mm_review` → `live` | **MM gate** | `approve_ai_market` → `seed_market` (seeds 1000/1000 liquidity) |
+| seed → `pending_ai` | AI generators | `seed-rss/sports/finance-markets` (emit `ai_rationale`) |
+| `pending_ai` → `ai_ready` | normalize/pricing | `normalize-byv-market` (Haiku; sets price, confidence, rationale) |
+| `pending_ai`/`ai_ready` → `pending_mm_review` | **Company gate** | `company_approve_market` (admin); from the Company → Pipeline "Run now" review panel |
+| `pending_ai`/`ai_ready` → `voided` | **Company reject** | `company_reject_market` (admin) |
+| `pending_mm_review` → `live` | **MM gate** | `approve_ai_market` → `seed_market` (seeds liquidity). MM desk shows `pending_mm_review` only |
 | `live` → `resolved`/`voided` | resolution | `resolve_market(id, outcome)` (admin) or auto-close cron |
 
 - **Only `live` markets are tradeable.** The player feed shows **live only**;
