@@ -46,10 +46,9 @@ const MODEL_IDS: Record<Provider, Record<ModelClass, string>> = {
     'fast-cheap':     'claude-haiku-4-5-20251001',
   },
   openai: {
-    // Interface-only in MVP; not invoked. Concrete IDs set when the adapter goes live (V1).
-    'reasoning-high': 'o-series',
-    'reasoning-mid':  'gpt-mid',
-    'fast-cheap':     'gpt-mini',
+    'reasoning-high': 'gpt-4o',
+    'reasoning-mid':  'gpt-4o',
+    'fast-cheap':     'gpt-4o-mini',
   },
 }
 
@@ -59,6 +58,8 @@ export interface CompleteArgs {
   messages:    { role: 'user' | 'assistant'; content: string }[]
   maxTokens?:  number
   temperature?: number
+  /** Force a specific provider (e.g. to A/B Anthropic vs OpenAI). Defaults to the routing table. */
+  providerOverride?: Provider
 }
 
 export interface CompleteResult {
@@ -122,15 +123,54 @@ async function anthropicComplete(model: string, args: CompleteArgs): Promise<Com
   }
 }
 
+// OpenAI adapter via the openai-proxy edge function (Chat Completions).
+async function openaiComplete(model: string, args: CompleteArgs): Promise<CompleteResult> {
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key     = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!baseUrl || !key) throw new Error('LLM not configured (Supabase env missing)')
+
+  const route = ROUTING[args.task]
+  const res = await fetch(`${baseUrl}/functions/v1/openai-proxy`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model,
+      max_tokens:  args.maxTokens ?? route.maxTokens,
+      temperature: args.temperature ?? route.temperature,
+      messages: [
+        { role: 'system', content: args.system },
+        ...args.messages,
+      ],
+    }),
+    signal: AbortSignal.timeout(55_000),
+  })
+  if (!res.ok) {
+    const t = await res.text().catch(() => '')
+    throw new Error(`openai-proxy ${res.status}: ${t.slice(0, 200)}`)
+  }
+  const data = await res.json()
+  if (data.error) throw new Error(`openai: ${data.error?.message ?? JSON.stringify(data.error).slice(0, 160)}`)
+  const text: string = (data.choices?.[0]?.message?.content ?? '').trim()
+  return {
+    text,
+    model,
+    provider: 'openai',
+    usage: { input: data.usage?.prompt_tokens ?? 0, output: data.usage?.completion_tokens ?? 0 },
+  }
+}
+
 /**
- * Resolve provider/model from the task and run the completion, with retry,
- * fallback (mid→fast within Anthropic), and cost logging.
+ * Resolve provider/model from the task (or providerOverride) and run the
+ * completion, with retry, fallback (mid→fast), and cost logging.
  */
 export async function complete(args: CompleteArgs): Promise<CompleteResult> {
   const route = ROUTING[args.task]
   if (!route) throw new Error(`No routing entry for task "${args.task}"`)
 
-  // Fallback chain within Anthropic: requested class → fast-cheap (compliance never downgrades).
+  const provider: Provider = args.providerOverride ?? route.provider
+  const run = provider === 'openai' ? openaiComplete : anthropicComplete
+
+  // Fallback chain: requested class → fast-cheap (compliance never downgrades).
   const classes: ModelClass[] =
     args.task === 'compliance'
       ? [route.modelClass]
@@ -140,11 +180,11 @@ export async function complete(args: CompleteArgs): Promise<CompleteResult> {
 
   let lastErr: unknown
   for (const cls of classes) {
-    const model = MODEL_IDS[route.provider][cls]
+    const model = MODEL_IDS[provider][cls]
     for (let attempt = 0; attempt < 3; attempt++) {
       const started = Date.now()
       try {
-        const result = await anthropicComplete(model, args)
+        const result = await run(model, args)
         await logCall({ task: args.task, model, usage: result.usage, latencyMs: Date.now() - started, success: true })
         return result
       } catch (err) {
