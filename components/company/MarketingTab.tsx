@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FAL_VIDEO_MODELS, makeCustomVideoModel, estVideoCost, FAL_TIER_ORDER, FAL_TIER_LABEL, type FalVideoModel, type CustomVideoSpec } from '@/lib/falVideoModels'
+import { FAL_VIDEO_MODELS, getFalVideoModel, makeCustomVideoModel, estVideoCost, FAL_DRAFT_MODEL_ID, FAL_TIER_ORDER, FAL_TIER_LABEL, type FalVideoModel, type CustomVideoSpec } from '@/lib/falVideoModels'
+import VideoJobsPanel from '@/components/company/VideoJobsPanel'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -443,6 +444,8 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [videoSaved, setVideoSaved] = useState(false)
   const [vProgress, setVProgress] = useState(0)
   const vProgressRef              = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [vMode, setVMode]         = useState<'draft' | 'final'>('final')   // progressive-enhancement tier
+  const [jobsRefresh, setJobsRefresh] = useState(0)                        // bump to refetch Recent renders
   const [vModelId, setVModelId]   = useState<string>(FAL_VIDEO_MODELS[0].id)
   const [vAspect, setVAspect]     = useState<string>(FAL_VIDEO_MODELS[0].aspects[0])
   const [vDuration, setVDuration] = useState<number>(FAL_VIDEO_MODELS[0].durations[0])
@@ -464,6 +467,11 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const allVModels = [...FAL_VIDEO_MODELS, ...customVModels]
   const vModel = allVModels.find(m => m.id === vModelId) ?? FAL_VIDEO_MODELS[0]
   const useFrames = vInputMode === 'frame' && vModel.caps.start
+  const isDraft = vMode === 'draft'
+  const draftModel = getFalVideoModel(FAL_DRAFT_MODEL_ID) ?? FAL_VIDEO_MODELS[0]
+  // Cost shown reflects the tier actually used: draft forces the cheap model, no audio.
+  const costModel = isDraft ? draftModel : vModel
+  const costAudio = isDraft ? false : vAudio
 
   // Load gallery images when the History (frame picker) modal opens.
   useEffect(() => {
@@ -659,21 +667,22 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const runVideo = async () => {
     if (!basePrompt.trim() && !vStartUrl) return
     // Cost guard: confirm before pricey (> ~$1) renders so credits aren't burned by accident.
-    const estCost = estVideoCost(vModel, vDuration, vAudio)
+    const estCost = estVideoCost(costModel, vDuration, costAudio)
     if (estCost > 1 && typeof window !== 'undefined' &&
-        !window.confirm(`${vModel.label} · ${vDuration}s${vAudio ? ' · audio' : ''} will cost ~$${estCost.toFixed(2)} on fal. Generate?`)) return
+        !window.confirm(`${costModel.label} · ${vDuration}s${costAudio ? ' · audio' : ''} will cost ~$${estCost.toFixed(2)} on fal. Generate?`)) return
     setVideoBusy(true); setVideoErr(null); setVideoUrl(null); setVideoSaved(false)
     try {
       let res = await fetch('/api/company/marketing/video', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          modelId: vModelId, prompt: effectivePrompt,
+          modelId: vModelId, prompt: effectivePrompt, isDraft,
           startUrl: useFrames ? (vStartUrl ?? undefined) : undefined,
           endUrl: useFrames ? (vEndUrl ?? undefined) : undefined,
           aspect: vAspect, duration: vDuration, resolution: vResolution, audio: vAudio,
         }),
       })
       let d = await res.json()
+      setJobsRefresh(k => k + 1)   // a durable job row now exists — show it in Recent renders
       if (!res.ok) { setVideoErr(d.error ?? 'Video generation failed'); return }
       // If the job is still running, re-poll via GET until done (~5 min cap).
       const deadline = Date.now() + 300_000
@@ -685,10 +694,10 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         if (!res.ok) { setVideoErr(d.error ?? 'Video generation failed'); return }
       }
       if (d.url) { setVProgress(100); setVideoUrl(d.url) }
-      else setVideoErr('Video timed out — try again.')
+      else setVideoErr('Still rendering — it will appear in Recent renders when done.')
     } catch {
       setVideoErr('Network error')
-    } finally { setVideoBusy(false) }
+    } finally { setVideoBusy(false); setJobsRefresh(k => k + 1) }
   }
 
   const saveVideo = async () => {
@@ -862,6 +871,23 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         {/* Video controls: frames + output (per model) */}
         {mediaType === 'video' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px', borderRadius: 10, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
+            {/* Draft → Final tier (progressive enhancement: cheap drafts, premium finals) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                {([['draft', '⚡ Draft'], ['final', '★ Final']] as const).map(([m, label]) => (
+                  <button key={m} onClick={() => setVMode(m)} style={{
+                    padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                    backgroundColor: vMode === m ? 'rgba(0,200,83,0.16)' : 'transparent',
+                    color: vMode === m ? '#00C853' : 'var(--text-dim)',
+                  }}>{label}</button>
+                ))}
+              </div>
+              <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: 0, flex: 1 }}>
+                {isDraft
+                  ? `Draft: cheap ${draftModel.label} at ${draftModel.resolutions[0]}, no audio — iterate fast & cheap.`
+                  : `Final: your selected model at full resolution${vModel.caps.audio ? ' + audio' : ''}.`}
+              </p>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: 0, flex: 1 }}>
                 {vModel.label} · {[vModel.caps.text && 'text→video', vModel.caps.start && 'image→video', vModel.caps.end && 'end frame', vModel.caps.audio && 'audio'].filter(Boolean).join(' · ')}
@@ -937,7 +963,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
               </button>
             ) : (
               <button onClick={runVideo} disabled={videoBusy || (!basePrompt.trim() && !vStartUrl)} style={{ padding: '9px 18px', borderRadius: 8, background: (videoBusy || (!basePrompt.trim() && !vStartUrl)) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (videoBusy || (!basePrompt.trim() && !vStartUrl)) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
-                {videoBusy ? 'Generating…' : `🎬 Generate video — ~$${estVideoCost(vModel, vDuration, vAudio).toFixed(2)}`}
+                {videoBusy ? 'Generating…' : `🎬 ${isDraft ? 'Draft' : 'Generate'} — ~$${estVideoCost(costModel, vDuration, costAudio).toFixed(2)}`}
               </button>
             )}
           </div>
@@ -1009,6 +1035,9 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
       )}
 
       </div>{/* close controls/preview row */}
+
+      {/* Durable jobs — billed renders are never lost, even after reload/navigation */}
+      {mediaType === 'video' && <VideoJobsPanel refreshKey={jobsRefresh} onPick={(u) => { setVideoUrl(u); setVideoErr(null) }} />}
 
       {/* ── Result area (image mode) ───────────────────────────────────────── */}
       {mediaType === 'image' && (

@@ -104,8 +104,19 @@ function noResInput(p: FalVideoParams): Record<string, unknown> {
 const A_WIDE = ['16:9', '9:16', '1:1']
 const A_VERT = ['16:9', '9:16']
 
+// The cheap "draft" workhorse used by Draft mode (per the fal integration guide).
+export const FAL_DRAFT_MODEL_ID = 'fal-ai/minimax/hailuo-02/standard/text-to-video'
+
 export const FAL_VIDEO_MODELS: FalVideoModel[] = [
   // ── Budget ──────────────────────────────────────────────────────────────────
+  {
+    id: 'fal-ai/minimax/hailuo-02/standard/text-to-video',
+    i2vId: 'fal-ai/minimax/hailuo-02/standard/image-to-video',
+    label: 'Hailuo 02 (draft workhorse)', tier: 'budget', costPerSec: 0.045,
+    caps: { text: true, start: true, end: false, audio: false },
+    aspects: A_VERT, durations: [6, 10], resolutions: ['768p', '1080p'],
+    buildInput: (p) => ({ ...(p.prompt?.trim() ? { prompt: p.prompt } : {}), ...(p.startUrl ? { image_url: p.startUrl } : {}), ...(p.duration ? { duration: String(p.duration) } : {}) }),
+  },
   {
     id: 'bytedance/seedance-2.0/fast/text-to-video',
     i2vId: 'bytedance/seedance-2.0/fast/image-to-video',
