@@ -32,7 +32,8 @@ export interface FalVideoModel {
   i2vId?:       string                       // image-to-video endpoint (when a start frame is set)
   label:        string
   tier:         'budget' | 'premium' | 'flagship'
-  costPerSec:   number                       // approx fal $/second (720p, audio where applicable)
+  costPerSec:      number                    // fal $/second, audio OFF (720p)
+  costPerSecAudio?: number                    // fal $/second, audio ON (if the model has audio)
   caps:         { text: boolean; start: boolean; end: boolean; audio: boolean }
   aspects:      string[]
   durations:    number[]
@@ -41,9 +42,11 @@ export interface FalVideoModel {
   buildInput:   (p: FalVideoParams) => Record<string, unknown>
 }
 
-// Estimated clip cost = $/sec × duration. Labeled approximate in the UI.
-export function estVideoCost(m: FalVideoModel, durationSec: number): number {
-  return m.costPerSec * (durationSec || m.durations[0] || 1)
+// Estimated clip cost = $/sec × duration, using the audio-on rate when audio is set.
+// fal bills per second of actual output, so this is an estimate (shown as ~$).
+export function estVideoCost(m: FalVideoModel, durationSec: number, audio = false): number {
+  const rate = audio && m.costPerSecAudio ? m.costPerSecAudio : m.costPerSec
+  return rate * (durationSec || m.durations[0] || 1)
 }
 
 // Shared mapper covering the common fal video input fields. Individual models
@@ -82,13 +85,12 @@ function ltxInput(p: FalVideoParams): Record<string, unknown> {
   return input
 }
 
-// Kling: end frame is `tail_image_url` (not end_image_url), and Kling's schema has
-// no `resolution` input (it's tier-fixed) — sending it 422s the submit. Duration is
-// an enum string ("5"/"10"), which commonInput already produces.
+// Kling: schema has no `resolution` input (tier-fixed) — sending it 422s the submit.
+// End frame is `end_image_url` and duration is an enum STRING ("5".."15"), both of
+// which commonInput already produces. (Confirmed from the Kling O3 API doc.)
 function klingInput(p: FalVideoParams): Record<string, unknown> {
   const input = commonInput(p)
   delete (input as Record<string, unknown>).resolution
-  if (p.endUrl) { delete (input as Record<string, unknown>).end_image_url; input.tail_image_url = p.endUrl }
   return input
 }
 
@@ -192,28 +194,28 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
   },
   {
     id: 'fal-ai/kling-video/o3/standard/image-to-video',
-    label: 'Kling O3 (first→last frame)', tier: 'flagship', costPerSec: 0.10,
+    label: 'Kling O3 (first→last frame)', tier: 'flagship', costPerSec: 0.084,
     caps: { text: false, start: true, end: true, audio: false },
     aspects: A_WIDE, durations: [5, 10], resolutions: ['1080p'],
     buildInput: klingInput,
   },
   {
     id: 'fal-ai/veo3.1/fast', i2vId: 'fal-ai/veo3.1/fast/image-to-video',
-    label: 'Veo 3.1 Fast', tier: 'flagship', costPerSec: 0.15,
+    label: 'Veo 3.1 Fast', tier: 'flagship', costPerSec: 0.10, costPerSecAudio: 0.15,
     caps: { text: true, start: true, end: false, audio: true },
     aspects: A_VERT, durations: [4, 6, 8], resolutions: ['720p'],
     buildInput: veoInput,
   },
   {
     id: 'fal-ai/veo3.1', i2vId: 'fal-ai/veo3.1/image-to-video',
-    label: 'Veo 3.1', tier: 'flagship', costPerSec: 0.40,
+    label: 'Veo 3.1', tier: 'flagship', costPerSec: 0.20, costPerSecAudio: 0.40,
     caps: { text: true, start: true, end: false, audio: true },
     aspects: A_VERT, durations: [4, 6, 8], resolutions: ['720p', '1080p'],
     buildInput: veoInput,
   },
   {
     id: 'fal-ai/veo3.1/first-last-frame-to-video',
-    label: 'Veo 3.1 First→Last', tier: 'flagship', costPerSec: 0.40,
+    label: 'Veo 3.1 First→Last', tier: 'flagship', costPerSec: 0.20, costPerSecAudio: 0.40,
     caps: { text: false, start: true, end: true, audio: true },
     aspects: A_VERT, durations: [4, 6, 8], resolutions: ['720p', '1080p'],
     buildInput: veoInput,

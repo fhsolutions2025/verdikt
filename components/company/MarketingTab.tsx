@@ -658,6 +658,10 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
 
   const runVideo = async () => {
     if (!basePrompt.trim() && !vStartUrl) return
+    // Cost guard: confirm before pricey (> ~$1) renders so credits aren't burned by accident.
+    const estCost = estVideoCost(vModel, vDuration, vAudio)
+    if (estCost > 1 && typeof window !== 'undefined' &&
+        !window.confirm(`${vModel.label} · ${vDuration}s${vAudio ? ' · audio' : ''} will cost ~$${estCost.toFixed(2)} on fal. Generate?`)) return
     setVideoBusy(true); setVideoErr(null); setVideoUrl(null); setVideoSaved(false)
     try {
       let res = await fetch('/api/company/marketing/video', {
@@ -696,7 +700,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         body: JSON.stringify({
           url: videoUrl, media_type: 'video', title: `Video — ${basePrompt.slice(0, 50)}`,
           alt_text: basePrompt.slice(0, 120), platform: 'Video', dimensions: '',
-          prompt: basePrompt, campaign_tag: campaignTag, cost_usd: estVideoCost(vModel, vDuration), image_engine: 'fal',
+          prompt: basePrompt, campaign_tag: campaignTag, cost_usd: estVideoCost(vModel, vDuration, vAudio), image_engine: 'fal',
         }),
       })
       if (res.ok) { setVideoSaved(true); onGallerySaved() }
@@ -933,7 +937,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
               </button>
             ) : (
               <button onClick={runVideo} disabled={videoBusy || (!basePrompt.trim() && !vStartUrl)} style={{ padding: '9px 18px', borderRadius: 8, background: (videoBusy || (!basePrompt.trim() && !vStartUrl)) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (videoBusy || (!basePrompt.trim() && !vStartUrl)) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
-                {videoBusy ? 'Generating…' : `🎬 Generate video — ~$${estVideoCost(vModel, vDuration).toFixed(2)}`}
+                {videoBusy ? 'Generating…' : `🎬 Generate video — ~$${estVideoCost(vModel, vDuration, vAudio).toFixed(2)}`}
               </button>
             )}
           </div>
