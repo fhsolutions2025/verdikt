@@ -126,7 +126,7 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
     id: 'fal-ai/ltx-2.3/text-to-video/fast',
     label: 'LTX-2.3 Fast', tier: 'budget', costPerSec: 0.03,
     caps: { text: true, start: false, end: false, audio: false },
-    aspects: A_WIDE, durations: [6, 8, 10], resolutions: ['720p', '1080p'],
+    aspects: A_WIDE, durations: [6, 8, 10], resolutions: ['1080p', '1440p', '2160p'],
     buildInput: ltxInput,
   },
   // ── Premium ─────────────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
     id: 'fal-ai/ltx-2.3/text-to-video', i2vId: 'fal-ai/ltx-2.3/image-to-video',
     label: 'LTX-2.3', tier: 'premium', costPerSec: 0.05,
     caps: { text: true, start: true, end: false, audio: false },
-    aspects: A_WIDE, durations: [6, 8, 10], resolutions: ['720p', '1080p'],
+    aspects: A_WIDE, durations: [6, 8, 10], resolutions: ['1080p', '1440p', '2160p'],
     buildInput: ltxInput,
   },
   {
