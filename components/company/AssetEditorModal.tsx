@@ -11,10 +11,10 @@ export interface EditableAsset {
 }
 
 type Mode = 'fill' | 'text' | 'object'
-const TABS: { id: Mode; label: string; hint: string; mask: boolean; prompt: boolean }[] = [
-  { id: 'fill',   label: 'Magic Fill',   hint: 'Brush an area, describe what to put there.', mask: true,  prompt: true  },
+const TABS: { id: Mode; label: string; hint: string; mask: boolean; prompt: boolean; promptLabel?: string; placeholder?: string }[] = [
+  { id: 'fill',   label: 'Magic Fill',   hint: 'Brush an area, then describe what to put there.', mask: true,  prompt: true, promptLabel: 'Fill with…', placeholder: 'e.g. a glowing emerald trophy' },
   { id: 'text',   label: 'Erase Text',   hint: 'Wipes all text from the image — no brushing needed.', mask: false, prompt: false },
-  { id: 'object', label: 'Erase Object', hint: 'Brush over an object to remove it cleanly.', mask: true,  prompt: false },
+  { id: 'object', label: 'Erase Object', hint: 'Describe the object(s) to remove — no brushing needed.', mask: false, prompt: true, promptLabel: 'Objects to remove', placeholder: 'e.g. background people, the logo' },
 ]
 
 // Interactive image editor: paint a B/W mask over a gallery asset and run a fal
@@ -79,7 +79,7 @@ export default function AssetEditorModal({ asset, onClose, onSaved }: { asset: E
 
   const apply = async () => {
     setErr(null); setResult(null)
-    if (cfg.prompt && !prompt.trim()) { setErr('Describe what to fill in.'); return }
+    if (cfg.prompt && !prompt.trim()) { setErr(mode === 'object' ? 'Describe the object(s) to remove.' : 'Describe what to fill in.'); return }
     if (useMask && !hasPaint) { setErr('Brush the area to edit first.'); return }
     setBusy(true)
     try {
@@ -171,8 +171,8 @@ export default function AssetEditorModal({ asset, onClose, onSaved }: { asset: E
             )}
             {cfg.prompt && !result && (
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Fill with…</label>
-                <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} placeholder="e.g. a glowing emerald trophy" style={{ width: '100%', marginTop: 4, padding: 8, backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{cfg.promptLabel ?? 'Prompt'}</label>
+                <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} placeholder={cfg.placeholder ?? ''} style={{ width: '100%', marginTop: 4, padding: 8, backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
               </div>
             )}
             {err && <p style={{ fontSize: 11, color: '#DC2626', margin: 0 }}>{err}</p>}

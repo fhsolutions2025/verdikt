@@ -14,9 +14,12 @@ function svcAuth() {
 
 // Editing modes → fal endpoint + required inputs. IDs verify-on-first-run (egress).
 const MODES = {
+  // FLUX Fill is mask-based inpainting (brush + prompt). The image-editing
+  // text/object-removal endpoints are prompt-based (no mask): text-removal needs
+  // nothing, object-removal takes a text description of what to remove.
   fill:    { model: 'fal-ai/flux-pro/v1/fill',            needsMask: true,  needsPrompt: true  },
   'text':  { model: 'fal-ai/image-editing/text-removal',   needsMask: false, needsPrompt: false },
-  'object':{ model: 'fal-ai/image-editing/object-removal', needsMask: true,  needsPrompt: false },
+  'object':{ model: 'fal-ai/image-editing/object-removal', needsMask: false, needsPrompt: true  },
 } as const
 type Mode = keyof typeof MODES
 
