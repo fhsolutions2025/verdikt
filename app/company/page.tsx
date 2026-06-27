@@ -7,6 +7,7 @@ import type {
 } from '@/lib/types'
 import type { CronRunRow, PipelineMarket, LiquidityRow } from '@/components/company/MarketsPipelineTab'
 import type { ActivePageAsset } from '@/components/company/PageDesignTab'
+import type { CmsPage } from '@/components/company/ContentPagesTab'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,7 @@ export default async function CompanyPage() {
     cronRunLogRes,
     pipelineMarketsRes,
     pageAssetsRes,
+    cmsPagesRes,
   ] = await Promise.all([
     supabase.from('v_platform_totals').select('*').single(),
     supabase.from('mm_config').select('*').eq('id', '20000000-0000-0000-0000-000000000001').single(),
@@ -73,6 +75,10 @@ export default async function CompanyPage() {
     service.from('page_assets')
       .select('slot_key, public_url, alt_text, seo_tags, width, height, prompt, created_at')
       .eq('is_active', true),
+    // CMS info/legal pages shown in the player menu
+    service.from('cms_pages')
+      .select('slug, title, body, is_published, updated_at')
+      .order('slug'),
   ])
 
   const totals      = totalsRes.data      as PlatformTotals | null
@@ -88,6 +94,7 @@ export default async function CompanyPage() {
   const cronRunLog       = (cronRunLogRes.data   ?? []) as CronRunRow[]
   const pipelineMarkets  = (pipelineMarketsRes.data ?? []) as PipelineMarket[]
   const pageAssets       = (pageAssetsRes.data   ?? []) as ActivePageAsset[]
+  const cmsPages         = (cmsPagesRes.data     ?? []) as CmsPage[]
 
   // Compute real vs simulated volume per live market
   const liveIds = pipelineMarkets.filter(m => m.status === 'live').map(m => m.id)
@@ -271,6 +278,7 @@ export default async function CompanyPage() {
       pipelineMarkets={pipelineMarkets}
       tradeLiquidity={tradeLiquidity}
       pageAssets={pageAssets}
+      cmsPages={cmsPages}
     />
   )
 }
