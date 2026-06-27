@@ -15,11 +15,15 @@ export async function POST(req: Request) {
   const { role } = await getAuthContext()
   if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { prompt } = await req.json().catch(() => ({}))
-  if (!prompt?.trim()) return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
-
-  const guard = checkPrompt(prompt)
-  if (!guard.ok) return NextResponse.json({ error: guard.reason }, { status: 422 })
+  const { prompt, url: srcUrl } = await req.json().catch(() => ({}))
+  // Two modes: re-host an already-generated image (srcUrl), or generate from a prompt.
+  if (!srcUrl && !prompt?.trim()) {
+    return NextResponse.json({ error: 'Provide a prompt or a url' }, { status: 400 })
+  }
+  if (prompt) {
+    const guard = checkPrompt(prompt)
+    if (!guard.ok) return NextResponse.json({ error: guard.reason }, { status: 422 })
+  }
 
   const supabaseUrl    = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -27,16 +31,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Server not configured' }, { status: 503 })
   }
 
-  // 1) Generate via the Ideogram proxy (temporary URL).
-  const genRes = await fetch(`${supabaseUrl}/functions/v1/ideogram-proxy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
-    body: JSON.stringify({ prompt, style: 'DESIGN', aspect_ratio: 'ASPECT_16_9' }),
-    signal: AbortSignal.timeout(60_000),
-  })
-  const gen = await genRes.json()
-  if (!genRes.ok || !gen.url) {
-    return NextResponse.json({ error: gen.error ?? 'Image generation failed' }, { status: genRes.status || 502 })
+  // 1) Resolve the source image URL — either generate one, or use the supplied
+  //    (already-generated, e.g. Media Studio) temporary URL to just re-host.
+  let sourceUrl = srcUrl as string | undefined
+  if (!sourceUrl) {
+    const genRes = await fetch(`${supabaseUrl}/functions/v1/ideogram-proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
+      body: JSON.stringify({ prompt, style: 'DESIGN', aspect_ratio: 'ASPECT_16_9' }),
+      signal: AbortSignal.timeout(60_000),
+    })
+    const gen = await genRes.json()
+    if (!genRes.ok || !gen.url) {
+      return NextResponse.json({ error: gen.error ?? 'Image generation failed' }, { status: genRes.status || 502 })
+    }
+    sourceUrl = gen.url
   }
 
   // 2) Re-host the temporary image into Storage.
@@ -44,7 +53,7 @@ export async function POST(req: Request) {
   let bytes: ArrayBuffer
   let contentType = 'image/png'
   try {
-    const imgRes = await fetch(gen.url, { signal: AbortSignal.timeout(30_000) })
+    const imgRes = await fetch(sourceUrl!, { signal: AbortSignal.timeout(30_000) })
     if (!imgRes.ok) throw new Error(`fetch ${imgRes.status}`)
     contentType = imgRes.headers.get('content-type') ?? 'image/png'
     bytes = await imgRes.arrayBuffer()

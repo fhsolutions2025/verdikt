@@ -72,6 +72,7 @@ interface BrandKit {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PLATFORM_SIZES: PlatformSize[] = [
+  { id: 'carousel',   label: 'Home Carousel',  aspect: 'ASPECT_16_9', dims: '1500×500',  aspectRatio: '3/1'  },
   { id: 'web_banner', label: 'Web Banner',     aspect: 'ASPECT_16_9', dims: '1920×1080', aspectRatio: '16/9' },
   { id: 'youtube',    label: 'YouTube Cover',  aspect: 'ASPECT_16_9', dims: '2560×1440', aspectRatio: '16/9' },
   { id: 'twitter',    label: 'X / Twitter',    aspect: 'ASPECT_16_9', dims: '1500×500',  aspectRatio: '3/1'  },
@@ -81,6 +82,39 @@ const PLATFORM_SIZES: PlatformSize[] = [
   { id: 'story',      label: 'Story / TikTok', aspect: 'ASPECT_9_16', dims: '1080×1920', aspectRatio: '9/16' },
   { id: 'pinterest',  label: 'Pinterest',      aspect: 'ASPECT_2_3',  dims: '1000×1500', aspectRatio: '2/3'  },
 ]
+
+// Ideogram V_2 supports a fixed set of ratios — map any custom W×H to the nearest.
+const IDEOGRAM_RATIOS: { aspect: string; r: number }[] = [
+  { aspect: 'ASPECT_1_1', r: 1 }, { aspect: 'ASPECT_16_9', r: 16 / 9 }, { aspect: 'ASPECT_9_16', r: 9 / 16 },
+  { aspect: 'ASPECT_4_3', r: 4 / 3 }, { aspect: 'ASPECT_3_4', r: 3 / 4 }, { aspect: 'ASPECT_2_3', r: 2 / 3 },
+  { aspect: 'ASPECT_3_2', r: 3 / 2 }, { aspect: 'ASPECT_10_16', r: 10 / 16 }, { aspect: 'ASPECT_16_10', r: 16 / 10 },
+]
+function closestAspect(w: number, h: number): string {
+  const r = w / h
+  return IDEOGRAM_RATIOS.reduce((best, x) => Math.abs(x.r - r) < Math.abs(best.r - r) ? x : best).aspect
+}
+
+// Custom sizes persist per-admin in localStorage (same pattern as the Brand Kit).
+const CUSTOM_SIZES_KEY = 'verdikt_custom_sizes'
+function loadCustomSizes(): PlatformSize[] {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem(CUSTOM_SIZES_KEY) ?? '[]') } catch { return [] }
+}
+function saveCustomSizes(sizes: PlatformSize[]) {
+  try { localStorage.setItem(CUSTOM_SIZES_KEY, JSON.stringify(sizes)) } catch { /* ignore */ }
+}
+
+// Carousel slide (mirrors promo_banners). Managed inside Media Studio.
+interface PromoBanner {
+  id:         string
+  image_url:  string
+  headline:   string
+  subtext:    string
+  cta_label:  string
+  cta_href:   string
+  sort_order: number
+  is_active:  boolean
+}
 
 const IDEOGRAM_COST = 0.08
 const STYLES = ['DESIGN', 'REALISTIC', 'RENDER_3D', 'ANIME']
@@ -363,7 +397,12 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [enhancing, setEnhancing] = useState(false)
   const [style, setStyle]         = useState('DESIGN')
   const [imageProvider, setImageProvider] = useState<'ideogram' | 'openai'>('ideogram')
+  const [customSizes, setCustomSizes] = useState<PlatformSize[]>([])
   const [platform, setPlatform]   = useState<PlatformSize>(PLATFORM_SIZES[0])
+  const [showCustom, setShowCustom] = useState(false)
+  const [cw, setCw]               = useState('1500')
+  const [ch, setCh]               = useState('500')
+  const [cname, setCname]         = useState('')
   const [mode, setMode]           = useState<GenMode>('single')
   const [campaignTag, setCampaignTag] = useState('')
   const [loading, setLoading]     = useState(false)
@@ -373,6 +412,67 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [results, setResults]     = useState<ImageMeta[]>([])
   const [error, setError]         = useState<string | null>(null)
   const progressRef               = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Carousel publish (only when the Home Carousel size is selected)
+  const [bHeadline, setBHeadline] = useState('')
+  const [bSubtext, setBSubtext]   = useState('')
+  const [bCtaLabel, setBCtaLabel] = useState('Explore markets →')
+  const [bCtaHref, setBCtaHref]   = useState('/player')
+  const [publishing, setPublishing] = useState(false)
+  const [published, setPublished]   = useState(false)
+  const [bannerRefresh, setBannerRefresh] = useState(0)
+
+  useEffect(() => { setCustomSizes(loadCustomSizes()) }, [])
+
+  const sizeOptions = [...PLATFORM_SIZES, ...customSizes]
+  const isCarousel  = platform.id === 'carousel'
+
+  const onSizeChange = (id: string) => {
+    if (id === '__custom__') { setShowCustom(true); return }
+    setShowCustom(false)
+    const found = sizeOptions.find(p => p.id === id)
+    if (found) setPlatform(found)
+  }
+
+  const saveCustomPreset = () => {
+    const w = parseInt(cw, 10), h = parseInt(ch, 10)
+    if (!w || !h || w < 64 || h < 64) return
+    const preset: PlatformSize = {
+      id:          `custom_${w}x${h}`,
+      label:       cname.trim() || `Custom ${w}×${h}`,
+      dims:        `${w}×${h}`,
+      aspect:      closestAspect(w, h),
+      aspectRatio: `${w}/${h}`,
+    }
+    const next = [...customSizes.filter(s => s.id !== preset.id), preset]
+    setCustomSizes(next); saveCustomSizes(next)
+    setPlatform(preset); setShowCustom(false); setCname('')
+  }
+
+  const publishToCarousel = async () => {
+    if (results.length === 0) return
+    setPublishing(true); setError(null)
+    try {
+      // Re-host the temporary studio image into Storage.
+      const imgRes = await fetch('/api/company/banners/image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: results[0].url }),
+      })
+      const img = await imgRes.json()
+      if (!imgRes.ok || !img.url) throw new Error(img.error ?? 'Re-host failed')
+      // Create the slide (appended, active).
+      const putRes = await fetch('/api/company/banners', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: img.url, headline: bHeadline, subtext: bSubtext,
+          cta_label: bCtaLabel, cta_href: bCtaHref || '/player', sort_order: 999, is_active: true,
+        }),
+      })
+      if (!putRes.ok) { const d = await putRes.json(); throw new Error(d.error ?? 'Publish failed') }
+      setPublished(true); setBannerRefresh(k => k + 1)
+    } catch (e) { setError((e as Error).message) }
+    finally { setPublishing(false) }
+  }
 
   // Staged progress bar (single mode only)
   useEffect(() => {
@@ -403,7 +503,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
 
   const run = async () => {
     if (!basePrompt.trim()) return
-    setLoading(true); setError(null); setResults([]); setProgress(0)
+    setLoading(true); setError(null); setResults([]); setProgress(0); setPublished(false)
 
     if (mode === 'single') {
       const meta = await generateOne(platform)
@@ -428,7 +528,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   }
 
   const generateInSize = async (p: PlatformSize) => {
-    setLoading(true); setError(null); setResults([]); setMode('single'); setPlatform(p); setProgress(0)
+    setLoading(true); setError(null); setResults([]); setMode('single'); setPlatform(p); setProgress(0); setPublished(false)
     const meta = await generateOne(p)
     if (meta) { setProgress(100); setResults([meta]) }
     setLoading(false)
@@ -450,125 +550,114 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const costFor = (m: GenMode) => m === 'single' ? perImageCost : m === 'batch' ? perImageCost * 4 : perImageCost * 8
   const single  = results.length === 1 && mode === 'single'
 
+  const selStyle: React.CSSProperties = { padding: '8px 10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, cursor: 'pointer', outline: 'none' }
+  const fldLabel: React.CSSProperties = { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }
+
   return (
-    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* ── Left panel ─────────────────────────────────────────────────────── */}
-      <div style={{ flex: '0 0 300px', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ── Control toolbar ────────────────────────────────────────────────── */}
+      <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Brand kit status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, backgroundColor: brandKit.autoInject ? 'rgba(0,200,83,0.07)' : 'var(--fill-subtle)', border: `1px solid ${brandKit.autoInject ? 'rgba(0,200,83,0.2)' : 'var(--border-soft)'}` }}>
-          <span style={{ color: brandKit.autoInject ? '#00C853' : 'var(--text-dim)' }}><IconPalette /></span>
-          <span style={{ fontSize: 11, color: brandKit.autoInject ? '#00C853' : 'var(--text-dim)', flex: 1 }}>
-            {brandKit.autoInject ? 'Brand kit auto-applied' : 'Brand kit off'}
-          </span>
-          <div style={{ display: 'flex', gap: 3 }}>
-            {brandKit.colors.map(c => <span key={c.hex} style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: c.hex, border: '1px solid var(--border-strong)' }} />)}
+        {/* Row 1: brand chip + selects */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, backgroundColor: brandKit.autoInject ? 'rgba(0,200,83,0.07)' : 'var(--fill-subtle)', border: `1px solid ${brandKit.autoInject ? 'rgba(0,200,83,0.2)' : 'var(--border-soft)'}`, alignSelf: 'stretch' }}>
+            <span style={{ color: brandKit.autoInject ? '#00C853' : 'var(--text-dim)' }}><IconPalette /></span>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {brandKit.colors.map(c => <span key={c.hex} style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: c.hex, border: '1px solid var(--border-strong)' }} />)}
+            </div>
           </div>
-        </div>
 
-        {/* Generation mode */}
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Mode</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {([
-              { id: 'single', label: 'Single image',   sub: '1 image · $0.08' },
-              { id: 'batch',  label: '4 variants',      sub: 'pick the best · $0.32' },
-              { id: 'all',    label: 'All 8 platforms', sub: 'full asset pack · $0.64' },
-            ] as { id: GenMode; label: string; sub: string }[]).map(m => (
-              <button key={m.id} onClick={() => setMode(m.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${mode === m.id ? 'rgba(108,63,197,0.5)' : 'var(--border-soft)'}`, backgroundColor: mode === m.id ? 'rgba(108,63,197,0.12)' : 'transparent' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: mode === m.id ? '#9B72E8' : 'var(--text-muted)' }}>{m.label}</span>
-                <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{m.sub}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Platform (hidden in all-mode) */}
-        {mode !== 'all' && (
           <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Platform & Size</label>
-            <select value={platform.id} onChange={e => setPlatform(PLATFORM_SIZES.find(p => p.id === e.target.value)!)} style={{ width: '100%', padding: '8px 10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
-              {PLATFORM_SIZES.map(p => <option key={p.id} value={p.id}>{p.label} — {p.dims}</option>)}
+            <label style={fldLabel}>Mode</label>
+            <select value={mode} onChange={e => setMode(e.target.value as GenMode)} style={selStyle}>
+              <option value="single">Single image — ${perImageCost.toFixed(2)}</option>
+              <option value="batch">4 variants — ${(perImageCost * 4).toFixed(2)}</option>
+              <option value="all">All 8 platforms — ${(perImageCost * 8).toFixed(2)}</option>
             </select>
+          </div>
+
+          <div>
+            <label style={fldLabel}>Size</label>
+            <select value={showCustom ? '__custom__' : platform.id} onChange={e => onSizeChange(e.target.value)} disabled={mode === 'all'} style={{ ...selStyle, opacity: mode === 'all' ? 0.5 : 1 }}>
+              {sizeOptions.map(p => <option key={p.id} value={p.id}>{p.label} — {p.dims}</option>)}
+              <option value="__custom__">Custom…</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={fldLabel}>Engine</label>
+            <select value={imageProvider} onChange={e => setImageProvider(e.target.value as 'ideogram' | 'openai')} style={selStyle}>
+              <option value="ideogram">Ideogram V_2 — $0.08</option>
+              <option value="openai">GPT Image — $0.04</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={fldLabel}>Style</label>
+            <select value={style} onChange={e => setStyle(e.target.value)} style={selStyle}>
+              {STYLES.map(s => <option key={s} value={s} title={STYLE_DESC[s]}>{s}</option>)}
+            </select>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <label style={fldLabel}>Campaign tag (gallery)</label>
+            <input value={campaignTag} onChange={e => setCampaignTag(e.target.value)} placeholder="e.g. world-cup-2026" style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} />
+          </div>
+        </div>
+
+        {/* Custom size form */}
+        {showCustom && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', padding: '10px 12px', borderRadius: 10, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
+            <div><label style={fldLabel}>Width</label><input value={cw} onChange={e => setCw(e.target.value.replace(/\D/g, ''))} style={{ ...selStyle, width: 90, cursor: 'text' }} /></div>
+            <span style={{ paddingBottom: 9, color: 'var(--text-faint)' }}>×</span>
+            <div><label style={fldLabel}>Height</label><input value={ch} onChange={e => setCh(e.target.value.replace(/\D/g, ''))} style={{ ...selStyle, width: 90, cursor: 'text' }} /></div>
+            <div style={{ flex: 1, minWidth: 140 }}><label style={fldLabel}>Preset name (optional)</label><input value={cname} onChange={e => setCname(e.target.value)} placeholder={`Custom ${cw}×${ch}`} style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
+            <button onClick={saveCustomPreset} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #6C3FC5, #9B72E8)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Save preset</button>
+            <button onClick={() => setShowCustom(false)} style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+            <p style={{ width: '100%', fontSize: 10, color: 'var(--text-faintest)', margin: '2px 0 0' }}>Ideogram renders the nearest supported ratio ({closestAspect(parseInt(cw) || 1, parseInt(ch) || 1).replace('ASPECT_', '').replace('_', ':')}); saved presets persist in this dropdown.</p>
           </div>
         )}
 
-        {/* Image engine */}
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Image Engine</label>
-          <div style={{ display: 'flex', gap: 5 }}>
-            {([
-              { id: 'ideogram', label: 'Ideogram V_2', sub: '$0.08' },
-              { id: 'openai',   label: 'GPT Image',    sub: '$0.04' },
-            ] as { id: 'ideogram' | 'openai'; label: string; sub: string }[]).map(p => (
-              <button key={p.id} onClick={() => setImageProvider(p.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '7px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${imageProvider === p.id ? 'rgba(108,63,197,0.5)' : 'var(--border-soft)'}`, backgroundColor: imageProvider === p.id ? 'rgba(108,63,197,0.12)' : 'transparent' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: imageProvider === p.id ? '#9B72E8' : 'var(--text-muted)' }}>{p.label}</span>
-                <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{p.sub}/image</span>
-              </button>
-            ))}
-          </div>
-          {imageProvider === 'openai' && (
-            <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: '6px 0 0' }}>OpenAI gpt-image-1 via openai-image-proxy. Style presets apply to Ideogram only.</p>
-          )}
-        </div>
+        {imageProvider === 'openai' && (
+          <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: 0 }}>OpenAI gpt-image-1 via openai-image-proxy. Style presets apply to Ideogram only.</p>
+        )}
 
-        {/* Style */}
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Visual Style</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {STYLES.map(s => (
-              <button key={s} onClick={() => setStyle(s)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', borderRadius: 8, border: `1px solid ${style === s ? 'rgba(108,63,197,0.5)' : 'var(--border-soft)'}`, backgroundColor: style === s ? 'rgba(108,63,197,0.12)' : 'transparent', cursor: 'pointer' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: style === s ? '#9B72E8' : 'var(--text-dim)' }}>{s}</span>
-                <span style={{ fontSize: 10, color: 'var(--text-faintest)' }}>{STYLE_DESC[s]}</span>
-              </button>
-            ))}
+        {/* Row 2: prompt + actions */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <textarea value={prompt} onChange={e => { setPrompt(e.target.value); setEnhanced(null) }} placeholder="Describe your creative in a few words…" rows={2} style={{ flex: 1, minWidth: 240, padding: '10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button onClick={enhancePrompt} disabled={!prompt.trim() || enhancing} style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid rgba(108,63,197,0.35)', backgroundColor: 'rgba(108,63,197,0.08)', color: enhancing ? 'var(--text-faint)' : '#9B72E8', fontSize: 12, fontWeight: 600, cursor: (!prompt.trim() || enhancing) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+              {enhancing ? '✦ Enhancing…' : '✨ Enhance'}
+            </button>
+            <button onClick={run} disabled={loading || !basePrompt.trim()} style={{ padding: '9px 18px', borderRadius: 8, background: (loading || !basePrompt.trim()) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (loading || !basePrompt.trim()) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+              {loading ? 'Generating…' : `⚡ Generate — $${costFor(mode).toFixed(2)}`}
+            </button>
           </div>
         </div>
 
-        {/* Prompt */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Prompt</label>
-            {enhanced && <button onClick={() => setEnhanced(null)} style={{ fontSize: 10, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>✕ Clear enhanced</button>}
-          </div>
-          <textarea value={prompt} onChange={e => { setPrompt(e.target.value); setEnhanced(null) }} placeholder="Describe your creative in a few words…" rows={4} style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 12, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-          <button onClick={enhancePrompt} disabled={!prompt.trim() || enhancing} style={{ marginTop: 6, width: '100%', padding: '7px 0', borderRadius: 8, border: '1px solid rgba(108,63,197,0.35)', backgroundColor: 'rgba(108,63,197,0.08)', color: enhancing ? 'var(--text-faint)' : '#9B72E8', fontSize: 12, fontWeight: 600, cursor: (!prompt.trim() || enhancing) ? 'default' : 'pointer' }}>
-            {enhancing ? '✦ Enhancing…' : '✨ Enhance with AI'}
-          </button>
-          {enhanced && (
-            <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, backgroundColor: 'rgba(0,200,83,0.06)', border: '1px solid rgba(0,200,83,0.2)' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#00C853', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓ Enhanced prompt</p>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>{enhanced}</p>
+        {enhanced && (
+          <div style={{ padding: '8px 10px', borderRadius: 8, backgroundColor: 'rgba(0,200,83,0.06)', border: '1px solid rgba(0,200,83,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#00C853', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓ Enhanced prompt</p>
+              <button onClick={() => setEnhanced(null)} style={{ fontSize: 10, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>✕ Clear</button>
             </div>
-          )}
-        </div>
-
-        {/* Campaign tag */}
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Campaign tag (for gallery)</label>
-          <input value={campaignTag} onChange={e => setCampaignTag(e.target.value)} placeholder="e.g. world-cup-2026" style={{ width: '100%', padding: '8px 10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-        </div>
-
-        {/* Presets */}
-        <div>
-          <p style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Preset ideas</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {PRESETS.map(p => (
-              <button key={p.label} onClick={() => { setPrompt(p.prompt); setEnhanced(null) }} style={{ padding: '7px 10px', borderRadius: 8, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)', color: 'var(--text-dim)', fontSize: 11, textAlign: 'left', cursor: 'pointer' }}>
-                <span style={{ color: '#9B72E8', fontWeight: 700, marginRight: 6 }}>{p.label}</span>{p.prompt.slice(0, 40)}…
-              </button>
-            ))}
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>{enhanced}</p>
           </div>
-        </div>
+        )}
 
-        <button onClick={run} disabled={loading || !basePrompt.trim()} style={{ padding: '11px 0', borderRadius: 10, background: (loading || !basePrompt.trim()) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (loading || !basePrompt.trim()) ? 'default' : 'pointer' }}>
-          {loading ? 'Generating…' : `⚡ Generate — $${costFor(mode).toFixed(2)}`}
-        </button>
+        {/* Presets chip row */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {PRESETS.map(p => (
+            <button key={p.label} onClick={() => { setPrompt(p.prompt); setEnhanced(null) }} title={p.prompt} style={{ padding: '5px 10px', borderRadius: 999, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)', color: '#9B72E8', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── Right panel ────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, minWidth: 320, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ── Result area ────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Loading */}
         {loading && mode === 'single' && (
@@ -616,6 +705,22 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
                 <SaveAndDownload meta={results[0]} campaignTag={campaignTag} onSaved={onGallerySaved} />
               </div>
             </div>
+
+            {/* Publish to Home Carousel (carousel size only) */}
+            {isCarousel && (
+              <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(0,200,83,0.3)', borderRadius: 14, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#00A844', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Publish to Home Carousel</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div><label style={fldLabel}>Headline</label><input value={bHeadline} onChange={e => setBHeadline(e.target.value)} placeholder="Predict. Win. Repeat." style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
+                  <div><label style={fldLabel}>Subtext</label><input value={bSubtext} onChange={e => setBSubtext(e.target.value)} placeholder="Trade real-world outcomes." style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
+                  <div><label style={fldLabel}>CTA label</label><input value={bCtaLabel} onChange={e => setBCtaLabel(e.target.value)} style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
+                  <div><label style={fldLabel}>CTA link</label><input value={bCtaHref} onChange={e => setBCtaHref(e.target.value)} style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
+                </div>
+                <button onClick={publishToCarousel} disabled={publishing || published} style={{ alignSelf: 'flex-start', padding: '9px 18px', borderRadius: 8, border: 'none', backgroundColor: published ? 'rgba(0,200,83,0.15)' : '#00C853', color: published ? '#00A844' : '#fff', fontSize: 13, fontWeight: 700, cursor: (publishing || published) ? 'default' : 'pointer' }}>
+                  {published ? '✓ Published to carousel' : publishing ? 'Publishing…' : 'Publish to Home Carousel'}
+                </button>
+              </div>
+            )}
 
             {/* SEO metadata */}
             <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px' }}>
@@ -690,7 +795,115 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         )}
       </div>
 
+      {/* ── Home Carousel manager ──────────────────────────────────────────── */}
+      <CarouselManager refreshKey={bannerRefresh} />
+
       <style>{`@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }`}</style>
+    </div>
+  )
+}
+
+// ── Home Carousel manager (embedded in Media Studio) ───────────────────────────
+// Lists promo_banners: edit overlay text, reorder, toggle active, delete. Slide
+// images come from the studio generator (Home Carousel size → Publish), so there
+// is no per-card image generation here.
+function CarouselManager({ refreshKey }: { refreshKey: number }) {
+  const [banners, setBanners] = useState<PromoBanner[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId]   = useState<string | null>(null)
+  const [msg, setMsg]         = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/company/banners')
+      if (res.ok) { const d = await res.json(); setBanners(d.banners ?? []) }
+    } finally { setLoading(false) }
+  }, [])
+  useEffect(() => { load() }, [load, refreshKey])
+
+  const patch = (id: string, f: Partial<PromoBanner>) =>
+    setBanners(prev => prev.map(b => b.id === id ? { ...b, ...f } : b))
+
+  const put = async (banner: Partial<PromoBanner>) => {
+    const res = await fetch('/api/company/banners', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(banner),
+    })
+    const d = await res.json()
+    if (!res.ok) throw new Error(d.error ?? 'Save failed')
+    return d.banner as PromoBanner
+  }
+
+  const save = async (b: PromoBanner) => {
+    setBusyId(b.id); setMsg(null)
+    try { await put(b); setMsg('Saved ✓') } catch (e) { setMsg((e as Error).message) } finally { setBusyId(null) }
+  }
+  const remove = async (id: string) => {
+    setBusyId(id); setMsg(null)
+    try {
+      const res = await fetch(`/api/company/banners?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Delete failed')
+      setBanners(prev => prev.filter(b => b.id !== id))
+    } catch (e) { setMsg((e as Error).message) } finally { setBusyId(null) }
+  }
+  const move = async (id: string, dir: -1 | 1) => {
+    const idx = banners.findIndex(b => b.id === id); const j = idx + dir
+    if (idx < 0 || j < 0 || j >= banners.length) return
+    const a = banners[idx], b = banners[j]
+    const aNew = { ...a, sort_order: b.sort_order }, bNew = { ...b, sort_order: a.sort_order }
+    setBusyId(id); setMsg(null)
+    try {
+      await Promise.all([put(aNew), put(bNew)])
+      setBanners(prev => [...prev.map(x => x.id === a.id ? aNew : x.id === b.id ? bNew : x)].sort((x, y) => x.sort_order - y.sort_order))
+    } catch (e) { setMsg((e as Error).message) } finally { setBusyId(null) }
+  }
+
+  const fld: React.CSSProperties = { padding: '7px 9px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box' }
+  const icon: React.CSSProperties = { width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 13 }
+
+  return (
+    <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+        <div>
+          <h3 style={{ color: 'var(--text-strong)', fontSize: 14, fontWeight: 800, margin: 0 }}>Home Carousel</h3>
+          <p style={{ color: 'var(--text-faint)', fontSize: 11, margin: '3px 0 0' }}>Slides shown in the player&apos;s Visual theme. Generate art above (Size → Home Carousel → Publish), then order &amp; edit here.</p>
+        </div>
+        {msg && <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{msg}</span>}
+      </div>
+
+      {loading ? (
+        <p style={{ color: 'var(--text-faint)', fontSize: 12, padding: '20px', textAlign: 'center' }}>Loading…</p>
+      ) : banners.length === 0 ? (
+        <p style={{ color: 'var(--text-faint)', fontSize: 12, padding: '20px', textAlign: 'center' }}>No slides yet. Generate at the Home Carousel size and click “Publish to Home Carousel”.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+          {banners.map(b => (
+            <div key={b.id} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, opacity: b.is_active ? 1 : 0.6 }}>
+              <div style={{ position: 'relative', width: '100%', aspectRatio: '3 / 1', borderRadius: 8, overflow: 'hidden', background: b.image_url ? 'var(--bg-inset)' : 'linear-gradient(120deg,#06281A,#00C853)' }}>
+                {b.image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={b.image_url} alt={b.headline} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <input value={b.headline} onChange={e => patch(b.id, { headline: e.target.value })} placeholder="Headline" style={fld} />
+                <input value={b.subtext} onChange={e => patch(b.id, { subtext: e.target.value })} placeholder="Subtext" style={fld} />
+                <input value={b.cta_label} onChange={e => patch(b.id, { cta_label: e.target.value })} placeholder="CTA label" style={fld} />
+                <input value={b.cta_href} onChange={e => patch(b.id, { cta_href: e.target.value })} placeholder="/player" style={fld} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-dim)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={b.is_active} onChange={e => patch(b.id, { is_active: e.target.checked })} /> Active
+                </label>
+                <button onClick={() => move(b.id, -1)} disabled={busyId === b.id} title="Up" style={icon}>↑</button>
+                <button onClick={() => move(b.id, 1)} disabled={busyId === b.id} title="Down" style={icon}>↓</button>
+                <button onClick={() => save(b)} disabled={busyId === b.id} style={{ padding: '7px 14px', borderRadius: 8, border: 'none', backgroundColor: '#00C853', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                <button onClick={() => remove(b.id)} disabled={busyId === b.id} style={{ marginLeft: 'auto', padding: '7px 12px', borderRadius: 8, border: '1px solid #DC2626', background: 'transparent', color: '#DC2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
