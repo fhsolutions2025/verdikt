@@ -70,6 +70,7 @@ interface BrandKit {
   tone:            string
   visualStyle:     string
   autoInject:      boolean
+  logoUrl?:        string | null
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -161,6 +162,7 @@ const DEFAULT_BRAND_KIT: BrandKit = {
   visualStyle:
     'Dark mode, high contrast, neon violet and emerald accents, glassmorphism, cinematic lighting.',
   autoInject: true,
+  logoUrl: null,
 }
 
 const PRESETS = [
@@ -1365,9 +1367,53 @@ function SaveAndDownload({ meta, campaignTag, onSaved }: { meta: ImageMeta; camp
 
 // ── Brand Kit ─────────────────────────────────────────────────────────────────
 
+const LOGO_MODELS = [
+  { id: 'fal-ai/flux-pro/v1.1',       label: 'FLUX Pro v1.1', cost: 0.04 },
+  { id: 'fal-ai/flux-pro/v1.1-ultra', label: 'FLUX Ultra',    cost: 0.06 },
+] as const
+
 function BrandKitSection({ brandKit, setBrandKit }: { brandKit: BrandKit; setBrandKit: (bk: BrandKit) => void }) {
   const [copied, setCopied] = useState(false)
+  const [logoModel, setLogoModel] = useState<string>(LOGO_MODELS[0].id)
+  const [logoBusy, setLogoBusy]   = useState(false)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)   // freshly generated, unsaved
+  const [logoSaving, setLogoSaving]   = useState(false)
+  const [logoErr, setLogoErr]     = useState<string | null>(null)
   const update = (patch: Partial<BrandKit>) => setBrandKit({ ...brandKit, ...patch })
+
+  // Inject the active palette + visual style into the logo prompt so the mark is on-brand.
+  const logoPrompt = () => {
+    const colors = brandKit.colors.map(c => `${c.name} ${c.hex}`).join(', ')
+    const base = brandKit.logoDescription?.trim() || VERDIKT_LOGO_PROMPT
+    return `${base}. Brand palette: ${colors}. ${brandKit.visualStyle}`.trim()
+  }
+
+  const generateLogo = async () => {
+    setLogoBusy(true); setLogoErr(null); setLogoPreview(null)
+    try {
+      const r = await fetch('/api/company/marketing/brand/logo', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: logoPrompt(), model: logoModel }),
+      })
+      const d = await r.json()
+      if (r.ok && d.url) setLogoPreview(d.url)
+      else setLogoErr(d.error ?? 'Logo generation failed')
+    } catch { setLogoErr('Network error') } finally { setLogoBusy(false) }
+  }
+
+  const saveLogo = async () => {
+    if (!logoPreview) return
+    setLogoSaving(true); setLogoErr(null)
+    try {
+      const r = await fetch('/api/company/marketing/brand/logo', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: logoPreview }),
+      })
+      const d = await r.json()
+      if (r.ok && d.logo_url) { setBrandKit({ ...brandKit, logoUrl: d.logo_url }); setLogoPreview(null) }
+      else setLogoErr(d.error ?? 'Save failed')
+    } catch { setLogoErr('Network error') } finally { setLogoSaving(false) }
+  }
   const updateColor = (idx: number, patch: Partial<BrandColor>) => {
     const colors = brandKit.colors.map((c, i) => i === idx ? { ...c, ...patch } : c)
     update({ colors })
@@ -1425,10 +1471,43 @@ function BrandKitSection({ brandKit, setBrandKit }: { brandKit: BrandKit; setBra
             <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-strong)', margin: 0 }}>Verdikt Logo Prompt</p>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, margin: '0 0 14px' }}>{VERDIKT_LOGO_PROMPT}</p>
-          <button onClick={() => { navigator.clipboard.writeText(VERDIKT_LOGO_PROMPT); setCopied(true); setTimeout(() => setCopied(false), 2000) }} style={{ width: '100%', padding: '9px 0', borderRadius: 9, border: '1px solid rgba(108,63,197,0.4)', backgroundColor: copied ? 'rgba(0,200,83,0.1)' : 'rgba(108,63,197,0.12)', color: copied ? '#00C853' : '#9B72E8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            {copied ? '✓ Copied — paste in Media Studio' : 'Copy logo prompt'}
+
+          {/* Current saved logo (if any) */}
+          {brandKit.logoUrl && !logoPreview && (
+            <div style={{ marginBottom: 12 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={brandKit.logoUrl} alt="Brand logo" style={{ width: '100%', borderRadius: 10, border: '1px solid var(--border)', background: '#0a0a0f', display: 'block' }} />
+              <p style={{ fontSize: 10, color: '#00C853', margin: '6px 0 0', textAlign: 'center' }}>✓ Saved to Brand Kit</p>
+            </div>
+          )}
+
+          {/* Fresh, unsaved preview */}
+          {logoPreview && (
+            <div style={{ marginBottom: 12 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logoPreview} alt="Logo preview" style={{ width: '100%', borderRadius: 10, border: '1px solid rgba(108,63,197,0.4)', background: '#0a0a0f', display: 'block' }} />
+              <button onClick={saveLogo} disabled={logoSaving} style={{ width: '100%', marginTop: 8, padding: '9px 0', borderRadius: 9, border: 'none', background: logoSaving ? 'rgba(0,200,83,0.4)' : 'linear-gradient(135deg, #00A847, #00C853)', color: '#fff', fontSize: 12, fontWeight: 800, cursor: logoSaving ? 'default' : 'pointer' }}>
+                {logoSaving ? 'Saving…' : '✓ Save to Brand Kit'}
+              </button>
+            </div>
+          )}
+
+          {logoErr && <p style={{ fontSize: 11, color: '#DC2626', margin: '0 0 10px' }}>{logoErr}</p>}
+
+          {/* Model toggle (Pro / Ultra) */}
+          <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--bg-base)', marginBottom: 8 }}>
+            {LOGO_MODELS.map(m => (
+              <button key={m.id} onClick={() => setLogoModel(m.id)} style={{ flex: 1, padding: '6px 4px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, backgroundColor: logoModel === m.id ? 'rgba(108,63,197,0.16)' : 'transparent', color: logoModel === m.id ? '#9B72E8' : 'var(--text-dim)' }}>{m.label}</button>
+            ))}
+          </div>
+
+          <button onClick={generateLogo} disabled={logoBusy} style={{ width: '100%', padding: '9px 0', borderRadius: 9, border: 'none', background: logoBusy ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', color: '#fff', fontSize: 12, fontWeight: 800, cursor: logoBusy ? 'default' : 'pointer' }}>
+            {logoBusy ? '✦ Generating…' : `✨ Generate logo — ~$${(LOGO_MODELS.find(m => m.id === logoModel)?.cost ?? 0.04).toFixed(2)}`}
           </button>
-          <p style={{ fontSize: 11, color: 'var(--text-faint)', margin: '10px 0 0', textAlign: 'center' }}>Or pick the “Verdikt Logo” preset in Media Studio.</p>
+
+          <button onClick={() => { navigator.clipboard.writeText(logoPrompt()); setCopied(true); setTimeout(() => setCopied(false), 2000) }} style={{ width: '100%', marginTop: 8, padding: '8px 0', borderRadius: 9, border: '1px solid rgba(108,63,197,0.4)', backgroundColor: copied ? 'rgba(0,200,83,0.1)' : 'transparent', color: copied ? '#00C853' : '#9B72E8', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+            {copied ? '✓ Copied' : 'Copy logo prompt'}
+          </button>
         </div>
 
         {/* Live preview swatch */}
@@ -1688,10 +1767,26 @@ export function MarketingTab() {
   const [segLoading, setSegLoading] = useState(true)
   const [brandKit, setBrandKitState] = useState<BrandKit>(DEFAULT_BRAND_KIT)
   const [galleryKey, setGalleryKey]  = useState(0)
+  const brandSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load brand kit from localStorage once on mount
-  useEffect(() => { setBrandKitState(loadBrandKit()) }, [])
-  const setBrandKit = (bk: BrandKit) => { setBrandKitState(bk); saveBrandKit(bk) }
+  // Brand kit lives in Supabase (brand_settings); localStorage is a fast cache/fallback.
+  useEffect(() => {
+    let cancelled = false
+    setBrandKitState(loadBrandKit())   // instant from cache
+    fetch('/api/company/marketing/brand').then(r => r.ok ? r.json() : null).then(d => {
+      if (!cancelled && d?.brand) { const bk = { ...DEFAULT_BRAND_KIT, ...d.brand }; setBrandKitState(bk); saveBrandKit(bk) }
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  // Update state + cache immediately; debounce the DB write (PUT) to avoid per-keystroke spam.
+  const setBrandKit = (bk: BrandKit) => {
+    setBrandKitState(bk); saveBrandKit(bk)
+    if (brandSaveRef.current) clearTimeout(brandSaveRef.current)
+    brandSaveRef.current = setTimeout(() => {
+      fetch('/api/company/marketing/brand', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bk) }).catch(() => {})
+    }, 800)
+  }
 
   const loadSegments = useCallback(async () => {
     setSegLoading(true)
