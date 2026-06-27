@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FAL_VIDEO_MODELS, makeCustomVideoModel, FAL_TIER_ORDER, FAL_TIER_LABEL, type FalVideoModel, type CustomVideoSpec } from '@/lib/falVideoModels'
+import { FAL_VIDEO_MODELS, makeCustomVideoModel, estVideoCost, FAL_TIER_ORDER, FAL_TIER_LABEL, type FalVideoModel, type CustomVideoSpec } from '@/lib/falVideoModels'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -684,7 +684,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         body: JSON.stringify({
           url: videoUrl, media_type: 'video', title: `Video — ${basePrompt.slice(0, 50)}`,
           alt_text: basePrompt.slice(0, 120), platform: 'Video', dimensions: '',
-          prompt: basePrompt, campaign_tag: campaignTag, cost_usd: 0.20, image_engine: 'fal',
+          prompt: basePrompt, campaign_tag: campaignTag, cost_usd: estVideoCost(vModel, vDuration), image_engine: 'fal',
         }),
       })
       if (res.ok) { setVideoSaved(true); onGallerySaved() }
@@ -781,7 +781,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
                 {FAL_TIER_ORDER.map(tier => (
                   <optgroup key={tier} label={FAL_TIER_LABEL[tier]}>
                     {FAL_VIDEO_MODELS.filter(m => m.tier === tier).map(m => (
-                      <option key={m.id} value={m.id}>{m.caps.audio ? '🔊 ' : ''}{m.label} — ${m.costPerClip.toFixed(2)}</option>
+                      <option key={m.id} value={m.id}>{m.caps.audio ? '🔊 ' : ''}{m.label} — ${m.costPerSec.toFixed(2)}/s</option>
                     ))}
                   </optgroup>
                 ))}
@@ -921,7 +921,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
               </button>
             ) : (
               <button onClick={runVideo} disabled={videoBusy || (!basePrompt.trim() && !vStartUrl)} style={{ padding: '9px 18px', borderRadius: 8, background: (videoBusy || (!basePrompt.trim() && !vStartUrl)) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (videoBusy || (!basePrompt.trim() && !vStartUrl)) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
-                {videoBusy ? 'Generating…' : `🎬 Generate video — $${vModel.costPerClip.toFixed(2)}`}
+                {videoBusy ? 'Generating…' : `🎬 Generate video — ~$${estVideoCost(vModel, vDuration).toFixed(2)}`}
               </button>
             )}
           </div>

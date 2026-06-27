@@ -11,9 +11,11 @@
 // its own row and the endpoint string fully determines behavior. IDs are stored
 // EXACTLY — do not auto-prefix: Bytedance/xAI carry no `fal-ai/`.
 //
-// IDs below are confirmed against the fal Explore catalog (Jun 2026). They can't
-// be live-tested from this container (egress blocks fal). If one 405/404s, fix
-// the exact string here, or use the in-app "Custom fal model…" paste box.
+// IDs confirmed against the fal Explore catalog (Jun 2026). Can't be live-tested
+// from this container (egress blocks fal). costPerSec are fal's published
+// per-second rates (approx, 720p incl. audio where applicable) — used for an
+// estimate that scales with duration. If a model 405/404s, fix the exact string
+// here or use the in-app "Custom fal model…" paste box.
 
 export interface FalVideoParams {
   prompt:     string
@@ -30,13 +32,18 @@ export interface FalVideoModel {
   i2vId?:       string                       // image-to-video endpoint (when a start frame is set)
   label:        string
   tier:         'budget' | 'premium' | 'flagship'
-  costPerClip:  number
+  costPerSec:   number                       // approx fal $/second (720p, audio where applicable)
   caps:         { text: boolean; start: boolean; end: boolean; audio: boolean }
   aspects:      string[]
   durations:    number[]
   resolutions:  string[]
   /** Map UI params → the fal `input` object for this model. */
   buildInput:   (p: FalVideoParams) => Record<string, unknown>
+}
+
+// Estimated clip cost = $/sec × duration. Labeled approximate in the UI.
+export function estVideoCost(m: FalVideoModel, durationSec: number): number {
+  return m.costPerSec * (durationSec || m.durations[0] || 1)
 }
 
 // Shared mapper covering the common fal video input fields. Individual models
@@ -56,6 +63,14 @@ function commonInput(p: FalVideoParams): Record<string, unknown> {
 function withAudio(p: FalVideoParams): Record<string, unknown> {
   const input = commonInput(p)
   input.generate_audio = p.audio ?? true
+  return input
+}
+
+// Veo expects duration as an enum STRING with a trailing 's' ("4s"/"6s"/"8s")
+// and generate_audio. (Confirmed from fal's validation error.)
+function veoInput(p: FalVideoParams): Record<string, unknown> {
+  const input = withAudio(p)
+  if (p.duration) input.duration = `${p.duration}s`
   return input
 }
 
@@ -81,7 +96,7 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
   {
     id: 'bytedance/seedance-2.0/fast/text-to-video',
     i2vId: 'bytedance/seedance-2.0/fast/image-to-video',
-    label: 'Seedance 2.0 Fast', tier: 'budget', costPerClip: 0.18,
+    label: 'Seedance 2.0 Fast', tier: 'budget', costPerSec: 0.15,
     caps: { text: true, start: true, end: false, audio: false },
     aspects: A_WIDE, durations: [5, 10], resolutions: ['720p', '1080p'],
     buildInput: commonInput,
@@ -89,14 +104,14 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
   {
     id: 'fal-ai/longcat-video/text-to-video/480p',
     i2vId: 'fal-ai/longcat-video/image-to-video/480p',
-    label: 'LongCat 480p', tier: 'budget', costPerClip: 0.15,
+    label: 'LongCat 480p', tier: 'budget', costPerSec: 0.03,
     caps: { text: true, start: true, end: false, audio: false },
     aspects: A_WIDE, durations: [5], resolutions: ['480p'],
     buildInput: noResInput,
   },
   {
     id: 'fal-ai/ltx-2.3/text-to-video/fast',
-    label: 'LTX-2.3 Fast', tier: 'budget', costPerClip: 0.20,
+    label: 'LTX-2.3 Fast', tier: 'budget', costPerSec: 0.03,
     caps: { text: true, start: false, end: false, audio: false },
     aspects: A_WIDE, durations: [6, 8], resolutions: ['720p', '1080p'],
     buildInput: commonInput,
@@ -105,14 +120,14 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
   {
     id: 'bytedance/seedance-2.0/text-to-video',
     i2vId: 'bytedance/seedance-2.0/image-to-video',
-    label: 'Seedance 2.0', tier: 'premium', costPerClip: 0.45,
+    label: 'Seedance 2.0', tier: 'premium', costPerSec: 0.25,
     caps: { text: true, start: true, end: false, audio: false },
     aspects: A_WIDE, durations: [5, 10], resolutions: ['720p', '1080p'],
     buildInput: commonInput,
   },
   {
     id: 'bytedance/seedance-2.0/reference-to-video',
-    label: 'Seedance 2.0 Reference', tier: 'premium', costPerClip: 0.45,
+    label: 'Seedance 2.0 Reference', tier: 'premium', costPerSec: 0.25,
     caps: { text: true, start: true, end: false, audio: false },
     aspects: A_WIDE, durations: [5, 10], resolutions: ['720p', '1080p'],
     buildInput: commonInput,
@@ -120,14 +135,14 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
   {
     id: 'fal-ai/longcat-video/text-to-video/720p',
     i2vId: 'fal-ai/longcat-video/image-to-video/720p',
-    label: 'LongCat 720p', tier: 'premium', costPerClip: 0.30,
+    label: 'LongCat 720p', tier: 'premium', costPerSec: 0.05,
     caps: { text: true, start: true, end: false, audio: false },
     aspects: A_WIDE, durations: [5], resolutions: ['720p'],
     buildInput: noResInput,
   },
   {
     id: 'fal-ai/ltx-2.3/text-to-video', i2vId: 'fal-ai/ltx-2.3/image-to-video',
-    label: 'LTX-2.3', tier: 'premium', costPerClip: 0.40,
+    label: 'LTX-2.3', tier: 'premium', costPerSec: 0.05,
     caps: { text: true, start: true, end: false, audio: false },
     aspects: A_WIDE, durations: [6, 8], resolutions: ['720p', '1080p'],
     buildInput: commonInput,
@@ -135,7 +150,7 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
   {
     id: 'fal-ai/kling-video/v2.1/master/text-to-video',
     i2vId: 'fal-ai/kling-video/v2.1/pro/image-to-video',
-    label: 'Kling 2.1', tier: 'premium', costPerClip: 0.55,
+    label: 'Kling 2.1', tier: 'premium', costPerSec: 0.05,
     caps: { text: true, start: true, end: true, audio: false },
     aspects: A_WIDE, durations: [5, 10], resolutions: ['1080p'],
     buildInput: klingInput,
@@ -143,14 +158,14 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
   {
     id: 'fal-ai/kling-video/v2.5-turbo/pro/text-to-video',
     i2vId: 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video',
-    label: 'Kling 2.5 Turbo Pro', tier: 'premium', costPerClip: 0.70,
+    label: 'Kling 2.5 Turbo Pro', tier: 'premium', costPerSec: 0.07,
     caps: { text: true, start: true, end: true, audio: false },
     aspects: A_WIDE, durations: [5, 10], resolutions: ['1080p'],
     buildInput: klingInput,
   },
   {
     id: 'fal-ai/pixverse/v6/image-to-video',
-    label: 'Pixverse V6 (frame→video)', tier: 'premium', costPerClip: 0.45,
+    label: 'Pixverse V6 (frame→video)', tier: 'premium', costPerSec: 0.06,
     caps: { text: false, start: true, end: false, audio: false },
     aspects: A_WIDE, durations: [5, 8], resolutions: ['540p', '720p', '1080p'],
     buildInput: commonInput,
@@ -159,38 +174,38 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
   {
     id: 'fal-ai/kling-video/v3/pro/text-to-video',
     i2vId: 'fal-ai/kling-video/v3/pro/image-to-video',
-    label: 'Kling 3.0 Pro', tier: 'flagship', costPerClip: 1.00,
+    label: 'Kling 3.0 Pro', tier: 'flagship', costPerSec: 0.15,
     caps: { text: true, start: true, end: true, audio: false },
     aspects: A_WIDE, durations: [5, 10], resolutions: ['1080p'],
     buildInput: klingInput,
   },
   {
     id: 'fal-ai/kling-video/o3/standard/image-to-video',
-    label: 'Kling O3 (first→last frame)', tier: 'flagship', costPerClip: 0.90,
+    label: 'Kling O3 (first→last frame)', tier: 'flagship', costPerSec: 0.10,
     caps: { text: false, start: true, end: true, audio: false },
     aspects: A_WIDE, durations: [5, 10], resolutions: ['1080p'],
     buildInput: klingInput,
   },
   {
     id: 'fal-ai/veo3.1/fast', i2vId: 'fal-ai/veo3.1/fast/image-to-video',
-    label: 'Veo 3.1 Fast', tier: 'flagship', costPerClip: 0.80,
+    label: 'Veo 3.1 Fast', tier: 'flagship', costPerSec: 0.15,
     caps: { text: true, start: true, end: false, audio: true },
     aspects: A_VERT, durations: [4, 6, 8], resolutions: ['720p'],
-    buildInput: withAudio,
+    buildInput: veoInput,
   },
   {
     id: 'fal-ai/veo3.1', i2vId: 'fal-ai/veo3.1/image-to-video',
-    label: 'Veo 3.1', tier: 'flagship', costPerClip: 1.50,
+    label: 'Veo 3.1', tier: 'flagship', costPerSec: 0.40,
     caps: { text: true, start: true, end: false, audio: true },
     aspects: A_VERT, durations: [4, 6, 8], resolutions: ['720p', '1080p'],
-    buildInput: withAudio,
+    buildInput: veoInput,
   },
   {
     id: 'fal-ai/veo3.1/first-last-frame-to-video',
-    label: 'Veo 3.1 First→Last', tier: 'flagship', costPerClip: 1.50,
+    label: 'Veo 3.1 First→Last', tier: 'flagship', costPerSec: 0.40,
     caps: { text: false, start: true, end: true, audio: true },
     aspects: A_VERT, durations: [4, 6, 8], resolutions: ['720p', '1080p'],
-    buildInput: withAudio,
+    buildInput: veoInput,
   },
 ]
 
@@ -207,7 +222,7 @@ export function makeCustomVideoModel(s: CustomVideoSpec): FalVideoModel {
   return {
     id: s.id,
     label: (s.label ?? '').trim() || s.id.split('/').slice(-2).join('/'),
-    tier: 'premium', costPerClip: 0.50,
+    tier: 'premium', costPerSec: 0.10,
     caps: { text: !isFrame, start: isFrame, end: false, audio: !!s.audio },
     aspects: A_WIDE, durations: [5, 8], resolutions: ['720p', '1080p'],
     buildInput: s.audio ? withAudio : commonInput,

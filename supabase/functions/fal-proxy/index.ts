@@ -26,6 +26,23 @@ function falHeaders() {
   return { 'Content-Type': 'application/json', 'Authorization': `Key ${FAL_KEY}` }
 }
 
+// Extract a readable error string from a fal payload. fal validation errors come
+// back as { error: [{ loc, msg }] } or { detail: [...] } or a plain string.
+function falErrText(data: unknown): string | undefined {
+  const d = data as { error?: unknown; detail?: unknown } | null
+  const e = d?.error ?? d?.detail
+  if (!e) return undefined
+  if (typeof e === 'string') return e
+  if (Array.isArray(e)) {
+    return e.map((x) => {
+      const o = x as { loc?: unknown[]; msg?: string }
+      const loc = Array.isArray(o?.loc) ? o.loc.slice(1).join('.') : ''
+      return [loc, o?.msg].filter(Boolean).join(': ') || JSON.stringify(x)
+    }).join('; ')
+  }
+  return JSON.stringify(e)
+}
+
 // Recursively scan a fal result object for a video URL (handles unknown nesting
 // across model families). Prefers obvious container keys, then any media URL.
 function deepFindVideoUrl(v: unknown, depth = 0): string | undefined {
@@ -75,7 +92,7 @@ Deno.serve(async (req) => {
         signal: AbortSignal.timeout(90_000),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) return json({ error: data?.detail ?? data?.error ?? `fal status ${res.status}` }, res.status)
+      if (!res.ok) return json({ error: falErrText(data) ?? `fal status ${res.status}` }, res.status)
       const url = data?.images?.[0]?.url
       if (!url) return json({ error: 'fal returned no image' }, 502)
       return json({ url })
@@ -100,7 +117,7 @@ Deno.serve(async (req) => {
         signal: AbortSignal.timeout(30_000),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) return json({ error: data?.detail ?? data?.error ?? `fal status ${res.status}` }, res.status)
+      if (!res.ok) return json({ error: falErrText(data) ?? `fal status ${res.status}` }, res.status)
       // fal returns fully-formed poll URLs — hand them back so the caller doesn't
       // have to reconstruct the (model-id-dependent) /requests path.
       return json({
@@ -125,19 +142,19 @@ Deno.serve(async (req) => {
       if (!url) return json({ error: 'request_id or poll url is required' }, 400)
       const res  = await fetch(url, { headers: falHeaders(), signal: AbortSignal.timeout(30_000) })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) return json({ error: data?.detail ?? data?.error ?? `fal status ${res.status}` }, res.status)
-      if (op === 'video.status') return json({ status: data?.status })
-      // result: normalize the video url across fal model shapes. Different families
-      // nest it differently (data.video.url, data.videos[0].url, data.output.video.url,
-      // data.output.url, …), so fall back to a recursive scan.
+      if (!res.ok) return json({ error: falErrText(data) ?? `fal status ${res.status}` }, res.status)
+      if (op === 'video.status') return json({ status: data?.status, error: falErrText(data) })
+      // result: normalize the video url across fal model shapes; recursive scan fallback.
       const videoUrl = data?.video?.url ?? data?.videos?.[0]?.url ?? data?.output?.video?.url
         ?? data?.output?.url ?? deepFindVideoUrl(data)
-      // On miss, return a trimmed raw payload so the shape is visible for debugging.
-      return json({
-        status: 'COMPLETED',
-        video_url: videoUrl,
-        raw: videoUrl ? undefined : JSON.stringify(data).slice(0, 4000),
-      })
+      // No url → surface fal's real error (e.g. a validation message) if present,
+      // else hand back a trimmed raw payload so the exact shape stays visible.
+      if (!videoUrl) {
+        const err = falErrText(data)
+        if (err) return json({ status: 'FAILED', error: err }, 502)
+        return json({ status: 'COMPLETED', video_url: undefined, raw: JSON.stringify(data).slice(0, 4000) })
+      }
+      return json({ status: 'COMPLETED', video_url: videoUrl })
     }
 
     return json({ error: `Unknown op: ${op}` }, 400)
