@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       return json({
         status: 'COMPLETED',
         video_url: videoUrl,
-        raw: videoUrl ? undefined : JSON.stringify(data).slice(0, 600),
+        raw: videoUrl ? undefined : JSON.stringify(data).slice(0, 4000),
       })
     }
 
