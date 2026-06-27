@@ -34,3 +34,42 @@ export function checkPrompt(prompt: string): GuardResult {
   }
   return { ok: true }
 }
+
+// ── Quality-keyword cleanser ────────────────────────────────────────────────────
+// Models like fal/FLUX produce worse, not better, output when prompts are stuffed
+// with hollow "quality" tokens (8k, photorealistic, masterpiece, …). The
+// prompt-optimizer sub-agent runs every generated prompt through this to strip them.
+// This is a hygiene pass, NOT an IP guard — run checkPrompt() separately for safety.
+const QUALITY_NOISE: RegExp[] = [
+  /\b\d+\s*k\b/gi,                                   // 8k, 4 k, 16K
+  /\b(ultra[\s-]?)?hd\b/gi,                          // hd, ultra-hd
+  /\bphoto[\s-]?realistic\b/gi,
+  /\bhyper[\s-]?realistic\b/gi,
+  /\bphoto[\s-]?realism\b/gi,
+  /\bultra[\s-]?detailed\b/gi,
+  /\b(highly|super|extremely)\s+detailed\b/gi,
+  /\bhigh(ly)?[\s-]?(quality|res(olution)?)\b/gi,
+  /\bbest\s+quality\b/gi,
+  /\bmasterpiece\b/gi,
+  /\baward[\s-]?winning\b/gi,
+  /\btrending\s+on\s+artstation\b/gi,
+  /\bartstation\b/gi,
+  /\boctane\s+render\b/gi,
+  /\bunreal\s+engine\b/gi,
+  /\bcinematic\s+lighting,?\s*$/gi,                  // trailing filler only
+  /\b(sharp\s+)?focus\b/gi,
+  /\bintricate\s+details?\b/gi,
+  /\bvray\b/gi,
+]
+
+/** Strip empty "quality" keywords and tidy punctuation/whitespace. */
+export function cleanseVisualPrompt(prompt: string): string {
+  let out = prompt ?? ''
+  for (const rx of QUALITY_NOISE) out = out.replace(rx, '')
+  return out
+    .replace(/\s*,\s*,+/g, ', ')   // collapse doubled commas left behind
+    .replace(/\s{2,}/g, ' ')        // collapse whitespace
+    .replace(/\s+([,.;])/g, '$1')   // no space before punctuation
+    .replace(/(^[\s,;.]+)|([\s,;.]+$)/g, '')  // trim stray edge punctuation
+    .trim()
+}

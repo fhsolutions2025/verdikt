@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { INTERVIEW, buildBrief, isComplete, type InterviewStep, type InterviewAnswers, type InterviewOption } from '@/lib/marketing/directorInterview'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 interface Brand { id: string; name: string; voice: Record<string, unknown>; regions: string[]; status: string }
@@ -13,7 +14,7 @@ interface Version { id: string; content: Record<string, unknown> | null; asset_u
 interface Artifact { id: string; type: string; channel: string | null; status: string; title: string; latest_version?: Version | null }
 interface Activity { id: string; type: string; actor: string; text: string; severity: string; created_at: string }
 
-type View = 'home' | 'campaigns' | 'campaign' | 'assets' | 'brand' | 'approvals'
+type View = 'director' | 'home' | 'campaigns' | 'campaign' | 'assets' | 'brand' | 'approvals'
 
 const G = '#00C853'
 
@@ -23,7 +24,7 @@ export function MarketingWorkspace({
 }: {
   initialBrands: Brand[]; initialCampaigns: Campaign[]; initialAssets: Asset[]; regions: Region[]
 }) {
-  const [view, setView] = useState<View>('home')
+  const [view, setView] = useState<View>('director')
   const [brands, setBrands] = useState<Brand[]>(initialBrands)
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns)
   const [assets] = useState<Asset[]>(initialAssets)
@@ -49,7 +50,7 @@ export function MarketingWorkspace({
         </Link>
         <p style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Marketing</p>
         {([
-          ['home', 'Home'], ['campaigns', 'Campaigns'], ['assets', 'Asset Library'],
+          ['director', 'Director'], ['home', 'Home'], ['campaigns', 'Campaigns'], ['assets', 'Asset Library'],
           ['brand', 'Brand Voice'], ['approvals', 'Approvals'],
         ] as [View, string][]).map(([v, label]) => (
           <NavBtn key={v} label={label} active={view === v} onClick={() => setView(v)} />
@@ -63,17 +64,283 @@ export function MarketingWorkspace({
       </aside>
 
       {/* MAIN */}
-      <main style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+      <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {view === 'director'
+          ? <Director brands={brands} regions={regions} onOpenCampaign={openCampaign} />
+          : <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
         {view === 'home' && <Home brands={brands} campaigns={campaigns} assets={assets} onOpen={openCampaign} go={setView} />}
         {view === 'campaigns' && <Campaigns brands={brands} campaigns={campaigns} regions={regions} onOpen={openCampaign} onCreated={refreshCampaigns} />}
         {view === 'campaign' && selected && <CampaignDetail campaignId={selected} onBack={() => setView('campaigns')} onChanged={refreshCampaigns} />}
         {view === 'assets' && <AssetLibrary assets={assets} />}
         {view === 'brand' && <BrandPanel brands={brands} regions={regions} onCreated={refreshBrands} />}
         {view === 'approvals' && <Approvals campaigns={campaigns} onOpen={openCampaign} />}
+          </div>}
       </main>
     </div>
   )
 }
+
+// ── Campaign Director (split-canvas: 40% interview / 60% creation) ──────────────
+interface DirectorTask { id: string; agent: string; type: string; status: string; outputs: Record<string, unknown> | null; error: string | null }
+
+function Director({ brands, regions, onOpenCampaign }: { brands: Brand[]; regions: Region[]; onOpenCampaign: (id: string) => void }) {
+  const [stepIdx, setStepIdx] = useState(0)
+  const [answers, setAnswers] = useState<InterviewAnswers>({})
+  const [custom, setCustom] = useState('')                 // free-text buffer for the active step
+  const [submitting, setSubmitting] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [runId, setRunId] = useState<string | null>(null)
+  const [campaignId, setCampaignId] = useState<string | null>(null)
+  const [tasks, setTasks] = useState<DirectorTask[]>([])
+  const [runDone, setRunDone] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Resolve dynamic option lists.
+  const optionsFor = (step: InterviewStep): InterviewOption[] => {
+    if (step.dynamicOptions === 'brands') return brands.map(b => ({ value: b.id, label: b.name }))
+    if (step.dynamicOptions === 'regions') return regions.map(r => ({ value: r.region, label: `${r.region} (${r.framing})` }))
+    return step.options ?? []
+  }
+
+  const step = INTERVIEW[stepIdx]
+  const total = INTERVIEW.length
+  const answeredSteps = INTERVIEW.slice(0, stepIdx)
+
+  const setAnswer = (id: string, v: string | string[]) => setAnswers(a => ({ ...a, [id]: v }))
+
+  const toggleMulti = (id: string, value: string) => {
+    setAnswers(a => {
+      const cur = Array.isArray(a[id]) ? (a[id] as string[]) : []
+      return { ...a, [id]: cur.includes(value) ? cur.filter(x => x !== value) : [...cur, value] }
+    })
+  }
+
+  const canAdvance = (): boolean => {
+    if (step.optional) return true
+    const v = answers[step.id]
+    return Array.isArray(v) ? v.length > 0 : !!(v && String(v).trim())
+  }
+
+  const next = () => { setCustom(''); setErr(null); if (stepIdx < total - 1) setStepIdx(i => i + 1) }
+  const back = () => { setCustom(''); setErr(null); if (stepIdx > 0) setStepIdx(i => i - 1) }
+
+  const addCustom = () => {
+    const val = custom.trim()
+    if (!val) return
+    if (step.kind === 'multi') toggleMulti(step.id, val)
+    else setAnswer(step.id, val)
+    setCustom('')
+  }
+
+  // Poll sub-agent task rows while a run is active.
+  useEffect(() => {
+    if (!runId) return
+    const tick = async () => {
+      const r = await fetch(`/api/company/marketing/v2/director?run_id=${runId}`).then(x => x.json()).catch(() => null)
+      if (!r) return
+      setTasks(r.tasks ?? [])
+      if (r.run?.status && r.run.status !== 'running') {
+        setRunDone(true)
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+      }
+    }
+    tick()
+    pollRef.current = setInterval(tick, 2000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [runId])
+
+  const submit = async () => {
+    const brandId = String(answers.brand ?? '')
+    if (!brandId) { setErr('Pick a brand first.'); setStepIdx(0); return }
+    if (!isComplete(answers)) { setErr('Please answer every required step.'); return }
+    setSubmitting(true); setErr(null)
+    try {
+      const r = await fetch('/api/company/marketing/v2/director', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand_id: brandId, answers }),
+      })
+      const d = await r.json()
+      if (!r.ok) { setErr(d.error ?? 'Failed to start'); return }
+      setCampaignId(d.campaign_id); setRunId(d.run_id)
+    } finally { setSubmitting(false) }
+  }
+
+  const restart = () => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    setStepIdx(0); setAnswers({}); setCustom(''); setRunId(null); setCampaignId(null)
+    setTasks([]); setRunDone(false); setErr(null)
+  }
+
+  const onLast = stepIdx === total - 1
+  const brief = buildBrief({ ...answers })
+
+  return (
+    <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
+      {/* LEFT — conversation / interview (40%) */}
+      <div style={{ width: '40%', flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ padding: '18px 18px 10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 999, background: G }} />
+            <h1 style={{ fontSize: 17, fontWeight: 800, margin: 0 }}>Campaign Director</h1>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '4px 0 0' }}>I&apos;ll interview you, then brief my sub-agents.</p>
+        </div>
+
+        {/* transcript of answered steps */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '0 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {answeredSteps.map(s => (
+            <div key={s.id}>
+              <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '0 0 3px' }}>{s.prompt}</p>
+              <div style={{ ...bubble }}>{labelFor(s, answers[s.id], optionsFor(s)) || <em style={{ color: 'var(--text-faint)' }}>skipped</em>}</div>
+            </div>
+          ))}
+
+          {!runId && (
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, margin: '4px 0 8px' }}>{step.prompt}</p>
+              {step.helper && <p style={{ fontSize: 11, color: 'var(--text-faint)', margin: '-4px 0 8px' }}>{step.helper}</p>}
+
+              {(step.kind === 'mcq' || step.kind === 'multi') && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {optionsFor(step).map(o => {
+                    const sel = step.kind === 'multi'
+                      ? (Array.isArray(answers[step.id]) && (answers[step.id] as string[]).includes(o.value))
+                      : answers[step.id] === o.value
+                    return (
+                      <button key={o.value} onClick={() => step.kind === 'multi' ? toggleMulti(step.id, o.value) : setAnswer(step.id, o.value)}
+                        style={{ ...chip, ...(sel ? chipOn : {}) }}>{o.label}</button>
+                    )
+                  })}
+                  {optionsFor(step).length === 0 && <p style={{ fontSize: 12, color: 'var(--text-faint)' }}>No options — create a brand first.</p>}
+                </div>
+              )}
+
+              {step.kind === 'text' && (
+                <textarea value={String(answers[step.id] ?? '')} onChange={e => setAnswer(step.id, e.target.value)}
+                  rows={3} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Type your answer…" />
+              )}
+
+              {step.allowCustom && (step.kind === 'mcq' || step.kind === 'multi') && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                  <input value={custom} onChange={e => setCustom(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCustom()}
+                    style={{ ...inputStyle, flex: 1 }} placeholder="Add your own…" />
+                  <GhostBtn small onClick={addCustom}>Add</GhostBtn>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* controls */}
+        {!runId && (
+          <div style={{ borderTop: '1px solid var(--border)', padding: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Step {stepIdx + 1}/{total}</span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              {stepIdx > 0 && <GhostBtn small onClick={back}>← Back</GhostBtn>}
+              {!onLast && <PrimaryBtn small onClick={next} disabled={!canAdvance()}>Next →</PrimaryBtn>}
+              {onLast && <PrimaryBtn small onClick={submit} disabled={submitting || !isComplete(answers)}>{submitting ? 'Starting…' : '+ New Campaign'}</PrimaryBtn>}
+            </div>
+          </div>
+        )}
+        {err && <p style={{ color: '#DC2626', fontSize: 12, padding: '0 14px 12px' }}>{err}</p>}
+      </div>
+
+      {/* RIGHT — creation view (60%) */}
+      <div style={{ flex: 1, overflow: 'auto', padding: 24, minWidth: 0 }}>
+        {!runId ? (
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 12px' }}>Planning</p>
+            <Card>
+              <SummaryRow label="Brand" value={brands.find(b => b.id === answers.brand)?.name ?? '—'} />
+              <SummaryRow label="Vertical" value={brief.vertical || '—'} />
+              <SummaryRow label="Goal" value={brief.goal || '—'} />
+              <SummaryRow label="Audience" value={brief.audience || '—'} />
+              <SummaryRow label="Region" value={brief.region || '—'} />
+              <SummaryRow label="Channels" value={brief.channels.join(', ') || '—'} />
+              <SummaryRow label="Tone" value={brief.tone || '—'} />
+            </Card>
+            <p style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 14 }}>
+              Answer the interview on the left, then tap <strong>+ New Campaign</strong> — I&apos;ll dispatch my copywriter, prompt-optimizer, and router sub-agents.
+            </p>
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>{runDone ? 'Generated' : 'Generating'}</p>
+              {!runDone && <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>· sub-agents running…</span>}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                {campaignId && <PrimaryBtn small onClick={() => onOpenCampaign(campaignId)}>Open campaign →</PrimaryBtn>}
+                {runDone && <GhostBtn small onClick={restart}>New brief</GhostBtn>}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {tasks.map(t => <SubAgentCard key={t.id} task={t} />)}
+              {tasks.length === 0 && <Empty text="Spinning up sub-agents…" />}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SubAgentCard({ task }: { task: DirectorTask }) {
+  const name = task.agent === 'copywriter' ? 'Copywriter' : task.agent === 'prompt-optimizer' ? 'Prompt Optimizer' : task.agent === 'router' ? 'Router' : task.agent
+  const o = task.outputs ?? {}
+  return (
+    <div style={{ ...cardStyle, padding: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 13 }}>@{name}</span>
+        <span style={{ marginLeft: 'auto' }}><StatusChip status={task.status} /></span>
+      </div>
+      {task.status === 'running' && <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>Working…</p>}
+      {task.status === 'failed' && <p style={{ fontSize: 12, color: '#DC2626', margin: 0 }}>{task.error ?? 'Failed'}</p>}
+      {task.status === 'succeeded' && task.agent === 'copywriter' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {Array.isArray(o.headline_hooks) && (o.headline_hooks as string[]).slice(0, 6).map((h, i) => <div key={i} style={bubble}>{h}</div>)}
+        </div>
+      )}
+      {task.status === 'succeeded' && task.agent === 'prompt-optimizer' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {Array.isArray(o.prompts) && (o.prompts as { idea: string; prompt: string }[]).map((p, i) => (
+            <div key={i} style={bubble}><strong style={{ color: 'var(--text-dim)' }}>{p.idea}</strong><br />{p.prompt}</div>
+          ))}
+        </div>
+      )}
+      {task.status === 'succeeded' && task.agent === 'router' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {Array.isArray(o.assignments) && (o.assignments as { asset: string; model: string; channel: string; rationale: string }[]).map((a, i) => (
+            <div key={i} style={bubble}>
+              <strong>{a.asset}</strong> → <span style={{ color: G }}>{a.model}</span> · {a.channel}
+              <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>{a.rationale}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, fontSize: 13 }}>
+      <span style={{ width: 90, flexShrink: 0, color: 'var(--text-faint)' }}>{label}</span>
+      <span style={{ fontWeight: 600 }}>{value}</span>
+    </div>
+  )
+}
+
+// Render the chosen label(s) for an answered step.
+function labelFor(step: InterviewStep, val: string | string[] | undefined, opts: InterviewOption[]): string {
+  const lbl = (v: string) => opts.find(o => o.value === v)?.label ?? v
+  if (Array.isArray(val)) return val.map(lbl).join(', ')
+  return val ? lbl(val) : ''
+}
+
+const bubble: React.CSSProperties = { fontSize: 12.5, lineHeight: 1.45, background: 'var(--bg-inset)', border: '1px solid var(--border-soft)', borderRadius: 9, padding: '8px 10px', color: 'var(--text)' }
+const chip: React.CSSProperties = { fontSize: 12, fontWeight: 600, padding: '6px 11px', borderRadius: 999, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }
+const chipOn: React.CSSProperties = { background: 'rgba(0,200,83,0.14)', borderColor: G, color: G }
 
 function NavBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (

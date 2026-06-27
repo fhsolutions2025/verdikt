@@ -6,7 +6,8 @@
 
 import { completeJson, complete } from '@/lib/llm/router'
 import { createServiceClient } from '@/lib/supabase/server'
-import { checkPrompt } from '@/lib/promptGuard'
+import { checkPrompt, cleanseVisualPrompt } from '@/lib/promptGuard'
+import type { CampaignBrief } from '@/lib/marketing/directorInterview'
 
 export interface BrandCtx {
   name: string
@@ -176,6 +177,94 @@ export async function generateImage(brand: BrandCtx, briefText: string, campaign
   }
 
   return { url: publicUrl, seed, prompt: spec.prompt, alt_text: spec.alt_text, seo_tags: spec.seo_tags ?? [], storage_path: storagePath }
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// Campaign Director sub-agents
+//
+// The Director run route fans these three out (copywriter + prompt-optimizer in
+// parallel, then the router which depends on both) from a hardcoded-interview brief.
+// Each is a thin schema-returning wrapper, same shape as the agents above.
+// ════════════════════════════════════════════════════════════════════════════════
+
+function briefLine(brief: CampaignBrief): string {
+  return `Vertical: ${brief.vertical}. Goal: ${brief.goal}. Audience: ${brief.audience}. `
+    + `Region: ${brief.region}. Channels: ${brief.channels.join(', ') || 'operator to decide'}. `
+    + `Tone: ${brief.tone}.${brief.notes ? ` Notes: ${brief.notes}` : ''}`
+}
+
+// ── Copywriter sub-agent ────────────────────────────────────────────────────────
+export interface CopyVariant { angle: string; body: string; cta: string }
+export interface CopywriterOut { headline_hooks: string[]; copy_variants: CopyVariant[] }
+
+export async function runCopywriter(brand: BrandCtx, brief: CampaignBrief): Promise<CopywriterOut> {
+  const system = `${GLOBAL_PREAMBLE}
+Role: Copywriter sub-agent. ${brandLine(brand)}
+Analyze the campaign brief and produce sharp, on-brand copy. Return STRICT JSON:
+{"headline_hooks":["short punchy hook", "..."],
+ "copy_variants":[{"angle":"the angle","body":"2-3 sentences","cta":"call to action"}]}
+Give 4-6 headline_hooks and 3 copy_variants (distinct angles). No invented stats; use [PLACEHOLDER] if a fact is needed.`
+  const { data, raw } = await completeJson<CopywriterOut>({
+    task: 'copywriting', system, messages: [{ role: 'user', content: briefLine(brief) }],
+  })
+  return {
+    headline_hooks: data?.headline_hooks?.length ? data.headline_hooks : [raw.slice(0, 80)],
+    copy_variants: data?.copy_variants?.length ? data.copy_variants : [{ angle: 'default', body: raw.slice(0, 240), cta: 'Learn more' }],
+  }
+}
+
+// ── Prompt-optimizer sub-agent ──────────────────────────────────────────────────
+export interface OptimizedPrompt { idea: string; prompt: string; aspect: string }
+export interface PromptOptimizerOut { prompts: OptimizedPrompt[] }
+
+export async function runPromptOptimizer(brand: BrandCtx, brief: CampaignBrief): Promise<PromptOptimizerOut> {
+  const system = `${GLOBAL_PREAMBLE}
+Role: Prompt-optimizer sub-agent. ${brandLine(brand)}
+Turn the campaign concept into vivid, concrete, cinematic, IP-SAFE visual prompts
+(no real logos, teams, named people, or flags; abstract + on-brand). Do NOT include
+hollow quality keywords (no "8k", "photorealistic", "masterpiece", "ultra-detailed").
+Return STRICT JSON: {"prompts":[{"idea":"the visual idea","prompt":"the full prompt","aspect":"ASPECT_16_9"}]}
+Give 3 distinct prompts.`
+  const { data, raw } = await completeJson<PromptOptimizerOut>({
+    task: 'image_prompt', system, messages: [{ role: 'user', content: briefLine(brief) }],
+  })
+  const list = data?.prompts?.length ? data.prompts : [{ idea: brief.goal, prompt: raw.slice(0, 300), aspect: 'ASPECT_16_9' }]
+  // Cleanse junk keywords + keep only IP-safe prompts (drop ones the guard blocks).
+  const cleaned = list
+    .map(p => ({ idea: p.idea ?? '', prompt: cleanseVisualPrompt(p.prompt ?? ''), aspect: p.aspect || 'ASPECT_16_9' }))
+    .filter(p => p.prompt && checkPrompt(p.prompt).ok)
+  return { prompts: cleaned.length ? cleaned : [{ idea: brief.goal, prompt: cleanseVisualPrompt(brief.goal), aspect: 'ASPECT_16_9' }] }
+}
+
+// ── Router sub-agent (picks BOTH optimal model AND channel per asset) ─────────────
+export interface RouteAssignment { asset: string; model: string; channel: string; rationale: string }
+export interface RouterOut { assignments: RouteAssignment[] }
+
+// Catalog hint so the router picks from models we can actually run.
+const ROUTER_MODEL_CATALOG = `Image engines: "fal/flux" (fast, on-brand stills), "ideogram" (text-in-image, posters), "openai/gpt-image-1" (precise compositions).
+Video (fal): "fal-ai/veo3.1" (premium + audio), "fal-ai/ltx-2.3/text-to-video" (budget + audio), "fal-ai/minimax/hailuo-02/standard/text-to-video" (cheap draft), "bytedance/seedance-2.0/text-to-video" (stylized).`
+
+export async function runRouter(
+  brand: BrandCtx, brief: CampaignBrief, copy: CopywriterOut, prompts: PromptOptimizerOut,
+): Promise<RouterOut> {
+  const system = `${GLOBAL_PREAMBLE}
+Role: Router sub-agent. ${brandLine(brand)}
+For each planned asset, choose BOTH the optimal generation model AND the optimal
+channel/platform, given the brief, the copy hooks, and the visual prompts.
+Available models:
+${ROUTER_MODEL_CATALOG}
+Prefer the requested channels (${brief.channels.join(', ') || 'none specified'}) but
+recommend the best mix. Return STRICT JSON:
+{"assignments":[{"asset":"e.g. hero still / 15s teaser / blog header","model":"a model id from the catalog","channel":"platform","rationale":"one line"}]}
+Give one assignment per useful asset (4-6 total).`
+  const user = `Brief: ${briefLine(brief)}
+Hooks: ${copy.headline_hooks.join(' | ')}
+Visual ideas: ${prompts.prompts.map(p => p.idea).join(' | ')}`
+  const { data } = await completeJson<RouterOut>({ task: 'strategy', system, messages: [{ role: 'user', content: user }] })
+  return { assignments: data?.assignments?.length ? data.assignments : [
+    { asset: 'hero still', model: 'fal/flux', channel: brief.channels[0] || 'instagram', rationale: 'on-brand still for the primary channel' },
+    { asset: 'blog header', model: 'ideogram', channel: 'blog', rationale: 'text-in-image header' },
+  ] }
 }
 
 // ── Reviewer (lightweight MVP eval) ─────────────────────────────────────────────
