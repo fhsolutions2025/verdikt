@@ -618,6 +618,26 @@ export function CompanyDashboard({
               title="Marketing"
               subtitle="AI campaign generator · Ideogram media studio · Audience segments"
             >
+              <Link
+                href="/company/marketing"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none',
+                  padding: '16px 20px', marginBottom: 18, borderRadius: 14,
+                  background: 'linear-gradient(120deg, rgba(0,200,83,0.12), rgba(108,63,197,0.12))',
+                  border: '1px solid rgba(0,200,83,0.3)',
+                }}
+              >
+                <span style={{ fontSize: 26 }}>✦</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text-strong)' }}>
+                    Open the Marketing Workspace
+                  </p>
+                  <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>
+                    Autonomous marketing department — plan campaigns, generate versioned artifacts, review & approve, export. The tools below remain available.
+                  </p>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#00C853' }}>Launch →</span>
+              </Link>
               <MarketingTab />
             </TabSection>
           )}
