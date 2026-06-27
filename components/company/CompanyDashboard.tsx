@@ -55,7 +55,16 @@ interface IdeogramStats {
   daily:       { date: string; count: number; cost: number }[]
 }
 
+export interface OpenAiStats {
+  text_calls_today:  number
+  text_cost_today:   number
+  images_today:      number
+  image_spend_today: number
+  last_error:        string | null
+}
+
 export interface CompanyDashboardProps {
+  openaiStats:     OpenAiStats
   totals:          PlatformTotals | null
   mmConfig:        MmConfig | null
   auditLog:        AuditLogEntry[]
@@ -259,7 +268,7 @@ function TabSection({ title, subtitle, children }: { title: string; subtitle?: s
 export function CompanyDashboard({
   totals, mmConfig, auditLog, riskMarkets,
   allMarkets, pendingReview, apiSources,
-  aiStats, aiDaily7d, ideogramStats, callsToday, spreadIncome,
+  aiStats, aiDaily7d, ideogramStats, openaiStats, callsToday, spreadIncome,
   cronRunLog, pipelineMarkets, tradeLiquidity, pageAssets,
 }: CompanyDashboardProps) {
   const [tab, setTab] = useState<Tab>('overview')
@@ -578,7 +587,7 @@ export function CompanyDashboard({
               title="API Health"
               subtitle="External data source status and Claude usage today"
             >
-              <ApiHealthMonitor sources={apiSources} callsToday={callsToday} aiStats={aiStats} aiDaily7d={aiDaily7d} ideogramStats={ideogramStats} defaultOpen />
+              <ApiHealthMonitor sources={apiSources} callsToday={callsToday} aiStats={aiStats} aiDaily7d={aiDaily7d} ideogramStats={ideogramStats} openaiStats={openaiStats} defaultOpen />
             </TabSection>
           )}
 

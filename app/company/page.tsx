@@ -53,7 +53,7 @@ export default async function CompanyPage() {
     // Use service client for observability tables — bypasses RLS that could
     // silently return 0 rows if the admin-read policy wasn't applied.
     service.from('ai_call_log')
-      .select('success, from_cache, error_message, latency_ms, input_tokens, output_tokens, created_at')
+      .select('success, from_cache, error_message, latency_ms, input_tokens, output_tokens, created_at, model, call_type')
       .gte('created_at', todayISO),
     service.from('api_rate_limits').select('api_name, call_count').gte('window_start', todayISO),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,8 +114,14 @@ export default async function CompanyPage() {
     success: boolean; from_cache: boolean; error_message: string | null
     latency_ms: number | null; input_tokens: number | null
     output_tokens: number | null; created_at: string
+    model: string | null; call_type: string | null
   }
-  const rows = aiCalls as AiRow[]
+  const allRows = aiCalls as AiRow[]
+
+  const isOpenAiText  = (r: AiRow) => (r.model ?? '').startsWith('gpt') && r.call_type !== 'openai-image'
+  const isOpenAiImage = (r: AiRow) => r.call_type === 'openai-image'
+  // Claude/Anthropic rows only — OpenAI is reported in its own card.
+  const rows = allRows.filter(r => !isOpenAiText(r) && !isOpenAiImage(r))
 
   let sumLatency = 0, latencyCount = 0
   let totalInputTokens = 0, totalOutputTokens = 0
@@ -213,8 +219,30 @@ export default async function CompanyPage() {
     last_error:          lastError,
   }
 
+  // ── OpenAI stats (today) from the same call log ──────────────────────────────
+  const OPENAI_IMAGE_COST = 0.04
+  const openAiTextRows  = allRows.filter(isOpenAiText)
+  const openAiImageRows = allRows.filter(r => isOpenAiImage(r) && r.success)
+  const openAiTextCost = openAiTextRows.reduce((s, r) => {
+    const mini = (r.model ?? '').includes('mini')
+    const inP  = mini ? 0.15 : 2.50
+    const outP = mini ? 0.60 : 10.00
+    return s + ((r.input_tokens ?? 0) / 1_000_000) * inP + ((r.output_tokens ?? 0) / 1_000_000) * outP
+  }, 0)
+  const openAiLastError = allRows
+    .filter(r => (isOpenAiText(r) || isOpenAiImage(r)) && !r.success && r.error_message)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.error_message ?? null
+  const openaiStats = {
+    text_calls_today:   openAiTextRows.length,
+    text_cost_today:    openAiTextCost,
+    images_today:       openAiImageRows.length,
+    image_spend_today:  openAiImageRows.length * OPENAI_IMAGE_COST,
+    last_error:         openAiLastError,
+  }
+
   return (
     <CompanyDashboard
+      openaiStats={openaiStats}
       totals={totals}
       mmConfig={mmConfig}
       auditLog={auditLog}
