@@ -438,9 +438,11 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [vStartUrl, setVStartUrl] = useState<string | null>(null)
   const [vEndUrl, setVEndUrl]     = useState<string | null>(null)
   const [vUploading, setVUploading] = useState<'start' | 'end' | null>(null)
+  const [vInputMode, setVInputMode] = useState<'text' | 'frame'>('text')
   const [historyFor, setHistoryFor] = useState<'start' | 'end' | null>(null)
   const [historyImages, setHistoryImages] = useState<{ public_url: string; title?: string }[]>([])
   const vModel = getFalVideoModel(vModelId) ?? FAL_VIDEO_MODELS[0]
+  const useFrames = vInputMode === 'frame' && vModel.caps.start
 
   // Load gallery images when the History (frame picker) modal opens.
   useEffect(() => {
@@ -460,7 +462,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
     setVAspect(m.aspects[0]); setVDuration(m.durations[0]); setVResolution(m.resolutions[0])
     if (!m.caps.audio) setVAudio(false)
     if (!m.caps.end) setVEndUrl(null)
-    if (!m.caps.start) { setVStartUrl(null); setVEndUrl(null) }
+    if (!m.caps.start) { setVStartUrl(null); setVEndUrl(null); setVInputMode('text') }
   }
 
   const uploadFrame = async (which: 'start' | 'end', file: File) => {
@@ -606,7 +608,8 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           modelId: vModelId, prompt: effectivePrompt,
-          startUrl: vStartUrl ?? undefined, endUrl: vEndUrl ?? undefined,
+          startUrl: useFrames ? (vStartUrl ?? undefined) : undefined,
+          endUrl: useFrames ? (vEndUrl ?? undefined) : undefined,
           aspect: vAspect, duration: vDuration, resolution: vResolution, audio: vAudio,
         }),
       })
@@ -663,8 +666,11 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+      {/* In video mode: controls left, preview right. In image mode: full-width. */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+
       {/* ── Control toolbar ────────────────────────────────────────────────── */}
-      <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ flex: mediaType === 'video' ? '1 1 440px' : '1 1 100%', minWidth: 320, backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {/* Row 1: brand chip + selects */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -759,12 +765,25 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         {/* Video controls: frames + output (per model) */}
         {mediaType === 'video' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px', borderRadius: 10, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
-            <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: 0 }}>
-              {vModel.label} · {[vModel.caps.text && 'text→video', vModel.caps.start && 'image→video', vModel.caps.end && 'end frame', vModel.caps.audio && 'audio'].filter(Boolean).join(' · ')}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: 0, flex: 1 }}>
+                {vModel.label} · {[vModel.caps.text && 'text→video', vModel.caps.start && 'image→video', vModel.caps.end && 'end frame', vModel.caps.audio && 'audio'].filter(Boolean).join(' · ')}
+              </p>
+              {vModel.caps.start && (
+                <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                  {([['text', 'Text → Video'], ['frame', 'Frame → Video']] as const).map(([m, label]) => (
+                    <button key={m} onClick={() => setVInputMode(m)} style={{
+                      padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                      backgroundColor: vInputMode === m ? 'rgba(108,63,197,0.16)' : 'transparent',
+                      color: vInputMode === m ? '#9B72E8' : 'var(--text-dim)',
+                    }}>{label}</button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-            {/* Frames */}
-            {vModel.caps.start && (
+            {/* Frames (Frame → Video mode) */}
+            {useFrames && (
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 {([['start', 'Start frame', vStartUrl, setVStartUrl] as const,
                    ...(vModel.caps.end ? [['end', 'End frame', vEndUrl, setVEndUrl] as const] : [])
@@ -845,23 +864,25 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
             </button>
           ))}
         </div>
-      </div>
+      </div>{/* close control toolbar */}
 
-      {/* ── Result area ────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-        {/* Video result / loading / empty */}
-        {mediaType === 'video' && (
-          videoBusy ? (
-            <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, border: '1px solid rgba(108,63,197,0.3)', padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
-              🎬 Generating video with fal.ai LTX… this can take a minute or two.
+      {/* ── Right preview (video mode) ─────────────────────────────────────── */}
+      {mediaType === 'video' && (
+        <div style={{ flex: '1 1 360px', minWidth: 300 }}>
+          {videoBusy ? (
+            <div style={{ position: 'relative', backgroundColor: '#0a0a0f', borderRadius: 16, border: '1px solid rgba(108,63,197,0.3)', aspectRatio: vAspect.replace(':', '/'), display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, minHeight: 220 }}>
+              <svg width="84" height="84" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+                <path d="M20 20 L50 80 L80 20" fill="none" stroke="#00C853" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ strokeDasharray: 150, strokeDashoffset: 150, animation: 'vdraw 1.6s ease-in-out infinite' }} />
+              </svg>
+              <p style={{ color: 'var(--text-faint)', fontSize: 12, margin: 0 }}>Generating with {vModel.label}… a minute or two.</p>
             </div>
           ) : videoUrl ? (
             <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.3)' }}>
               {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <video src={videoUrl} controls style={{ width: '100%', display: 'block', background: '#000' }} />
               <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border-soft)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#9B72E8', backgroundColor: 'rgba(108,63,197,0.15)', padding: '3px 10px', borderRadius: 999 }}>Video · fal.ai LTX</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#9B72E8', backgroundColor: 'rgba(108,63,197,0.15)', padding: '3px 10px', borderRadius: 999 }}>{vModel.label}</span>
                 <span style={{ flex: 1 }} />
                 <button onClick={saveVideo} disabled={videoBusy || videoSaved} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${videoSaved ? 'rgba(0,200,83,0.4)' : 'var(--border-strong)'}`, backgroundColor: videoSaved ? 'rgba(0,200,83,0.1)' : 'transparent', color: videoSaved ? '#00C853' : 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: videoSaved ? 'default' : 'pointer' }}>
                   {videoSaved ? '✓ In gallery' : 'Save to gallery'}
@@ -872,14 +893,21 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
           ) : videoErr ? (
             <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, padding: 40, border: '1px solid rgba(220,38,38,0.3)', textAlign: 'center', color: '#DC2626', fontSize: 14 }}>{videoErr}</div>
           ) : (
-            <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, border: '1px dashed var(--border)', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
-              <div style={{ textAlign: 'center', padding: 20 }}>
-                <div style={{ fontSize: 40, marginBottom: 10 }}>🎬</div>
-                <p style={{ color: 'var(--text-faint)', fontSize: 13, margin: 0 }}>Text-to-video via fal.ai LTX · $0.20/clip</p>
-              </div>
+            <div style={{ position: 'relative', backgroundColor: '#0a0a0f', borderRadius: 16, border: '1px dashed var(--border-strong)', aspectRatio: vAspect.replace(':', '/'), display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 220, overflow: 'hidden' }}>
+              <svg width="72" height="72" viewBox="0 0 100 100" fill="none" aria-hidden="true" style={{ opacity: 0.35 }}>
+                <path d="M20 20 L50 80 L80 20" fill="none" stroke="#00C853" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <p style={{ color: 'var(--text-faint)', fontSize: 12, margin: 0 }}>Your video preview appears here</p>
             </div>
-          )
-        )}
+          )}
+        </div>
+      )}
+
+      </div>{/* close controls/preview row */}
+
+      {/* ── Result area (image mode) ───────────────────────────────────────── */}
+      {mediaType === 'image' && (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Loading */}
         {mediaType === 'image' && loading && mode === 'single' && (
@@ -1021,6 +1049,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
           </div>
         )}
       </div>
+      )}
 
       {/* Frame picker (History) modal */}
       {historyFor && (
@@ -1049,7 +1078,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
       {/* ── Home Carousel manager ──────────────────────────────────────────── */}
       <CarouselManager refreshKey={bannerRefresh} />
 
-      <style>{`@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }`}</style>
+      <style>{`@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} } @keyframes vdraw { 0%{stroke-dashoffset:150} 50%{stroke-dashoffset:0} 100%{stroke-dashoffset:-150} }`}</style>
     </div>
   )
 }
