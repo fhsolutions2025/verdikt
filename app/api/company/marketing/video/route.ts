@@ -57,16 +57,16 @@ export async function POST(req: Request) {
   if (!subRes.ok || !sub.request_id) {
     return NextResponse.json({ error: sub.error ?? 'Video submit failed' }, { status: subRes.status || 502 })
   }
-  const { request_id, model } = sub
+  const { request_id, model, status_url, response_url } = sub
 
-  // Poll up to ~100s.
+  // Poll up to ~100s, using the exact poll URLs fal returned at submit time.
   const deadline = Date.now() + 100_000
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 5_000))
-    const stRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.status', request_id, model }) })
+    const stRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.status', request_id, model, status_url }) })
     const st = await stRes.json()
     if (st.status === 'COMPLETED') {
-      const resRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.result', request_id, model }) })
+      const resRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.result', request_id, model, response_url }) })
       const result = await resRes.json()
       if (!result.video_url) return NextResponse.json({ error: 'Video completed but no URL returned' }, { status: 502 })
       const url = await rehost(result.video_url)
@@ -80,8 +80,8 @@ export async function POST(req: Request) {
     }
   }
 
-  // Still processing — hand the request_id back for the client to re-poll.
-  return NextResponse.json({ request_id, model, processing: true })
+  // Still processing — hand the request_id + poll URLs back for the client to re-poll.
+  return NextResponse.json({ request_id, model, status_url, response_url, processing: true })
 }
 
 // GET ?request_id=&model= → poll an in-flight job; re-host + return { url } when done.
@@ -92,15 +92,17 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const request_id = searchParams.get('request_id')
   const model = searchParams.get('model') ?? undefined
+  const status_url = searchParams.get('status_url') ?? undefined
+  const response_url = searchParams.get('response_url') ?? undefined
   if (!request_id) return NextResponse.json({ error: 'request_id required' }, { status: 400 })
 
-  const stRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.status', request_id, model }) })
+  const stRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.status', request_id, model, status_url }) })
   const st = await stRes.json()
   if (st.status !== 'COMPLETED') {
     if (st.status === 'FAILED' || st.error) return NextResponse.json({ error: st.error ?? 'Video generation failed' }, { status: 502 })
-    return NextResponse.json({ processing: true, status: st.status })
+    return NextResponse.json({ processing: true, status: st.status, request_id, model, status_url, response_url })
   }
-  const resRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.result', request_id, model }) })
+  const resRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.result', request_id, model, response_url }) })
   const result = await resRes.json()
   if (!result.video_url) return NextResponse.json({ error: 'Video completed but no URL returned' }, { status: 502 })
   const url = await rehost(result.video_url)

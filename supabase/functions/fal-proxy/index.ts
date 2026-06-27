@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
   let body: {
     op?: string; model?: string; prompt?: string; image_size?: string;
     request_id?: string; image_url?: string; input?: Record<string, unknown>;
+    status_url?: string; response_url?: string;
   }
   try { body = await req.json() } catch { return json({ error: 'Invalid JSON body' }, 400) }
 
@@ -79,21 +80,34 @@ Deno.serve(async (req) => {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) return json({ error: data?.detail ?? data?.error ?? `fal status ${res.status}` }, res.status)
-      return json({ request_id: data?.request_id, model })
+      // fal returns fully-formed poll URLs — hand them back so the caller doesn't
+      // have to reconstruct the (model-id-dependent) /requests path.
+      return json({
+        request_id:   data?.request_id,
+        model,
+        status_url:   data?.status_url,
+        response_url: data?.response_url,
+      })
     }
 
     // ── Video status / result (poll) ────────────────────────────────────────────
     if (op === 'video.status' || op === 'video.result') {
       const model = body.model || DEFAULT_VIDEO_MODEL
-      if (!body.request_id) return json({ error: 'request_id is required' }, 400)
-      const base = `https://queue.fal.run/${model}/requests/${body.request_id}`
-      const url  = op === 'video.status' ? `${base}/status` : base
+      // Prefer the exact URLs fal handed back at submit time. Fall back to a
+      // reconstructed path only when they're absent (older clients).
+      const reconstructed = body.request_id
+        ? `https://queue.fal.run/${model}/requests/${body.request_id}`
+        : ''
+      const url = op === 'video.status'
+        ? (body.status_url   || (reconstructed && `${reconstructed}/status`))
+        : (body.response_url || reconstructed)
+      if (!url) return json({ error: 'request_id or poll url is required' }, 400)
       const res  = await fetch(url, { headers: falHeaders(), signal: AbortSignal.timeout(30_000) })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) return json({ error: data?.detail ?? data?.error ?? `fal status ${res.status}` }, res.status)
       if (op === 'video.status') return json({ status: data?.status })
       // result: normalize the video url across fal model shapes
-      const videoUrl = data?.video?.url ?? data?.videos?.[0]?.url ?? data?.output?.video?.url
+      const videoUrl = data?.video?.url ?? data?.videos?.[0]?.url ?? data?.output?.video?.url ?? data?.output?.url
       return json({ status: 'COMPLETED', video_url: videoUrl, raw: videoUrl ? undefined : data })
     }
 

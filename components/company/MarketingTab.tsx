@@ -619,7 +619,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
       const deadline = Date.now() + 300_000
       while (d.processing && d.request_id && Date.now() < deadline) {
         await new Promise(r => setTimeout(r, 6_000))
-        const q = new URLSearchParams({ request_id: d.request_id, ...(d.model ? { model: d.model } : {}) })
+        const q = new URLSearchParams({ request_id: d.request_id, ...(d.model ? { model: d.model } : {}), ...(d.status_url ? { status_url: d.status_url } : {}), ...(d.response_url ? { response_url: d.response_url } : {}) })
         res = await fetch(`/api/company/marketing/video?${q}`)
         d = await res.json()
         if (!res.ok) { setVideoErr(d.error ?? 'Video generation failed'); return }
@@ -734,7 +734,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
             <div>
               <label style={fldLabel}>Model</label>
               <select value={vModelId} onChange={e => selectVideoModel(e.target.value)} style={selStyle}>
-                {FAL_VIDEO_MODELS.map(m => <option key={m.id} value={m.id}>{m.label} — ${m.costPerClip.toFixed(2)}</option>)}
+                {FAL_VIDEO_MODELS.map(m => <option key={m.id} value={m.id}>{m.caps.audio ? '🔊 ' : ''}{m.label} — ${m.costPerClip.toFixed(2)}</option>)}
               </select>
             </div>
           )}
