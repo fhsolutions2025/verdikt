@@ -75,7 +75,11 @@ export default function AssetEditorModal({ asset, onClose, onSaved }: { asset: E
   const onMove = (e: React.PointerEvent) => { if (!drawing.current || !useMask) return; const p = toNatural(e); stroke(last.current, p); last.current = p }
   const onUp   = () => { drawing.current = false; last.current = null }
 
-  const maskBlob = (): Promise<Blob | null> => new Promise(res => maskRef.current?.toBlob(b => res(b), 'image/png') ?? res(null))
+  const maskBlob = (): Promise<Blob | null> => new Promise(res => {
+    const c = maskRef.current
+    if (!c) { res(null); return }
+    c.toBlob(b => res(b), 'image/png')   // don't `?? res(null)` — toBlob returns void and would resolve null early
+  })
 
   const apply = async () => {
     setErr(null); setResult(null)
