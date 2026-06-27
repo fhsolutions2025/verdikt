@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { CountdownTimer } from '@/components/shared/CountdownTimer'
 
 export interface CronRunRow {
   id:               string
@@ -17,14 +19,31 @@ export interface CronRunRow {
 }
 
 export interface PipelineMarket {
-  id:           string
-  question:     string
-  status:       string
-  creator_type: string
-  source_feed:  string | null
-  created_at:   string
-  volume:       number
-  category:     string
+  id:            string
+  question:      string
+  status:        string
+  creator_type:  string
+  source_feed:   string | null
+  created_at:    string
+  volume:        number
+  category:      string
+  yes_price:     number
+  closes_at:     string
+  ai_rationale:  string | null
+  ai_confidence: number | null
+}
+
+// A market created by the most recent "Run now", returned by /api/company/seed.
+interface RunResultMarket {
+  id:            string
+  question:      string
+  yes_price:     number
+  closes_at:     string
+  source_feed:   string | null
+  ai_rationale:  string | null
+  ai_confidence: number | null
+  status:        string
+  category:      string
 }
 
 export interface LiquidityRow {
@@ -243,7 +262,8 @@ const JOB_LABELS: Record<string, string> = Object.fromEntries(
   SEEDERS.map(s => [s.job, s.label]),
 )
 
-function SeedControls() {
+// Run-now controls — fire a seeder and surface what it created for review.
+function SeedControls({ onCreated }: { onCreated: (job: string, created: RunResultMarket[]) => void }) {
   const router = useRouter()
   const [running, setRunning] = useState<string | null>(null)
   const [msg, setMsg]         = useState<string | null>(null)
@@ -260,6 +280,7 @@ function SeedControls() {
       const d = await res.json()
       if (res.ok) {
         setMsg(`${JOB_LABELS[job]}: ${d.inserted} created, ${d.skipped} skipped`)
+        onCreated(job, (d.created ?? []) as RunResultMarket[])
         router.refresh()
       } else {
         setMsg(d.error ?? 'Run failed')
@@ -306,6 +327,186 @@ function SeedControls() {
   )
 }
 
+// ── Company review queue ────────────────────────────────────────────────────────
+// AI-generated markets awaiting a company decision. The company reviews each
+// market (question + suggested probability + AI rationale), then either submits
+// it to the MM desk (→ pending_mm_review) or rejects it (→ voided). Run-now
+// results land here inline so they can be acted on immediately.
+
+function confidenceColor(c: number | null): string {
+  const v = c ?? 0
+  return v >= 85 ? '#00A844' : v >= 65 ? '#E05C20' : '#DC2626'
+}
+
+function ReviewCard({
+  m, busy, onApprove, onReject,
+}: {
+  m: RunResultMarket
+  busy: boolean
+  onApprove: (id: string) => void
+  onReject: (id: string) => void
+}) {
+  return (
+    <div style={{
+      border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px',
+      backgroundColor: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <SourceBadge source={m.source_feed} creatorType="ai_system" />
+        <StatusChip status={m.status} />
+        <span style={{
+          fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
+          backgroundColor: confidenceColor(m.ai_confidence) + '18', color: confidenceColor(m.ai_confidence),
+        }}>
+          AI {(m.ai_confidence ?? 0).toFixed(0)}%
+        </span>
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, color: '#00A844' }}>
+            {m.yes_price.toFixed(0)}¢
+          </span>
+          <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>YES</span>
+        </span>
+      </div>
+
+      <p style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.35, color: 'var(--text-strong)' }}>
+        {m.question}
+      </p>
+
+      <div style={{
+        fontSize: 12, lineHeight: 1.5, color: 'var(--text-dim)',
+        backgroundColor: 'var(--bg-inset)', borderRadius: 10, padding: '10px 12px',
+      }}>
+        <span style={{ fontWeight: 700, color: 'var(--text-muted)' }}>Why this market: </span>
+        {m.ai_rationale ?? 'Rationale not recorded for this market.'}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: 'var(--text-faint)' }}>
+        <CountdownTimer closesAt={m.closes_at} />
+        {m.source_feed && <span>· {m.source_feed}</span>}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={() => onApprove(m.id)}
+          disabled={busy}
+          style={{
+            flex: 1, fontSize: 12, fontWeight: 700, padding: '8px 0', borderRadius: 10,
+            border: 'none', cursor: busy ? 'wait' : 'pointer',
+            backgroundColor: busy ? 'var(--border)' : '#00C853', color: busy ? 'var(--text-faint)' : '#FFFFFF',
+          }}
+        >
+          {busy ? 'Working…' : 'Approve → MM'}
+        </button>
+        <button
+          onClick={() => onReject(m.id)}
+          disabled={busy}
+          style={{
+            fontSize: 12, fontWeight: 700, padding: '8px 16px', borderRadius: 10,
+            border: '2px solid #DC2626', backgroundColor: 'transparent',
+            color: '#DC2626', cursor: busy ? 'wait' : 'pointer',
+          }}
+        >
+          Reject
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function CompanyReviewPanel({ awaiting }: { awaiting: PipelineMarket[] }) {
+  const router   = useRouter()
+  const supabase = createClient()
+
+  // Seed the queue from server-rendered awaiting markets; run-now prepends more.
+  const [items, setItems] = useState<RunResultMarket[]>(() =>
+    awaiting.map(m => ({
+      id: m.id, question: m.question, yes_price: m.yes_price, closes_at: m.closes_at,
+      source_feed: m.source_feed, ai_rationale: m.ai_rationale, ai_confidence: m.ai_confidence,
+      status: m.status, category: m.category,
+    })),
+  )
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [err, setErr]       = useState<string | null>(null)
+
+  const handleCreated = (_job: string, created: RunResultMarket[]) => {
+    if (created.length === 0) return
+    setItems(prev => {
+      const seen = new Set(prev.map(p => p.id))
+      const fresh = created.filter(c => !seen.has(c.id))
+      return [...fresh, ...prev]
+    })
+  }
+
+  const approve = async (id: string) => {
+    setBusyId(id); setErr(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc('company_approve_market', { p_market_id: id })
+    setBusyId(null)
+    if (error) { setErr(`Approve failed: ${error.message}`); return }
+    setItems(prev => prev.filter(p => p.id !== id))
+    router.refresh()
+  }
+
+  const reject = async (id: string) => {
+    const reason = typeof window !== 'undefined'
+      ? window.prompt('Reason for rejecting this market? (optional)') ?? undefined
+      : undefined
+    setBusyId(id); setErr(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc('company_reject_market', { p_market_id: id, p_reason: reason })
+    setBusyId(null)
+    if (error) { setErr(`Reject failed: ${error.message}`); return }
+    setItems(prev => prev.filter(p => p.id !== id))
+    router.refresh()
+  }
+
+  return (
+    <div style={{
+      backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '14px 20px', borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+      }}>
+        <div>
+          <p style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Company Review · Awaiting your decision ({items.length})
+          </p>
+          <p style={{ color: 'var(--text-faint)', fontSize: 11, marginTop: 2 }}>
+            Run a category to fetch markets, review the AI rationale, then submit to MM or reject.
+          </p>
+        </div>
+        <SeedControls onCreated={handleCreated} />
+      </div>
+
+      {err && (
+        <p style={{ color: '#DC2626', fontSize: 12, padding: '10px 20px' }}>{err}</p>
+      )}
+
+      {items.length === 0 ? (
+        <p style={{ color: 'var(--text-faint)', fontSize: 12, padding: '24px', textAlign: 'center' }}>
+          Nothing awaiting review. Hit “Run now” on a category to fetch fresh markets.
+        </p>
+      ) : (
+        <div style={{
+          padding: 16, display: 'grid', gap: 12,
+          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+        }}>
+          {items.map(m => (
+            <ReviewCard
+              key={m.id}
+              m={m}
+              busy={busyId === m.id}
+              onApprove={approve}
+              onReject={reject}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CronLog({ rows }: { rows: CronRunRow[] }) {
   return (
     <div style={{
@@ -319,7 +520,6 @@ function CronLog({ rows }: { rows: CronRunRow[] }) {
         <p style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           Cron Run Log
         </p>
-        <SeedControls />
       </div>
       {rows.length === 0 ? (
         <p style={{ color: 'var(--text-faint)', fontSize: 12, padding: '20px', textAlign: 'center' }}>No runs recorded yet.</p>
@@ -520,10 +720,16 @@ export function MarketsPipelineTab({ cronRunLog, pipelineMarkets, tradeLiquidity
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   )
 
+  // Company review queue: AI-generated markets still awaiting a company decision.
+  const awaiting = sortedMarkets.filter(
+    m => m.creator_type === 'ai_system' && (m.status === 'pending_ai' || m.status === 'ai_ready'),
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PipelineFunnel markets={pipelineMarkets} />
       <TodayStats markets={pipelineMarkets} />
+      <CompanyReviewPanel awaiting={awaiting} />
       <CronLog rows={cronRunLog.slice(0, 12)} />
       <MarketTimeline markets={sortedMarkets.slice(0, 50)} />
       <LiquidityHealth markets={pipelineMarkets} liquidity={tradeLiquidity} />

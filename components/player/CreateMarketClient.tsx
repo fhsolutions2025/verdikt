@@ -104,6 +104,7 @@ export function CreateMarketClient({ playerId, initialSubmissions }: Props) {
       player_original_question: null,
       rejection_reason:         null,
       source_feed:              null,
+      ai_rationale:             null,
     }
     setSubmissions(prev => [optimistic, ...prev])
 

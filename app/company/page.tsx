@@ -66,7 +66,7 @@ export default async function CompanyPage() {
     // Pipeline observability
     service.from('cron_run_log').select('*').order('started_at', { ascending: false }).limit(20),
     service.from('markets')
-      .select('id, question, status, creator_type, source_feed, created_at, volume, category')
+      .select('id, question, status, creator_type, source_feed, created_at, volume, category, yes_price, closes_at, ai_rationale, ai_confidence')
       .order('created_at', { ascending: false })
       .limit(100),
     // Page Design — active product imagery for the Visual theme

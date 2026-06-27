@@ -102,6 +102,24 @@ export default async function MarketDetailPage({ params }: Props) {
               Resolution: {market.resolution_source}
             </p>
           )}
+
+          {/* Why this market — the AI's rationale, a key decider for traders */}
+          {market.ai_rationale && (
+            <div
+              className="rounded-xl px-3 py-3 space-y-1"
+              style={{ backgroundColor: 'var(--bg-inset)' }}
+            >
+              <p
+                className="text-xs font-bold uppercase"
+                style={{ color: 'var(--text-dim)', letterSpacing: '0.06em' }}
+              >
+                Why this market
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                {market.ai_rationale}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Chart */}

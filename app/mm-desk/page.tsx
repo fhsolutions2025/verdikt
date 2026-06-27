@@ -14,7 +14,9 @@ export default async function MmDeskPage() {
 
   const [liveRes, aiRes, totalsRes, spreadRes] = await Promise.all([
     supabase.from('markets').select('*').eq('status', 'live').order('volume', { ascending: false }),
-    supabase.from('markets').select('*').in('status', ['ai_ready', 'pending_mm_review']).order('ai_confidence', { ascending: false }),
+    // MM only acts on markets the company has already vetted (pending_mm_review).
+    // ai_ready markets sit in the Company review queue until approved → MM.
+    supabase.from('markets').select('*').eq('status', 'pending_mm_review').order('ai_confidence', { ascending: false }),
     supabase.from('v_platform_totals').select('*').single(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).rpc('get_realized_spread_income'),
