@@ -1,10 +1,21 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { VerdiktLogo } from './VerdiktLogo'
 import { ThemeToggle } from './ThemeToggle'
-import { SkinToggle } from './SkinToggle'
+import { PlayerMenuDrawer } from '@/components/player/PlayerMenuDrawer'
+
+function HamburgerIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      {[5, 10, 15].map(y => (
+        <line key={y} x1="3" y1={y} x2="17" y2={y} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      ))}
+    </svg>
+  )
+}
 
 const PORTALS = [
   { label: 'Company',  href: '/company',  key: '/company'  },
@@ -14,6 +25,7 @@ const PORTALS = [
 
 export function PersonaSwitcher() {
   const pathname = usePathname()
+  const [menuOpen, setMenuOpen] = useState(false)
   if (pathname.startsWith('/(auth)') || pathname === '/') return null
 
   const isCompany  = pathname.startsWith('/company')
@@ -60,10 +72,29 @@ export function PersonaSwitcher() {
             </Link>
           )
         })}
-        <span className="mx-1" style={{ width: 1, height: 18, backgroundColor: 'var(--border-strong)' }} />
-        {isPlayer && <SkinToggle compact />}
-        <ThemeToggle compact />
+        {isPlayer ? (
+          <>
+            <span className="mx-1" style={{ width: 1, height: 18, backgroundColor: 'var(--border-strong)' }} />
+            <button
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open menu"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              className="flex items-center justify-center rounded-xl"
+              style={{ width: 38, height: 38, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-strong)', cursor: 'pointer' }}
+            >
+              <HamburgerIcon />
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="mx-1" style={{ width: 1, height: 18, backgroundColor: 'var(--border-strong)' }} />
+            <ThemeToggle compact />
+          </>
+        )}
       </nav>
+
+      {isPlayer && <PlayerMenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
     </header>
   )
 }

@@ -5,17 +5,14 @@ import { Market, PriceTick, PriceCache } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { MarketCard } from './MarketCard'
 import { VisualHero } from './VisualHero'
-import type { ResolvedMarket } from '@/app/player/page'
 
 type Category = 'all' | 'sports' | 'finance' | 'current_affairs' | 'custom'
 type Mode = 'foryou' | 'trending' | 'ending' | 'volume' | 'new'
-type Tab = 'markets' | 'results'
 
 interface Props {
   initialMarkets:  Market[]
   ticksByMarket:   Record<string, PriceTick[]>
   priceCache:      Record<string, PriceCache>
-  resolvedMarkets: ResolvedMarket[]
 }
 
 const CATEGORIES: { label: string; value: Category }[] = [
@@ -68,10 +65,9 @@ function formatLivePrice(entry: PriceCache) {
   return { label: entry.label, value: `1 USD = ${entry.price.toFixed(4)} ${entry.symbol}`, source: entry.source }
 }
 
-export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache, resolvedMarkets }: Props) {
+export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: Props) {
   const [markets, setMarkets] = useState<Market[]>(initialMarkets)
   const [ticks, setTicks]     = useState(ticksByMarket)
-  const [tab, setTab]         = useState<Tab>('markets')
   const [category, setCategory] = useState<Category>('all')
   const [mode, setMode]       = useState<Mode>('foryou')
   const [search, setSearch]   = useState('')
@@ -124,27 +120,8 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache, re
     <div className="max-w-[440px] mx-auto" style={{ backgroundColor: 'var(--bg-surface)' }}>
       <VisualHero />
 
-      {/* Header tabs: Markets | Results */}
-      <div className="flex gap-1 px-4 pt-4" role="tablist" aria-label="Feed">
-        {([['markets', 'Markets'], ['results', `Results${resolvedMarkets.length ? ` · ${resolvedMarkets.length}` : ''}`]] as [Tab, string][]).map(([t, label]) => (
-          <button
-            key={t}
-            role="tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-            className="px-4 py-2 text-sm font-bold rounded-t-lg"
-            style={{
-              color: tab === t ? 'var(--text-strong)' : 'var(--text-faint)',
-              borderBottom: `2px solid ${tab === t ? '#00C853' : 'transparent'}`,
-              background: 'none', cursor: 'pointer',
-            }}
-          >{label}</button>
-        ))}
-      </div>
-      <div style={{ borderBottom: '1px solid var(--border)' }} />
-
-      {tab === 'markets' ? (
-        <>
+      {/* Markets is the default (and only) home view; Results lives in the menu. */}
+      <>
           {/* Search */}
           <div className="px-4 pt-4 pb-3">
             <input
@@ -223,47 +200,6 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache, re
             )}
           </div>
         </>
-      ) : (
-        <ResultsList resolved={resolvedMarkets} />
-      )}
-    </div>
-  )
-}
-
-// ── Results / settled markets ───────────────────────────────────────────────────
-function ResultsList({ resolved }: { resolved: ResolvedMarket[] }) {
-  if (resolved.length === 0) {
-    return <div className="py-16 text-center px-6"><p className="text-sm" style={{ color: 'var(--text-faint)' }}>No settled markets yet. Resolved markets and their outcomes will appear here.</p></div>
-  }
-  return (
-    <div className="px-4 py-4 space-y-2.5">
-      {resolved.map(m => {
-        const outcome = (m.outcome ?? '').toLowerCase()
-        const oColor = outcome === 'yes' ? '#00A844' : outcome === 'no' ? '#E05C20' : 'var(--text-dim)'
-        const oLabel = outcome ? outcome.toUpperCase() : '—'
-        const hasPnl = m.my_pnl !== null
-        const won = (m.my_pnl ?? 0) >= 0
-        return (
-          <div key={m.id} className="rounded-2xl p-4" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
-            <div className="flex items-start gap-2">
-              <p className="font-semibold leading-snug flex-1 line-clamp-2" style={{ fontSize: 14, color: 'var(--text-strong)' }}>{m.question}</p>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: `${oColor}1A`, color: oColor }}>{oLabel}</span>
-            </div>
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-xs" style={{ color: 'var(--text-faintest)' }}>
-                Settled {m.resolved_at ? new Date(m.resolved_at).toLocaleDateString() : ''}
-              </span>
-              {hasPnl ? (
-                <span className="text-xs font-bold font-mono" style={{ color: won ? '#00A844' : '#DC2626' }}>
-                  {won ? '+' : ''}{(m.my_pnl ?? 0).toFixed(2)} {m.my_side ? `· held ${m.my_side.toUpperCase()}` : ''}
-                </span>
-              ) : (
-                <span className="text-xs" style={{ color: 'var(--text-faintest)' }}>not traded</span>
-              )}
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }
