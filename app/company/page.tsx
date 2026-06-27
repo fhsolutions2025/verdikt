@@ -62,7 +62,7 @@ export default async function CompanyPage() {
       .select('input_tokens, output_tokens, created_at')
       .gte('created_at', new Date(Date.now() - 30 * 86_400_000).toISOString()),
     // Ideogram spend from saved assets
-    service.from('marketing_assets').select('cost_usd, created_at'),
+    service.from('marketing_assets').select('cost_usd, created_at, image_engine'),
     // Pipeline observability
     service.from('cron_run_log').select('*').order('started_at', { ascending: false }).limit(20),
     service.from('markets')
@@ -176,8 +176,10 @@ export default async function CompanyPage() {
     return acc
   }, {})
 
-  // Ideogram spend from saved marketing assets
-  const allAssets = (ideogramAssetsRes.data ?? []) as { cost_usd: number | null; created_at: string }[]
+  // Ideogram spend from saved marketing assets (exclude OpenAI-engine images —
+  // those are reported on the OpenAI card from ai_call_log).
+  const allAssets = ((ideogramAssetsRes.data ?? []) as { cost_usd: number | null; created_at: string; image_engine: string | null }[])
+    .filter(a => (a.image_engine ?? 'ideogram') !== 'openai')
   const ago30ISO = new Date(Date.now() - 30 * 86_400_000).toISOString()
   const ideogramSpendToday  = allAssets
     .filter(a => a.created_at >= todayISO)

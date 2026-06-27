@@ -60,6 +60,7 @@ export async function POST(req: Request) {
   const {
     url, title, alt_text, keywords, platform, dimensions,
     aspect_ratio, style, prompt, campaign_tag, seed, cost_usd,
+    image_engine,
   } = body
 
   if (!url) {
@@ -109,6 +110,7 @@ export async function POST(req: Request) {
       campaign_tag: campaign_tag ?? '',
       seed:         seed ?? null,
       cost_usd:     cost_usd ?? 0.08,
+      image_engine: image_engine ?? 'ideogram',
       created_by:   user?.id ?? null,
     })
     .select()

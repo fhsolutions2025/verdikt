@@ -41,6 +41,7 @@ interface ImageMeta {
   prompt:       string
   generated_at: string
   seed?:        number
+  engine:       string
 }
 
 interface GalleryAsset {
@@ -155,7 +156,9 @@ function saveBrandKit(bk: BrandKit) {
   try { localStorage.setItem('verdikt_brand_kit', JSON.stringify(bk)) } catch { /* ignore */ }
 }
 
-function buildMeta(data: { url: string; seed?: number }, prompt: string, style: string, platform: PlatformSize): ImageMeta {
+const ENGINE_COST = (engine?: string) => (engine === 'openai' ? 0.04 : IDEOGRAM_COST)
+
+function buildMeta(data: { url: string; seed?: number; provider?: string }, prompt: string, style: string, platform: PlatformSize): ImageMeta {
   return {
     url:          data.url,
     title:        `${platform.label} — ${prompt.slice(0, 50)}`,
@@ -166,6 +169,7 @@ function buildMeta(data: { url: string; seed?: number }, prompt: string, style: 
     prompt,
     generated_at: new Date().toISOString(),
     seed:         data.seed,
+    engine:       data.provider ?? 'ideogram',
   }
 }
 
@@ -320,7 +324,7 @@ function ImageCard({
         body: JSON.stringify({
           url: meta.url, title: meta.title, alt_text: meta.alt_text, keywords: meta.keywords,
           platform: meta.platform.label, dimensions: meta.platform.dims, aspect_ratio: meta.platform.aspect,
-          style: meta.style, prompt: meta.prompt, campaign_tag: campaignTag, seed: meta.seed, cost_usd: IDEOGRAM_COST,
+          style: meta.style, prompt: meta.prompt, campaign_tag: campaignTag, seed: meta.seed, cost_usd: ENGINE_COST(meta.engine), image_engine: meta.engine,
         }),
       })
       if (res.ok) { setSaved(true); onSaved() }
@@ -704,7 +708,7 @@ function SaveAndDownload({ meta, campaignTag, onSaved }: { meta: ImageMeta; camp
         body: JSON.stringify({
           url: meta.url, title: meta.title, alt_text: meta.alt_text, keywords: meta.keywords,
           platform: meta.platform.label, dimensions: meta.platform.dims, aspect_ratio: meta.platform.aspect,
-          style: meta.style, prompt: meta.prompt, campaign_tag: campaignTag, seed: meta.seed, cost_usd: IDEOGRAM_COST,
+          style: meta.style, prompt: meta.prompt, campaign_tag: campaignTag, seed: meta.seed, cost_usd: ENGINE_COST(meta.engine), image_engine: meta.engine,
         }),
       })
       if (res.ok) { setSaved(true); onSaved() }
