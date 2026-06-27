@@ -37,14 +37,6 @@ export async function POST(req: Request) {
   if (cfg.needsMask)   input.mask_url = mask_url
   if (cfg.needsPrompt) input.prompt = prompt
 
-  // TEMP diagnostic: record the exact input we send to fal (image_url etc.) so the
-  // black-output cause can be read via MCP.
-  const svc = await createServiceClient()
-  await svc.from('ai_call_log').insert({
-    call_type: 'fal-edit-debug', model: cfg.model, success: true, from_cache: false,
-    error_message: JSON.stringify({ mode, input }).slice(0, 2000),
-  }).then(() => {}, () => {})
-
   const res = await fetch(falProxyUrl(), {
     method: 'POST', headers: svcAuth(),
     body: JSON.stringify({ op: 'edit', model: cfg.model, input }),
@@ -53,6 +45,7 @@ export async function POST(req: Request) {
   if (!res.ok || !d.url) {
     return NextResponse.json({ error: d.error ? `Edit failed — ${d.error}` : 'Edit failed' }, { status: res.status || 502 })
   }
-  await svc.from('ai_call_log').insert({ call_type: 'fal-edit', model: cfg.model, success: true, from_cache: false, error_message: String(d.url).slice(0, 500) }).then(() => {}, () => {})
+  const svc = await createServiceClient()
+  await svc.from('ai_call_log').insert({ call_type: 'fal-edit', model: cfg.model, success: true, from_cache: false }).then(() => {}, () => {})
   return NextResponse.json({ url: d.url, model: cfg.model })
 }
