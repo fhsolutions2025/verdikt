@@ -64,6 +64,25 @@ function deepFindVideoUrl(v: unknown, depth = 0): string | undefined {
   return undefined
 }
 
+// Recursively find an image URL STRING in a fal result, regardless of shape
+// ({images:[{url}]}, {image:{url}}, {image:"..."}, {url}, …). Prefers image keys.
+function deepFindImageUrl(v: unknown, depth = 0): string | undefined {
+  if (v == null || depth > 6) return undefined
+  if (typeof v === 'string') return /^https?:\/\//.test(v) ? v : undefined
+  if (Array.isArray(v)) {
+    for (const x of v) { const u = deepFindImageUrl(x, depth + 1); if (u) return u }
+    return undefined
+  }
+  if (typeof v === 'object') {
+    const obj = v as Record<string, unknown>
+    for (const k of ['image', 'images', 'output', 'result', 'file', 'files', 'url']) {
+      if (k in obj) { const u = deepFindImageUrl(obj[k], depth + 1); if (u) return u }
+    }
+    for (const val of Object.values(obj)) { const u = deepFindImageUrl(val, depth + 1); if (u) return u }
+  }
+  return undefined
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
   if (!FAL_KEY) return json({ error: 'fal_api_key missing in Supabase secrets' }, 503)
@@ -93,7 +112,7 @@ Deno.serve(async (req) => {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) return json({ error: falErrText(data) ?? `fal status ${res.status}` }, res.status)
-      const url = data?.images?.[0]?.url
+      const url = data?.images?.[0]?.url ?? deepFindImageUrl(data)
       if (!url) return json({ error: 'fal returned no image' }, 502)
       return json({ url })
     }
@@ -111,7 +130,7 @@ Deno.serve(async (req) => {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) return json({ error: falErrText(data) ?? `fal status ${res.status}` }, res.status)
-      const url = data?.images?.[0]?.url ?? data?.image?.url ?? data?.images?.[0] ?? data?.url
+      const url = deepFindImageUrl(data)   // always a string url, regardless of shape
       if (!url) return json({ error: 'fal returned no image', raw: JSON.stringify(data).slice(0, 2000) }, 502)
       return json({ url })
     }

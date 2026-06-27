@@ -148,7 +148,9 @@ export default function AssetEditorModal({ asset, onClose, onSaved }: { asset: E
           <div style={{ flex: '1 1 380px', minWidth: 300 }}>
             <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', lineHeight: 0, background: '#0a0a0f' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={result ?? asset.public_url} alt="asset" onLoad={result ? undefined : onImgLoad} style={{ width: '100%', display: 'block' }} />
+              <img src={result ?? asset.public_url} alt="asset" onLoad={result ? undefined : onImgLoad}
+                onError={result ? () => setErr('Edited image failed to load (the result URL did not return an image).') : undefined}
+                style={{ width: '100%', display: 'block' }} />
               {!result && (
                 <canvas ref={overlayRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: useMask ? 'crosshair' : 'default', touchAction: 'none' }} />
