@@ -6,12 +6,21 @@ import {
   type BrandCtx,
 } from '@/lib/marketing/agents'
 import { buildBrief, isComplete, type InterviewAnswers } from '@/lib/marketing/directorInterview'
+import { derivePlannedAssets } from '@/lib/marketing/directorAssets'
+import type { AssetItem, AssetState } from '@/components/company/marketing/director/types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-// GET /api/company/marketing/v2/director?run_id=  → the run's sub-agent task rows
-// (for the Director right-panel to poll PLANNING → GENERATING → done).
+function taskState(status: string): AssetState {
+  return status === 'succeeded' ? 'completed'
+    : status === 'running' ? 'in_progress'
+    : status === 'failed' ? 'failed'
+    : 'queued'
+}
+
+// GET /api/company/marketing/v2/director?run_id=  → run + derived asset grid + stats
+// + the 3 sub-agent task rows. The Director right pane polls this.
 export async function GET(req: Request) {
   const { role } = await getAuthContext()
   if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -22,16 +31,47 @@ export async function GET(req: Request) {
   const svc = await createServiceClient()
   const [{ data: run }, { data: tasks }] = await Promise.all([
     svc.from('mkt_agent_runs').select('id,status,campaign_id,error,finished_at').eq('id', runId).maybeSingle(),
-    svc.from('mkt_agent_tasks').select('id,agent,type,status,outputs,error,started_at,finished_at').eq('run_id', runId).order('created_at', { ascending: true }),
+    svc.from('mkt_agent_tasks').select('id,agent,type,status,inputs,outputs,error').eq('run_id', runId).order('created_at', { ascending: true }),
   ])
   if (!run) return NextResponse.json({ error: 'run not found' }, { status: 404 })
-  return NextResponse.json({ run, tasks: tasks ?? [] })
+
+  const rows = tasks ?? []
+  const assets: AssetItem[] = rows
+    .filter(t => typeof t.type === 'string' && t.type.startsWith('asset.'))
+    .map(t => {
+      const i = (t.inputs ?? {}) as Record<string, unknown>
+      const o = (t.outputs ?? {}) as Record<string, unknown>
+      return {
+        id: t.id as string,
+        type: (i.type as AssetItem['type']) ?? 'image',
+        channel: (i.channel as string | null) ?? null,
+        label: (i.label as string) ?? 'Asset',
+        dims: (i.dims as string) ?? '',
+        state: taskState(t.status as string),
+        url: (o.url as string) || undefined,
+        text: (o.text as string) || undefined,
+        artifactId: (o.artifact_id as string) || undefined,
+        jobId: (o.job_id as string) || undefined,
+        error: (t.error as string) || undefined,
+      }
+    })
+
+  const stats = {
+    total: assets.length,
+    generated: assets.filter(a => a.state === 'completed').length,
+    in_progress: assets.filter(a => a.state === 'in_progress').length,
+    queued: assets.filter(a => a.state === 'queued').length,
+  }
+  const agents = rows
+    .filter(t => typeof t.type === 'string' && t.type.startsWith('director.'))
+    .map(t => ({ id: t.id as string, agent: t.agent as string, status: t.status as string, outputs: (t.outputs ?? null) as Record<string, unknown> | null, error: (t.error as string) || null }))
+
+  return NextResponse.json({ run, assets, stats, agents })
 }
 
 // POST /api/company/marketing/v2/director  { brand_id, answers }
-// Creates a campaign from the hardcoded interview, then fans out the three
-// sub-agents (copywriter + prompt-optimizer in parallel, then router) writing live
-// status to mkt_agent_tasks. In-request execution; the client polls the GET above.
+// Runs the 3 sub-agents, derives the asset plan, and pre-creates one task per asset
+// (status 'pending'). Returns immediately so the client can poll + kick generation.
 export async function POST(req: Request) {
   const { user, role } = await getAuthContext()
   if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -46,7 +86,6 @@ export async function POST(req: Request) {
   const brief = buildBrief({ ...answers, brand: brand_id })
   const svc = await createServiceClient()
 
-  // Brand + region validation (mirrors the campaigns POST guard).
   const { data: brand } = await svc.from('mkt_brands').select('id,name,voice,regions').eq('id', brand_id).single()
   if (!brand) return NextResponse.json({ error: 'brand not found' }, { status: 404 })
   const region = brief.region || brand.regions?.[0] || ''
@@ -58,10 +97,8 @@ export async function POST(req: Request) {
   const name = (brief.goal || brief.vertical || 'Director campaign').slice(0, 70)
   const bctx: BrandCtx = { name: brand.name, voice: brand.voice ?? {}, region }
 
-  // Campaign + brief.
   const { data: campaign, error: cErr } = await svc.from('mkt_campaigns').insert({
-    brand_id, name, goal: brief.goal || null, status: 'PLANNING', region,
-    created_by: user?.id ?? null,
+    brand_id, name, goal: brief.goal || null, status: 'PLANNING', region, created_by: user?.id ?? null,
   }).select('id').single()
   if (cErr || !campaign) return NextResponse.json({ error: cErr?.message ?? 'campaign insert failed' }, { status: 500 })
   const campaignId = campaign.id as string
@@ -69,49 +106,36 @@ export async function POST(req: Request) {
   await svc.from('mkt_campaign_briefs').insert({
     campaign_id: campaignId, goal: brief.goal || null, audience: brief.audience || null,
     channels: brief.channels, region,
-    constraints: { vertical: brief.vertical, tone: brief.tone },
-    raw_input: brief.notes || null,
+    constraints: { vertical: brief.vertical, tone: brief.tone }, raw_input: brief.notes || null,
   })
 
-  // Run + three task rows (visible immediately for polling).
   const { data: run } = await svc.from('mkt_agent_runs').insert({
     campaign_id: campaignId, workflow: 'director', status: 'running', started_at: new Date().toISOString(),
   }).select('id').single()
   const runId = run!.id as string
 
-  const mkTask = async (agent: string, type: string) => {
+  const mkTask = async (agent: string, type: string, inputs: Record<string, unknown>, status = 'running') => {
     const { data } = await svc.from('mkt_agent_tasks').insert({
-      run_id: runId, agent, type, inputs: brief as unknown as Record<string, unknown>,
-      status: 'running', started_at: new Date().toISOString(),
+      run_id: runId, agent, type, inputs, status, started_at: status === 'running' ? new Date().toISOString() : null,
     }).select('id').single()
     return data!.id as string
   }
   const [copyTaskId, promptTaskId, routerTaskId] = await Promise.all([
-    mkTask('copywriter', 'director.copy'),
-    mkTask('prompt-optimizer', 'director.prompts'),
-    mkTask('router', 'director.route'),
+    mkTask('copywriter', 'director.copy', brief as unknown as Record<string, unknown>),
+    mkTask('prompt-optimizer', 'director.prompts', brief as unknown as Record<string, unknown>),
+    mkTask('router', 'director.route', brief as unknown as Record<string, unknown>),
   ])
-
   const finishTask = (id: string, outputs: Record<string, unknown> | null, error?: string) =>
     svc.from('mkt_agent_tasks').update({
-      status: error ? 'failed' : 'succeeded', outputs: outputs ?? {},
-      error: error ?? null, finished_at: new Date().toISOString(),
+      status: error ? 'failed' : 'succeeded', outputs: outputs ?? {}, error: error ?? null, finished_at: new Date().toISOString(),
     }).eq('id', id)
 
-  const logActivity = (text: string, actor: string, severity = 'info') =>
-    svc.from('mkt_activity').insert({ campaign_id: campaignId, run_id: runId, type: 'agent.step', actor, text: text.slice(0, 200), severity })
+  await svc.from('mkt_activity').insert({ campaign_id: campaignId, run_id: runId, type: 'agent.step', actor: 'Campaign Director', text: `Director kicked off ${name}`.slice(0, 200) })
 
-  await logActivity(`Director kicked off ${name}`, 'Campaign Director')
-
-  // Copywriter + prompt-optimizer run in parallel; router depends on both.
-  const [copyRes, promptRes] = await Promise.allSettled([
-    runCopywriter(bctx, brief),
-    runPromptOptimizer(bctx, brief),
-  ])
-
+  // Copywriter + prompt-optimizer in parallel, then router.
+  const [copyRes, promptRes] = await Promise.allSettled([runCopywriter(bctx, brief), runPromptOptimizer(bctx, brief)])
   const copy = copyRes.status === 'fulfilled' ? copyRes.value : null
   await finishTask(copyTaskId, copy as unknown as Record<string, unknown>, copyRes.status === 'rejected' ? String(copyRes.reason).slice(0, 200) : undefined)
-
   const prompts = promptRes.status === 'fulfilled' ? promptRes.value : null
   await finishTask(promptTaskId, prompts as unknown as Record<string, unknown>, promptRes.status === 'rejected' ? String(promptRes.reason).slice(0, 200) : undefined)
 
@@ -123,15 +147,16 @@ export async function POST(req: Request) {
     await finishTask(routerTaskId, null, (err as Error).message.slice(0, 200))
   }
 
-  const errors = [copyRes.status === 'rejected', promptRes.status === 'rejected', !router].filter(Boolean).length
-  const runStatus = errors === 0 ? 'completed' : errors >= 3 ? 'failed' : 'partial'
-  await svc.from('mkt_agent_runs').update({ status: runStatus, finished_at: new Date().toISOString() }).eq('id', runId)
+  // Derive the asset plan and pre-create one 'pending' task per asset so the grid
+  // shows the full set immediately. Generation is kicked separately (/director/generate).
+  const planned = derivePlannedAssets(brief, copy, prompts, router)
+  for (const a of planned) {
+    await mkTask(a.type, `asset.${a.type}`, a as unknown as Record<string, unknown>, 'pending')
+  }
 
-  // Persist the assembled director output onto the campaign plan.
   await svc.from('mkt_campaigns').update({
     plan: { director: true, brief, copy, prompts, router } as unknown as Record<string, unknown>,
   }).eq('id', campaignId)
-  await logActivity(`Director run ${runStatus}${errors ? ` (${errors} sub-agent error/s)` : ''}`, 'Campaign Director', errors ? 'warn' : 'info')
 
-  return NextResponse.json({ campaign_id: campaignId, run_id: runId, status: runStatus }, { status: 202 })
+  return NextResponse.json({ campaign_id: campaignId, run_id: runId }, { status: 202 })
 }
