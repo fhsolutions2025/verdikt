@@ -74,6 +74,14 @@ function veoInput(p: FalVideoParams): Record<string, unknown> {
   return input
 }
 
+// LTX-2.3 expects duration as a NUMBER (enum 6 | 8 | 10), not a string.
+// (Confirmed from fal's validation error.)
+function ltxInput(p: FalVideoParams): Record<string, unknown> {
+  const input = commonInput(p)
+  if (p.duration) input.duration = p.duration
+  return input
+}
+
 // Kling: end frame is `tail_image_url` (not end_image_url), and Kling's schema has
 // no `resolution` input (it's tier-fixed) — sending it 422s the submit. Duration is
 // an enum string ("5"/"10"), which commonInput already produces.
@@ -116,8 +124,8 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
     id: 'fal-ai/ltx-2.3/text-to-video/fast',
     label: 'LTX-2.3 Fast', tier: 'budget', costPerSec: 0.03,
     caps: { text: true, start: false, end: false, audio: false },
-    aspects: A_WIDE, durations: [6, 8], resolutions: ['720p', '1080p'],
-    buildInput: commonInput,
+    aspects: A_WIDE, durations: [6, 8, 10], resolutions: ['720p', '1080p'],
+    buildInput: ltxInput,
   },
   // ── Premium ─────────────────────────────────────────────────────────────────
   {
@@ -147,8 +155,8 @@ export const FAL_VIDEO_MODELS: FalVideoModel[] = [
     id: 'fal-ai/ltx-2.3/text-to-video', i2vId: 'fal-ai/ltx-2.3/image-to-video',
     label: 'LTX-2.3', tier: 'premium', costPerSec: 0.05,
     caps: { text: true, start: true, end: false, audio: false },
-    aspects: A_WIDE, durations: [6, 8], resolutions: ['720p', '1080p'],
-    buildInput: commonInput,
+    aspects: A_WIDE, durations: [6, 8, 10], resolutions: ['720p', '1080p'],
+    buildInput: ltxInput,
   },
   {
     id: 'fal-ai/kling-video/v2.1/master/text-to-video',

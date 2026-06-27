@@ -441,6 +441,8 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [videoBusy, setVideoBusy] = useState(false)
   const [videoErr, setVideoErr]   = useState<string | null>(null)
   const [videoSaved, setVideoSaved] = useState(false)
+  const [vProgress, setVProgress] = useState(0)
+  const vProgressRef              = useRef<ReturnType<typeof setInterval> | null>(null)
   const [vModelId, setVModelId]   = useState<string>(FAL_VIDEO_MODELS[0].id)
   const [vAspect, setVAspect]     = useState<string>(FAL_VIDEO_MODELS[0].aspects[0])
   const [vDuration, setVDuration] = useState<number>(FAL_VIDEO_MODELS[0].durations[0])
@@ -583,6 +585,16 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
     return () => { if (progressRef.current) clearInterval(progressRef.current) }
   }, [loading, mode])
 
+  // Video progress (estimated): climbs toward ~95% over ~90s, snaps to 100 on done.
+  useEffect(() => {
+    if (!videoBusy) { if (vProgressRef.current) clearInterval(vProgressRef.current); return }
+    setVProgress(3)
+    vProgressRef.current = setInterval(() => {
+      setVProgress(p => (p >= 95 ? 95 : p + Math.max(1, Math.round((95 - p) / 12))))
+    }, 1500)
+    return () => { if (vProgressRef.current) clearInterval(vProgressRef.current) }
+  }, [videoBusy])
+
   const effectivePrompt = (enhanced ?? prompt) + brandSuffix(brandKit)
   const basePrompt      = enhanced ?? prompt
 
@@ -668,7 +680,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         d = await res.json()
         if (!res.ok) { setVideoErr(d.error ?? 'Video generation failed'); return }
       }
-      if (d.url) setVideoUrl(d.url)
+      if (d.url) { setVProgress(100); setVideoUrl(d.url) }
       else setVideoErr('Video timed out — try again.')
     } catch {
       setVideoErr('Network error')
@@ -956,7 +968,15 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
                 <path d="M20 20 L50 80 L80 20" fill="none" stroke="#00C853" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round"
                   style={{ strokeDasharray: 150, strokeDashoffset: 150, animation: 'vdraw 1.6s ease-in-out infinite' }} />
               </svg>
-              <p style={{ color: 'var(--text-faint)', fontSize: 12, margin: 0 }}>Generating with {vModel.label}… a minute or two.</p>
+              <div style={{ width: '70%', maxWidth: 260 }}>
+                <div style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 999, height: 5, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: 999, background: 'linear-gradient(90deg, #00C853, #6C3FC5)', width: `${vProgress}%`, transition: 'width 0.9s ease-out' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                  <span style={{ color: 'var(--text-faint)', fontSize: 11 }}>Generating with {vModel.label}…</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'monospace', color: '#00C853' }}>{vProgress}%</span>
+                </div>
+              </div>
             </div>
           ) : videoUrl ? (
             <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.3)' }}>

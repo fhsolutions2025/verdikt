@@ -79,14 +79,27 @@ export async function POST(req: Request) {
     if (audio)      input.generate_audio = true
   }
 
-  // Submit.
-  const subRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.submit', model: falModel, input }) })
-  const sub = await subRes.json()
-  if (!subRes.ok || !sub.request_id) {
-    // Capture the exact submit rejection (incl. the input we sent) so per-model
-    // param quirks can be diagnosed via MCP.
+  // Submit. fal models disagree on the `duration` type (number 8, string "8", or
+  // "8s"); the per-model buildInput aims for the right one, but if fal still rejects
+  // the duration we auto-retry the other encodings so every model self-corrects.
+  const durationEncodings: unknown[] = duration
+    ? [input.duration, duration, String(duration), `${duration}s`].filter((v, i, a) => a.indexOf(v) === i)
+    : [input.duration]
+  let sub: { request_id?: string; model?: string; status_url?: string; response_url?: string; error?: string } = {}
+  let subStatus = 502
+  for (const enc of durationEncodings) {
+    const attempt = { ...input }
+    if (duration) attempt.duration = enc
+    const r = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.submit', model: falModel, input: attempt }) })
+    subStatus = r.status
+    sub = await r.json()
+    if (r.ok && sub.request_id) break
+    // Only keep retrying while the rejection is about the duration format.
+    if (!/duration/i.test(sub.error ?? '')) break
+  }
+  if (!sub.request_id) {
     await captureNoUrl(falModel, { raw: JSON.stringify({ error: sub.error, sent: input }) })
-    return NextResponse.json({ error: sub.error ? `Video submit failed — ${sub.error}` : 'Video submit failed' }, { status: subRes.status || 502 })
+    return NextResponse.json({ error: sub.error ? `Video submit failed — ${sub.error}` : 'Video submit failed' }, { status: subStatus || 502 })
   }
   const { request_id, model, status_url, response_url } = sub
 
