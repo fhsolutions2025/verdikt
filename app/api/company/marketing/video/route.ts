@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getFalVideoModel, type FalVideoParams } from '@/lib/falVideoModels'
+import { getFalVideoModel, FAL_VIDEO_MODELS, type FalVideoParams } from '@/lib/falVideoModels'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -45,11 +45,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Server not configured' }, { status: 503 })
   }
 
-  const def = getFalVideoModel(modelId ?? '') ?? getFalVideoModel('fal-ai/ltx-video')!
-  // Use the image-to-video endpoint when a start frame is supplied.
-  const falModel = startUrl && def.i2vId ? def.i2vId : def.id
-  const params: FalVideoParams = { prompt: prompt ?? '', startUrl, endUrl, aspect, duration, resolution, audio }
-  const input = def.buildInput(params)
+  const def = modelId ? getFalVideoModel(modelId) : undefined
+  let falModel: string
+  let input: Record<string, unknown>
+  if (def) {
+    // Known model: use the image-to-video endpoint when a start frame is supplied.
+    falModel = startUrl && def.i2vId ? def.i2vId : def.id
+    const params: FalVideoParams = { prompt: prompt ?? '', startUrl, endUrl, aspect, duration, resolution, audio }
+    input = def.buildInput(params)
+  } else {
+    // Unknown / pasted custom id: run it VERBATIM with a generic input — no LTX
+    // fallback (the old silent fallback discarded valid custom models).
+    falModel = modelId ?? FAL_VIDEO_MODELS[0].id
+    input = {}
+    if (prompt?.trim()) input.prompt = prompt
+    if (startUrl)   input.image_url = startUrl
+    if (endUrl)     input.end_image_url = endUrl
+    if (aspect)     input.aspect_ratio = aspect
+    if (duration)   input.duration = String(duration)
+    if (resolution) input.resolution = resolution
+    if (audio)      input.generate_audio = true
+  }
 
   // Submit.
   const subRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.submit', model: falModel, input }) })
@@ -72,7 +88,7 @@ export async function POST(req: Request) {
       const url = await rehost(result.video_url)
       const svc = await createServiceClient()
       await svc.rpc('track_api_call', { p_api_name: 'fal.ai' }).then(() => {}, () => {})
-      await svc.from('ai_call_log').insert({ call_type: 'fal-video', model: model ?? 'fal-ai/ltx-video', success: true, from_cache: false })
+      await svc.from('ai_call_log').insert({ call_type: 'fal-video', model: model ?? 'fal-video', success: true, from_cache: false })
       return NextResponse.json({ url, model })
     }
     if (st.status === 'FAILED' || st.error) {
@@ -107,6 +123,6 @@ export async function GET(req: Request) {
   if (!result.video_url) return NextResponse.json({ error: 'Video completed but no URL returned' }, { status: 502 })
   const url = await rehost(result.video_url)
   const svc = await createServiceClient()
-  await svc.from('ai_call_log').insert({ call_type: 'fal-video', model: model ?? 'fal-ai/ltx-video', success: true, from_cache: false })
+  await svc.from('ai_call_log').insert({ call_type: 'fal-video', model: model ?? 'fal-video', success: true, from_cache: false })
   return NextResponse.json({ url, model })
 }

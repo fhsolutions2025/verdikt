@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FAL_VIDEO_MODELS, getFalVideoModel } from '@/lib/falVideoModels'
+import { FAL_VIDEO_MODELS, makeCustomVideoModel, FAL_TIER_ORDER, FAL_TIER_LABEL, type FalVideoModel, type CustomVideoSpec } from '@/lib/falVideoModels'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -104,6 +104,17 @@ function loadCustomSizes(): PlatformSize[] {
 }
 function saveCustomSizes(sizes: PlatformSize[]) {
   try { localStorage.setItem(CUSTOM_SIZES_KEY, JSON.stringify(sizes)) } catch { /* ignore */ }
+}
+
+// Custom fal video models persist as serializable specs (buildInput is reattached
+// via makeCustomVideoModel). Lets an admin paste any id from fal.ai/models.
+const CUSTOM_VMODELS_KEY = 'verdikt_fal_video_models'
+function loadCustomVideoSpecs(): CustomVideoSpec[] {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem(CUSTOM_VMODELS_KEY) ?? '[]') } catch { return [] }
+}
+function saveCustomVideoSpecs(specs: CustomVideoSpec[]) {
+  try { localStorage.setItem(CUSTOM_VMODELS_KEY, JSON.stringify(specs)) } catch { /* ignore */ }
 }
 
 // Carousel slide (mirrors promo_banners). Managed inside Media Studio.
@@ -441,7 +452,15 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [vInputMode, setVInputMode] = useState<'text' | 'frame'>('text')
   const [historyFor, setHistoryFor] = useState<'start' | 'end' | null>(null)
   const [historyImages, setHistoryImages] = useState<{ public_url: string; title?: string }[]>([])
-  const vModel = getFalVideoModel(vModelId) ?? FAL_VIDEO_MODELS[0]
+  // Custom (user-pasted) fal models + the "Custom fal model…" entry form.
+  const [customVModels, setCustomVModels] = useState<FalVideoModel[]>([])
+  const [showVidForm, setShowVidForm] = useState(false)
+  const [vidIdInput, setVidIdInput]   = useState('')
+  const [vidNameInput, setVidNameInput] = useState('')
+  const [vidKind, setVidKind]         = useState<'text' | 'frame'>('text')
+  const [vidAudio, setVidAudio]       = useState(false)
+  const allVModels = [...FAL_VIDEO_MODELS, ...customVModels]
+  const vModel = allVModels.find(m => m.id === vModelId) ?? FAL_VIDEO_MODELS[0]
   const useFrames = vInputMode === 'frame' && vModel.caps.start
 
   // Load gallery images when the History (frame picker) modal opens.
@@ -457,12 +476,36 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   }, [historyFor])
 
   const selectVideoModel = (id: string) => {
-    const m = getFalVideoModel(id); if (!m) return
+    if (id === '__addvid__') { setShowVidForm(true); return }
+    setShowVidForm(false)
+    const m = allVModels.find(x => x.id === id); if (!m) return
     setVModelId(id)
     setVAspect(m.aspects[0]); setVDuration(m.durations[0]); setVResolution(m.resolutions[0])
     if (!m.caps.audio) setVAudio(false)
     if (!m.caps.end) setVEndUrl(null)
-    if (!m.caps.start) { setVStartUrl(null); setVEndUrl(null); setVInputMode('text') }
+    // Force the right input mode for single-capability endpoints.
+    if (!m.caps.text)       setVInputMode('frame')
+    else if (!m.caps.start) { setVStartUrl(null); setVEndUrl(null); setVInputMode('text') }
+  }
+
+  const saveCustomVideoModel = () => {
+    const id = vidIdInput.trim()
+    if (!id) return
+    const spec: CustomVideoSpec = { id, label: vidNameInput.trim() || undefined, kind: vidKind, audio: vidAudio }
+    const specs = [...loadCustomVideoSpecs().filter(s => s.id !== id), spec]
+    saveCustomVideoSpecs(specs)
+    setCustomVModels(specs.map(makeCustomVideoModel))
+    setShowVidForm(false); setVidIdInput(''); setVidNameInput(''); setVidKind('text'); setVidAudio(false)
+    selectVideoModelFromSpec(spec)
+  }
+  // Select a just-saved custom model (its FalVideoModel is now in customVModels).
+  const selectVideoModelFromSpec = (spec: CustomVideoSpec) => {
+    const m = makeCustomVideoModel(spec)
+    setVModelId(m.id)
+    setVAspect(m.aspects[0]); setVDuration(m.durations[0]); setVResolution(m.resolutions[0])
+    setVAudio(m.caps.audio ? vidAudio : false)
+    setVInputMode(m.caps.text ? 'text' : 'frame')
+    if (!m.caps.start) { setVStartUrl(null); setVEndUrl(null) }
   }
 
   const uploadFrame = async (which: 'start' | 'end', file: File) => {
@@ -477,6 +520,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   }
 
   useEffect(() => { setCustomSizes(loadCustomSizes()) }, [])
+  useEffect(() => { setCustomVModels(loadCustomVideoSpecs().map(makeCustomVideoModel)) }, [])
 
   const sizeOptions = [...PLATFORM_SIZES, ...customSizes]
   const isCarousel  = platform.id === 'carousel'
@@ -601,7 +645,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   }
 
   const runVideo = async () => {
-    if (!basePrompt.trim()) return
+    if (!basePrompt.trim() && !vStartUrl) return
     setVideoBusy(true); setVideoErr(null); setVideoUrl(null); setVideoSaved(false)
     try {
       let res = await fetch('/api/company/marketing/video', {
@@ -733,8 +777,20 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
           {mediaType === 'video' && (
             <div>
               <label style={fldLabel}>Model</label>
-              <select value={vModelId} onChange={e => selectVideoModel(e.target.value)} style={selStyle}>
-                {FAL_VIDEO_MODELS.map(m => <option key={m.id} value={m.id}>{m.caps.audio ? '🔊 ' : ''}{m.label} — ${m.costPerClip.toFixed(2)}</option>)}
+              <select value={showVidForm ? '__addvid__' : vModelId} onChange={e => selectVideoModel(e.target.value)} style={selStyle}>
+                {FAL_TIER_ORDER.map(tier => (
+                  <optgroup key={tier} label={FAL_TIER_LABEL[tier]}>
+                    {FAL_VIDEO_MODELS.filter(m => m.tier === tier).map(m => (
+                      <option key={m.id} value={m.id}>{m.caps.audio ? '🔊 ' : ''}{m.label} — ${m.costPerClip.toFixed(2)}</option>
+                    ))}
+                  </optgroup>
+                ))}
+                {customVModels.length > 0 && (
+                  <optgroup label="My models">
+                    {customVModels.map(m => <option key={m.id} value={m.id}>{m.caps.audio ? '🔊 ' : ''}{m.label}</option>)}
+                  </optgroup>
+                )}
+                <option value="__addvid__">＋ Custom fal model…</option>
               </select>
             </div>
           )}
@@ -762,6 +818,31 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
           <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: 0 }}>OpenAI gpt-image-1 via openai-image-proxy. Style presets apply to Ideogram only.</p>
         )}
 
+        {/* Custom fal video model — paste any exact id from fal.ai/models */}
+        {mediaType === 'video' && showVidForm && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', padding: '10px 12px', borderRadius: 10, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <label style={fldLabel}>fal model id</label>
+              <input value={vidIdInput} onChange={e => setVidIdInput(e.target.value)} placeholder="e.g. bytedance/seedance-2.0/text-to-video" style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={fldLabel}>Type</label>
+              <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                {([['text', 'Text'], ['frame', 'Frame']] as const).map(([k, lbl]) => (
+                  <button key={k} onClick={() => setVidKind(k)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, backgroundColor: vidKind === k ? 'rgba(108,63,197,0.16)' : 'transparent', color: vidKind === k ? '#9B72E8' : 'var(--text-dim)' }}>{lbl}</button>
+                ))}
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-dim)', cursor: 'pointer', paddingBottom: 8 }}>
+              <input type="checkbox" checked={vidAudio} onChange={e => setVidAudio(e.target.checked)} /> Audio
+            </label>
+            <div style={{ flex: 1, minWidth: 140 }}><label style={fldLabel}>Name (optional)</label><input value={vidNameInput} onChange={e => setVidNameInput(e.target.value)} placeholder="Display name" style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
+            <button onClick={saveCustomVideoModel} disabled={!vidIdInput.trim()} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: vidIdInput.trim() ? 'linear-gradient(135deg, #6C3FC5, #9B72E8)' : 'rgba(108,63,197,0.3)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: vidIdInput.trim() ? 'pointer' : 'default' }}>Save</button>
+            <button onClick={() => setShowVidForm(false)} style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+            <p style={{ width: '100%', fontSize: 10, color: 'var(--text-faintest)', margin: '2px 0 0' }}>Paste the exact id from fal.ai/models (it runs verbatim). Choose <b>Frame</b> for image-to-video endpoints. Saved models persist in this dropdown.</p>
+          </div>
+        )}
+
         {/* Video controls: frames + output (per model) */}
         {mediaType === 'video' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px', borderRadius: 10, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
@@ -769,7 +850,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
               <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: 0, flex: 1 }}>
                 {vModel.label} · {[vModel.caps.text && 'text→video', vModel.caps.start && 'image→video', vModel.caps.end && 'end frame', vModel.caps.audio && 'audio'].filter(Boolean).join(' · ')}
               </p>
-              {vModel.caps.start && (
+              {vModel.caps.start && vModel.caps.text && (
                 <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
                   {([['text', 'Text → Video'], ['frame', 'Frame → Video']] as const).map(([m, label]) => (
                     <button key={m} onClick={() => setVInputMode(m)} style={{
