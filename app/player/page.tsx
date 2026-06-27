@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { PlayerFeedClient } from '@/components/player/PlayerFeedClient'
 import { PlayerTabBar } from '@/components/player/PlayerTabBar'
+import type { PromoBannerLite } from '@/components/player/BannerCarousel'
 import type { Market, PriceTick, PriceCache } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +15,7 @@ export default async function PlayerPage() {
 
   // Tradeable feed = LIVE only. ai_ready markets stay in company/MM review.
   // (Settled markets are shown in the Results slide-over, which fetches its own data.)
-  const [marketsRes, priceCacheRes] = await Promise.all([
+  const [marketsRes, priceCacheRes, bannersRes] = await Promise.all([
     supabase
       .from('markets')
       .select('*')
@@ -24,10 +25,17 @@ export default async function PlayerPage() {
       .from('price_cache')
       .select('*')
       .gte('fetched_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()),
+    // Active home-carousel banners (RLS returns active only).
+    supabase
+      .from('promo_banners')
+      .select('id, image_url, headline, subtext, cta_label, cta_href')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
   ])
 
   const markets    = marketsRes.data as Market[] | null
   const priceRows  = (priceCacheRes.data ?? []) as PriceCache[]
+  const banners    = (bannersRes.data ?? []) as PromoBannerLite[]
 
   const priceCache: Record<string, PriceCache> = {}
   for (const row of priceRows) priceCache[row.symbol] = row
@@ -51,6 +59,7 @@ export default async function PlayerPage() {
         initialMarkets={markets ?? []}
         ticksByMarket={ticksByMarket}
         priceCache={priceCache}
+        banners={banners}
       />
       <PlayerTabBar active="markets" />
     </main>

@@ -8,6 +8,7 @@ import type {
 import type { CronRunRow, PipelineMarket, LiquidityRow } from '@/components/company/MarketsPipelineTab'
 import type { ActivePageAsset } from '@/components/company/PageDesignTab'
 import type { CmsPage } from '@/components/company/ContentPagesTab'
+import type { PromoBanner } from '@/components/company/BannersTab'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,6 +45,7 @@ export default async function CompanyPage() {
     pipelineMarketsRes,
     pageAssetsRes,
     cmsPagesRes,
+    promoBannersRes,
   ] = await Promise.all([
     supabase.from('v_platform_totals').select('*').single(),
     supabase.from('mm_config').select('*').eq('id', '20000000-0000-0000-0000-000000000001').single(),
@@ -79,6 +81,10 @@ export default async function CompanyPage() {
     service.from('cms_pages')
       .select('slug, title, body, is_published, updated_at')
       .order('slug'),
+    // Home carousel banners
+    service.from('promo_banners')
+      .select('*')
+      .order('sort_order', { ascending: true }),
   ])
 
   const totals      = totalsRes.data      as PlatformTotals | null
@@ -95,6 +101,7 @@ export default async function CompanyPage() {
   const pipelineMarkets  = (pipelineMarketsRes.data ?? []) as PipelineMarket[]
   const pageAssets       = (pageAssetsRes.data   ?? []) as ActivePageAsset[]
   const cmsPages         = (cmsPagesRes.data     ?? []) as CmsPage[]
+  const promoBanners     = (promoBannersRes.data ?? []) as PromoBanner[]
 
   // Compute real vs simulated volume per live market
   const liveIds = pipelineMarkets.filter(m => m.status === 'live').map(m => m.id)
@@ -279,6 +286,7 @@ export default async function CompanyPage() {
       tradeLiquidity={tradeLiquidity}
       pageAssets={pageAssets}
       cmsPages={cmsPages}
+      promoBanners={promoBanners}
     />
   )
 }

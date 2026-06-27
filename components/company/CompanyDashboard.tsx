@@ -17,6 +17,7 @@ import { PlayersTab } from '@/components/company/PlayersTab'
 import { MarketingTab } from '@/components/company/MarketingTab'
 import { PageDesignTab, type ActivePageAsset } from '@/components/company/PageDesignTab'
 import { ContentPagesTab, type CmsPage } from '@/components/company/ContentPagesTab'
+import { BannersTab, type PromoBanner } from '@/components/company/BannersTab'
 import { MarketsPipelineTab } from '@/components/company/MarketsPipelineTab'
 import type { CronRunRow, PipelineMarket, LiquidityRow } from '@/components/company/MarketsPipelineTab'
 import { ChatWidget } from '@/components/shared/ChatWidget'
@@ -28,7 +29,7 @@ import type {
   RiskMarket, ApiSource, Market,
 } from '@/lib/types'
 
-type Tab = 'overview' | 'markets' | 'review' | 'pipeline' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing' | 'page-design' | 'content'
+type Tab = 'overview' | 'markets' | 'review' | 'pipeline' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing' | 'page-design' | 'content' | 'banners'
 
 interface AiStats {
   calls_today:         number
@@ -83,6 +84,7 @@ export interface CompanyDashboardProps {
   tradeLiquidity:  LiquidityRow[]
   pageAssets:      ActivePageAsset[]
   cmsPages:        CmsPage[]
+  promoBanners:    PromoBanner[]
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -271,7 +273,7 @@ export function CompanyDashboard({
   totals, mmConfig, auditLog, riskMarkets,
   allMarkets, pendingReview, apiSources,
   aiStats, aiDaily7d, ideogramStats, openaiStats, callsToday, spreadIncome,
-  cronRunLog, pipelineMarkets, tradeLiquidity, pageAssets, cmsPages,
+  cronRunLog, pipelineMarkets, tradeLiquidity, pageAssets, cmsPages, promoBanners,
 }: CompanyDashboardProps) {
   const [tab, setTab] = useState<Tab>('overview')
 
@@ -414,6 +416,7 @@ export function CompanyDashboard({
           <NavItem icon={<IconMegaphone />} label="Marketing"    active={tab === 'marketing'} onClick={() => setTab('marketing')} />
           <NavItem icon={<IconImageStack />} label="Page Design" active={tab === 'page-design'} onClick={() => setTab('page-design')} />
           <NavItem icon={<IconList />}     label="Content"      active={tab === 'content'}   onClick={() => setTab('content')} />
+          <NavItem icon={<IconImageStack />} label="Banners"     active={tab === 'banners'}   onClick={() => setTab('banners')} />
 
           {/* Bottom: MM status */}
           <div style={{ marginTop: 'auto', padding: '12px 14px 0', borderTop: '1px solid var(--border-soft)' }}>
@@ -674,6 +677,16 @@ export function CompanyDashboard({
               subtitle="Edit the info & legal pages shown in the player menu"
             >
               <ContentPagesTab pages={cmsPages} />
+            </TabSection>
+          )}
+
+          {/* Banners (home carousel) */}
+          {tab === 'banners' && (
+            <TabSection
+              title="Banners"
+              subtitle="Home carousel slides for the player's Visual theme"
+            >
+              <BannersTab banners={promoBanners} />
             </TabSection>
           )}
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Market, PriceTick, PriceCache } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { MarketCard } from './MarketCard'
-import { VisualHero } from './VisualHero'
+import { BannerCarousel, type PromoBannerLite } from './BannerCarousel'
 
 type Category = 'all' | 'sports' | 'finance' | 'current_affairs' | 'custom'
 type Mode = 'foryou' | 'trending' | 'ending' | 'volume' | 'new'
@@ -13,6 +13,7 @@ interface Props {
   initialMarkets:  Market[]
   ticksByMarket:   Record<string, PriceTick[]>
   priceCache:      Record<string, PriceCache>
+  banners:         PromoBannerLite[]
 }
 
 const CATEGORIES: { label: string; value: Category }[] = [
@@ -65,7 +66,7 @@ function formatLivePrice(entry: PriceCache) {
   return { label: entry.label, value: `1 USD = ${entry.price.toFixed(4)} ${entry.symbol}`, source: entry.source }
 }
 
-export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: Props) {
+export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache, banners }: Props) {
   const [markets, setMarkets] = useState<Market[]>(initialMarkets)
   const [ticks, setTicks]     = useState(ticksByMarket)
   const [category, setCategory] = useState<Category>('all')
@@ -118,7 +119,7 @@ export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: 
 
   return (
     <div className="max-w-[440px] mx-auto" style={{ backgroundColor: 'var(--bg-surface)' }}>
-      <VisualHero />
+      <BannerCarousel banners={banners} />
 
       {/* Markets is the default (and only) home view; Results lives in the menu. */}
       <>
