@@ -1,47 +1,49 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Market, PriceTick, PriceCache } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { MarketCard } from './MarketCard'
 import { VisualHero } from './VisualHero'
+import type { ResolvedMarket } from '@/app/player/page'
 
 type Category = 'all' | 'sports' | 'finance' | 'current_affairs' | 'custom'
+type Mode = 'foryou' | 'trending' | 'ending' | 'volume' | 'new'
+type Tab = 'markets' | 'results'
 
 interface Props {
   initialMarkets:  Market[]
   ticksByMarket:   Record<string, PriceTick[]>
   priceCache:      Record<string, PriceCache>
+  resolvedMarkets: ResolvedMarket[]
 }
 
-const FILTERS: { label: string; value: Category }[] = [
-  { label: 'All',          value: 'all' },
-  { label: '⚽ Sports',    value: 'sports' },
-  { label: '📈 Finance',   value: 'finance' },
-  { label: '🌍 Current',   value: 'current_affairs' },
-  { label: '✨ Custom',    value: 'custom' },
+const CATEGORIES: { label: string; value: Category }[] = [
+  { label: 'All',      value: 'all' },
+  { label: 'Sports',   value: 'sports' },
+  { label: 'Finance',  value: 'finance' },
+  { label: 'News',     value: 'current_affairs' },
+  { label: 'Custom',   value: 'custom' },
 ]
 
-// Match a market question + category to a price_cache symbol
-function resolveLivePrice(
-  question: string,
-  category: string,
-  cache: Record<string, PriceCache>,
-) {
-  const q = question.toLowerCase()
+const MODES: { label: string; value: Mode }[] = [
+  { label: 'For you',     value: 'foryou' },
+  { label: 'Trending',    value: 'trending' },
+  { label: 'Ending soon', value: 'ending' },
+  { label: 'Top volume',  value: 'volume' },
+  { label: 'New',         value: 'new' },
+]
 
-  // Crypto
+// ── price_cache symbol resolution (unchanged) ───────────────────────────────────
+function resolveLivePrice(question: string, category: string, cache: Record<string, PriceCache>) {
+  const q = question.toLowerCase()
   if (q.includes('bitcoin') || /\bbtc\b/.test(q)) return cache['BTC']
   if (q.includes('ethereum') || /\beth\b/.test(q)) return cache['ETH']
   if (q.includes('solana') || /\bsol\b/.test(q)) return cache['SOL']
   if (/\bxrp\b/.test(q) || q.includes('ripple')) return cache['XRP']
   if (q.includes('doge') || q.includes('dogecoin')) return cache['DOGE']
-
-  // Commodities
   if (q.includes('gold') || /\bxau\b/.test(q)) return cache['XAU']
   if (q.includes('silver') || /\bxag\b/.test(q)) return cache['XAG']
-
-  // Forex — match specific pairs first, then broad keywords
   if (/\beur\b/.test(q) && category === 'finance') return cache['EUR']
   if (/\bgbp\b/.test(q) && category === 'finance') return cache['GBP']
   if (/\bjpy\b/.test(q) || q.includes('yen')) return cache['JPY']
@@ -51,13 +53,10 @@ function resolveLivePrice(
   if (/\bcny\b/.test(q) || q.includes('yuan')) return cache['CNY']
   if (/\binr\b/.test(q) || q.includes('rupee')) return cache['INR']
   if (/\bmxn\b/.test(q) || q.includes('peso')) return cache['MXN']
-  if (/\bbrl\b/.test(q) || q.includes('real') && category === 'finance') return cache['BRL']
-
   return undefined
 }
 
 function formatLivePrice(entry: PriceCache) {
-  // Crypto and commodities: dollar value
   const isCrypto = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'].includes(entry.symbol)
   const isCommodity = ['XAU', 'XAG'].includes(entry.symbol)
   if (isCrypto || isCommodity) {
@@ -66,182 +65,205 @@ function formatLivePrice(entry: PriceCache) {
       : `$${entry.price.toFixed(2)}`
     return { label: entry.label, value: formatted, source: entry.source }
   }
-  // Forex: rate is how many units of this currency per 1 USD
-  return {
-    label:  entry.label,
-    value:  `1 USD = ${entry.price.toFixed(4)} ${entry.symbol}`,
-    source: entry.source,
-  }
+  return { label: entry.label, value: `1 USD = ${entry.price.toFixed(4)} ${entry.symbol}`, source: entry.source }
 }
 
-export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache }: Props) {
-  const [markets, setMarkets]   = useState<Market[]>(initialMarkets)
-  const [ticks, setTicks]       = useState(ticksByMarket)
-  const [filter, setFilter]     = useState<Category>('all')
-  const [search, setSearch]     = useState('')
-  const supabase                = createClient()
+export function PlayerFeedClient({ initialMarkets, ticksByMarket, priceCache, resolvedMarkets }: Props) {
+  const [markets, setMarkets] = useState<Market[]>(initialMarkets)
+  const [ticks, setTicks]     = useState(ticksByMarket)
+  const [tab, setTab]         = useState<Tab>('markets')
+  const [category, setCategory] = useState<Category>('all')
+  const [mode, setMode]       = useState<Mode>('foryou')
+  const [search, setSearch]   = useState('')
+  const supabase              = createClient()
 
   useEffect(() => {
     const channel = supabase
       .channel('player-feed-markets')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'markets' },
-        payload => {
-          const updated = payload.new as Market
-          if (updated.status === 'live') {
-            setMarkets(prev => {
-              const exists = prev.find(m => m.id === updated.id)
-              return exists
-                ? prev.map(m => m.id === updated.id ? updated : m)
-                : [updated, ...prev]
-            })
-          } else if (updated.status === 'resolved' || updated.status === 'voided') {
-            setMarkets(prev => prev.filter(m => m.id !== updated.id))
-          }
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'markets' }, payload => {
+        const updated = payload.new as Market
+        if (updated.status === 'live') {
+          setMarkets(prev => prev.find(m => m.id === updated.id) ? prev.map(m => m.id === updated.id ? updated : m) : [updated, ...prev])
+        } else {
+          setMarkets(prev => prev.filter(m => m.id !== updated.id))
         }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'price_ticks' },
-        payload => {
-          const tick = payload.new as PriceTick
-          setTicks(prev => ({
-            ...prev,
-            [tick.market_id]: [...(prev[tick.market_id] ?? []).slice(-19), tick],
-          }))
-        }
-      )
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'price_ticks' }, payload => {
+        const tick = payload.new as PriceTick
+        setTicks(prev => ({ ...prev, [tick.market_id]: [...(prev[tick.market_id] ?? []).slice(-19), tick] }))
+      })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const filtered = markets.filter(m => {
-    const matchCat    = filter === 'all' || m.category === filter
-    const matchSearch = !search || m.question.toLowerCase().includes(search.toLowerCase())
-    return matchCat && matchSearch
-  })
+  // "hot" threshold for the single status badge
+  const hotThreshold = useMemo(() => {
+    const v = markets.map(m => m.volume).sort((a, b) => b - a)
+    return v[Math.floor(v.length * 0.15)] ?? Infinity
+  }, [markets])
 
-  const liveFiltered = filtered.filter(m => m.status === 'live')
-
-  // Trending = top 3 live markets by volume (used in carousel)
-  const trending = [...markets]
-    .filter(m => m.status === 'live' && m.volume > 0)
-    .sort((a, b) => b.volume - a.volume)
-    .slice(0, 4)
-
-  // Top ~20% by volume are "hot" for badge purposes
-  const volumeValues = markets.map(m => m.volume).sort((a, b) => b - a)
-  const hotThreshold = volumeValues[Math.floor(volumeValues.length * 0.15)] ?? Infinity
+  // Single, deduped list — sorted by the active discovery mode.
+  const feed = useMemo(() => {
+    const base = markets.filter(m =>
+      (category === 'all' || m.category === category) &&
+      (!search || m.question.toLowerCase().includes(search.toLowerCase())),
+    )
+    const byVol  = (a: Market, b: Market) => b.volume - a.volume
+    const byNew  = (a: Market, b: Market) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    const byEnd  = (a: Market, b: Market) => new Date(a.closes_at).getTime() - new Date(b.closes_at).getTime()
+    switch (mode) {
+      case 'ending':   return [...base].sort(byEnd)
+      case 'new':      return [...base].sort(byNew)
+      case 'trending':
+      case 'volume':   return [...base].sort(byVol)
+      default:         return [...base].sort(byVol)
+    }
+  }, [markets, category, search, mode])
 
   return (
-    <div
-      className="max-w-[420px] mx-auto"
-      style={{ backgroundColor: 'var(--bg-surface)' }}
-    >
-      {/* Hero / CTA — Visual skin only */}
+    <div className="max-w-[440px] mx-auto" style={{ backgroundColor: 'var(--bg-surface)' }}>
       <VisualHero />
 
-      {/* Search */}
-      <div className="px-4 pt-4 pb-3">
-        <input
-          type="text"
-          placeholder="Search markets…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
-          style={{
-            backgroundColor: 'var(--bg-inset)',
-            border: '1px solid var(--border)',
-            color: 'var(--text-strong)',
-            fontFamily: 'inherit',
-          }}
-        />
-      </div>
-
-      {/* Category filters */}
-      <div className="flex gap-2 px-4 pb-4 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-        {FILTERS.map(f => (
+      {/* Header tabs: Markets | Results */}
+      <div className="flex gap-1 px-4 pt-4" role="tablist" aria-label="Feed">
+        {([['markets', 'Markets'], ['results', `Results${resolvedMarkets.length ? ` · ${resolvedMarkets.length}` : ''}`]] as [Tab, string][]).map(([t, label]) => (
           <button
-            key={f.value}
-            onClick={() => setFilter(f.value)}
-            className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className="px-4 py-2 text-sm font-bold rounded-t-lg"
             style={{
-              backgroundColor: filter === f.value ? '#00C853' : 'var(--bg-inset)',
-              color:            filter === f.value ? '#FFFFFF'  : 'var(--text)',
-              border: 'none',
-              cursor: 'pointer',
+              color: tab === t ? 'var(--text-strong)' : 'var(--text-faint)',
+              borderBottom: `2px solid ${tab === t ? '#00C853' : 'transparent'}`,
+              background: 'none', cursor: 'pointer',
             }}
-          >
-            {f.label}
-          </button>
+          >{label}</button>
         ))}
       </div>
+      <div style={{ borderBottom: '1px solid var(--border)' }} />
 
-      {/* Trending carousel — only shown on "All" with no search */}
-      {filter === 'all' && !search && trending.length >= 2 && (
-        <div className="px-4 pb-4">
-          <p className="text-xs font-bold uppercase mb-2" style={{ color: 'var(--text-faint)', letterSpacing: '0.06em' }}>
-            🔥 Trending
-          </p>
-          <div
-            className="flex gap-3 overflow-x-auto pb-1"
-            style={{ scrollbarWidth: 'none' }}
-          >
-            {trending.map(m => {
-              const priceEntry = resolveLivePrice(m.question, m.category, priceCache)
-              const lp = priceEntry ? formatLivePrice(priceEntry) : undefined
+      {tab === 'markets' ? (
+        <>
+          {/* Search */}
+          <div className="px-4 pt-4 pb-3">
+            <input
+              type="text"
+              placeholder="Search markets…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              aria-label="Search markets"
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+              style={{ backgroundColor: 'var(--bg-inset)', border: '1px solid var(--border)', color: 'var(--text-strong)', fontFamily: 'inherit' }}
+            />
+          </div>
+
+          {/* Category chips — scalable, selected state not colour-only */}
+          <div className="flex gap-2 px-4 pb-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {CATEGORIES.map(c => {
+              const on = category === c.value
               return (
-                <div key={m.id} style={{ minWidth: 220, maxWidth: 240, flexShrink: 0 }}>
-                  <MarketCard
-                    market={m}
-                    ticks={(ticks[m.id] ?? []).slice(-20)}
-                    livePrice={lp}
-                    isHot
-                  />
-                </div>
+                <button
+                  key={c.value}
+                  onClick={() => setCategory(c.value)}
+                  aria-pressed={on}
+                  className="flex-shrink-0 px-3.5 rounded-full text-xs transition-all"
+                  style={{
+                    minHeight: 36,
+                    fontWeight: on ? 800 : 600,
+                    backgroundColor: on ? 'rgba(0,200,83,0.16)' : 'var(--bg-inset)',
+                    color: on ? '#00A844' : 'var(--text-dim)',
+                    border: `1px solid ${on ? '#00C853' : 'var(--border)'}`,
+                    cursor: 'pointer',
+                  }}
+                >{c.label}</button>
               )
             })}
           </div>
-          <div className="mt-4 border-t" style={{ borderColor: 'var(--bg-inset)' }} />
-        </div>
-      )}
 
-      {/* Live activity strip */}
-      <div
-        className="mx-4 mb-4 px-4 py-2.5 rounded-xl text-xs font-semibold"
-        style={{ backgroundColor: 'rgba(0,200,83,0.10)', color: '#00A844' }}
-      >
-        {liveFiltered.length} live markets · prices update in real time
-      </div>
-
-      {/* Market cards */}
-      <div className="px-4 space-y-3 pb-6">
-        {filtered.map(m => {
-          const priceEntry = resolveLivePrice(m.question, m.category, priceCache)
-          const lp         = priceEntry ? formatLivePrice(priceEntry) : undefined
-          const isHot      = m.volume >= hotThreshold && m.volume > 0
-          return (
-            <div key={m.id} className="card-enter">
-              <MarketCard
-                market={m}
-                ticks={(ticks[m.id] ?? []).slice(-20)}
-                livePrice={lp}
-                isHot={isHot}
-              />
-            </div>
-          )
-        })}
-
-        {filtered.length === 0 && (
-          <div className="py-12 text-center">
-            <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
-              No markets match your filter.
-            </p>
+          {/* Discovery mode — single deduped list, re-sorted */}
+          <div className="flex gap-2 px-4 pb-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {MODES.map(m => {
+              const on = mode === m.value
+              return (
+                <button
+                  key={m.value}
+                  onClick={() => setMode(m.value)}
+                  aria-pressed={on}
+                  className="flex-shrink-0 px-3 py-1.5 text-xs transition-all"
+                  style={{
+                    fontWeight: on ? 700 : 500,
+                    color: on ? 'var(--text-strong)' : 'var(--text-faint)',
+                    borderBottom: `2px solid ${on ? '#00C853' : 'transparent'}`,
+                    background: 'none', cursor: 'pointer',
+                  }}
+                >{m.label}</button>
+              )
+            })}
           </div>
-        )}
-      </div>
+
+          <p className="px-4 pb-3 text-xs" style={{ color: 'var(--text-faint)' }}>
+            {feed.length} live market{feed.length !== 1 ? 's' : ''} · prices update in real time
+          </p>
+
+          <div className="px-4 space-y-3 pb-6">
+            {feed.map(m => {
+              const priceEntry = resolveLivePrice(m.question, m.category, priceCache)
+              const lp = priceEntry ? formatLivePrice(priceEntry) : undefined
+              return (
+                <div key={m.id} className="card-enter">
+                  <MarketCard market={m} ticks={(ticks[m.id] ?? []).slice(-20)} livePrice={lp} isHot={m.volume >= hotThreshold && m.volume > 0} />
+                </div>
+              )
+            })}
+            {feed.length === 0 && (
+              <div className="py-12 text-center">
+                <p className="text-sm" style={{ color: 'var(--text-faint)' }}>No live markets match your filter.</p>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <ResultsList resolved={resolvedMarkets} />
+      )}
+    </div>
+  )
+}
+
+// ── Results / settled markets ───────────────────────────────────────────────────
+function ResultsList({ resolved }: { resolved: ResolvedMarket[] }) {
+  if (resolved.length === 0) {
+    return <div className="py-16 text-center px-6"><p className="text-sm" style={{ color: 'var(--text-faint)' }}>No settled markets yet. Resolved markets and their outcomes will appear here.</p></div>
+  }
+  return (
+    <div className="px-4 py-4 space-y-2.5">
+      {resolved.map(m => {
+        const outcome = (m.outcome ?? '').toLowerCase()
+        const oColor = outcome === 'yes' ? '#00A844' : outcome === 'no' ? '#E05C20' : 'var(--text-dim)'
+        const oLabel = outcome ? outcome.toUpperCase() : '—'
+        const hasPnl = m.my_pnl !== null
+        const won = (m.my_pnl ?? 0) >= 0
+        return (
+          <div key={m.id} className="rounded-2xl p-4" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+            <div className="flex items-start gap-2">
+              <p className="font-semibold leading-snug flex-1 line-clamp-2" style={{ fontSize: 14, color: 'var(--text-strong)' }}>{m.question}</p>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: `${oColor}1A`, color: oColor }}>{oLabel}</span>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs" style={{ color: 'var(--text-faintest)' }}>
+                Settled {m.resolved_at ? new Date(m.resolved_at).toLocaleDateString() : ''}
+              </span>
+              {hasPnl ? (
+                <span className="text-xs font-bold font-mono" style={{ color: won ? '#00A844' : '#DC2626' }}>
+                  {won ? '+' : ''}{(m.my_pnl ?? 0).toFixed(2)} {m.my_side ? `· held ${m.my_side.toUpperCase()}` : ''}
+                </span>
+              ) : (
+                <span className="text-xs" style={{ color: 'var(--text-faintest)' }}>not traded</span>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
