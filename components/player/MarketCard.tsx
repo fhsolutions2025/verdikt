@@ -72,8 +72,8 @@ export function MarketCard({ market, ticks, livePrice, isHot = false }: Props) {
   return (
     <Link href={`/player/${market.id}`} className="block">
       <div
-        className="rounded-2xl transition-transform active:scale-[0.985]"
-        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', cursor: 'pointer', padding: 16 }}
+        className="mkt-card rounded-2xl"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', cursor: 'pointer', padding: 'var(--space-4)' }}
       >
         {isVisual ? (
           <div className="flex gap-3 items-start" style={{ marginBottom: 12 }}>

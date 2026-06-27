@@ -18,6 +18,10 @@ declare
   m record;
   n integer := 0;
 begin
+  -- resolve_market is admin-gated; pg_cron has no JWT/auth.uid, so authorize this
+  -- trusted system function as service_role for the current transaction.
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
   for m in
     select id, yes_price
     from markets
