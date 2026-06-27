@@ -149,7 +149,7 @@ export async function POST(req: Request) {
 
   // Derive the asset plan and pre-create one 'pending' task per asset so the grid
   // shows the full set immediately. Generation is kicked separately (/director/generate).
-  const planned = derivePlannedAssets(brief, copy, prompts, router)
+  const planned = derivePlannedAssets(brief, copy, prompts)
   for (const a of planned) {
     await mkTask(a.type, `asset.${a.type}`, a as unknown as Record<string, unknown>, 'pending')
   }

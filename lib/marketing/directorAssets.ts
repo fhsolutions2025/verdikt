@@ -6,7 +6,7 @@
 // generates non-video assets, flipping each task pending→running→succeeded.
 
 import type { CampaignBrief } from '@/lib/marketing/directorInterview'
-import type { CopywriterOut, PromptOptimizerOut, RouterOut } from '@/lib/marketing/agents'
+import type { CopywriterOut, PromptOptimizerOut } from '@/lib/marketing/agents'
 
 export type PlannedAssetType = 'image' | 'video' | 'carousel' | 'copy'
 
@@ -28,7 +28,7 @@ function titleCase(s: string): string {
 }
 
 export function derivePlannedAssets(
-  brief: CampaignBrief, copy: CopywriterOut | null, prompts: PromptOptimizerOut | null, router: RouterOut | null,
+  brief: CampaignBrief, copy: CopywriterOut | null, prompts: PromptOptimizerOut | null,
 ): PlannedAsset[] {
   const channels = brief.channels.length ? brief.channels : ['instagram']
   const pr = prompts?.prompts ?? []
