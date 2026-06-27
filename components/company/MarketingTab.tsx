@@ -58,6 +58,7 @@ interface GalleryAsset {
   seed:         number | null
   cost_usd:     number
   created_at:   string
+  media_type?:  string
 }
 
 interface BrandColor { name: string; hex: string }
@@ -190,7 +191,7 @@ function saveBrandKit(bk: BrandKit) {
   try { localStorage.setItem('verdikt_brand_kit', JSON.stringify(bk)) } catch { /* ignore */ }
 }
 
-const ENGINE_COST = (engine?: string) => (engine === 'openai' ? 0.04 : IDEOGRAM_COST)
+const ENGINE_COST = (engine?: string) => (engine === 'openai' ? 0.04 : engine === 'fal' ? 0.03 : IDEOGRAM_COST)
 
 function buildMeta(data: { url: string; seed?: number; provider?: string }, prompt: string, style: string, platform: PlatformSize): ImageMeta {
   return {
@@ -396,7 +397,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [enhanced, setEnhanced]   = useState<string | null>(null)
   const [enhancing, setEnhancing] = useState(false)
   const [style, setStyle]         = useState('DESIGN')
-  const [imageProvider, setImageProvider] = useState<'ideogram' | 'openai'>('ideogram')
+  const [imageProvider, setImageProvider] = useState<'ideogram' | 'openai' | 'fal'>('ideogram')
   const [customSizes, setCustomSizes] = useState<PlatformSize[]>([])
   const [platform, setPlatform]   = useState<PlatformSize>(PLATFORM_SIZES[0])
   const [showCustom, setShowCustom] = useState(false)
@@ -421,6 +422,13 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [publishing, setPublishing] = useState(false)
   const [published, setPublished]   = useState(false)
   const [bannerRefresh, setBannerRefresh] = useState(0)
+
+  // Video (fal.ai text-to-video)
+  const [mediaType, setMediaType] = useState<'image' | 'video'>('image')
+  const [videoUrl, setVideoUrl]   = useState<string | null>(null)
+  const [videoBusy, setVideoBusy] = useState(false)
+  const [videoErr, setVideoErr]   = useState<string | null>(null)
+  const [videoSaved, setVideoSaved] = useState(false)
 
   useEffect(() => { setCustomSizes(loadCustomSizes()) }, [])
 
@@ -546,7 +554,49 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
     } finally { setEnhancing(false) }
   }
 
-  const perImageCost = imageProvider === 'openai' ? 0.04 : IDEOGRAM_COST
+  const runVideo = async () => {
+    if (!basePrompt.trim()) return
+    setVideoBusy(true); setVideoErr(null); setVideoUrl(null); setVideoSaved(false)
+    try {
+      let res = await fetch('/api/company/marketing/video', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: effectivePrompt }),
+      })
+      let d = await res.json()
+      if (!res.ok) { setVideoErr(d.error ?? 'Video generation failed'); return }
+      // If the job is still running, re-poll via GET until done (~5 min cap).
+      const deadline = Date.now() + 300_000
+      while (d.processing && d.request_id && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 6_000))
+        const q = new URLSearchParams({ request_id: d.request_id, ...(d.model ? { model: d.model } : {}) })
+        res = await fetch(`/api/company/marketing/video?${q}`)
+        d = await res.json()
+        if (!res.ok) { setVideoErr(d.error ?? 'Video generation failed'); return }
+      }
+      if (d.url) setVideoUrl(d.url)
+      else setVideoErr('Video timed out — try again.')
+    } catch {
+      setVideoErr('Network error')
+    } finally { setVideoBusy(false) }
+  }
+
+  const saveVideo = async () => {
+    if (!videoUrl) return
+    setVideoBusy(true)
+    try {
+      const res = await fetch('/api/company/marketing/gallery', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: videoUrl, media_type: 'video', title: `Video — ${basePrompt.slice(0, 50)}`,
+          alt_text: basePrompt.slice(0, 120), platform: 'Video', dimensions: '',
+          prompt: basePrompt, campaign_tag: campaignTag, cost_usd: 0.20, image_engine: 'fal',
+        }),
+      })
+      if (res.ok) { setVideoSaved(true); onGallerySaved() }
+    } finally { setVideoBusy(false) }
+  }
+
+  const perImageCost = imageProvider === 'openai' ? 0.04 : imageProvider === 'fal' ? 0.03 : IDEOGRAM_COST
   const costFor = (m: GenMode) => m === 'single' ? perImageCost : m === 'batch' ? perImageCost * 4 : perImageCost * 8
   const single  = results.length === 1 && mode === 'single'
 
@@ -577,6 +627,21 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
             </div>
           </div>
 
+          {/* Media type: Image / Video */}
+          <div>
+            <label style={fldLabel}>Type</label>
+            <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--bg-base)' }}>
+              {(['image', 'video'] as const).map(t => (
+                <button key={t} onClick={() => setMediaType(t)} style={{
+                  padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  backgroundColor: mediaType === t ? 'rgba(108,63,197,0.16)' : 'transparent',
+                  color: mediaType === t ? '#9B72E8' : 'var(--text-dim)', textTransform: 'capitalize',
+                }}>{t}</button>
+              ))}
+            </div>
+          </div>
+
+          {mediaType === 'image' && (<>
           <div>
             <label style={fldLabel}>Mode</label>
             <select value={mode} onChange={e => setMode(e.target.value as GenMode)} style={selStyle}>
@@ -596,9 +661,10 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
 
           <div>
             <label style={fldLabel}>Engine</label>
-            <select value={imageProvider} onChange={e => setImageProvider(e.target.value as 'ideogram' | 'openai')} style={selStyle}>
+            <select value={imageProvider} onChange={e => setImageProvider(e.target.value as 'ideogram' | 'openai' | 'fal')} style={selStyle}>
               <option value="ideogram">Ideogram V_2 — $0.08</option>
               <option value="openai">GPT Image — $0.04</option>
+              <option value="fal">fal.ai (FLUX) — $0.03</option>
             </select>
           </div>
 
@@ -608,6 +674,14 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
               {STYLES.map(s => <option key={s} value={s} title={STYLE_DESC[s]}>{s}</option>)}
             </select>
           </div>
+          </>)}
+
+          {mediaType === 'video' && (
+            <div>
+              <label style={fldLabel}>Engine</label>
+              <div style={{ ...selStyle, cursor: 'default', display: 'flex', alignItems: 'center' }}>fal.ai LTX — $0.20</div>
+            </div>
+          )}
 
           <div style={{ flex: 1, minWidth: 160 }}>
             <label style={fldLabel}>Campaign tag (gallery)</label>
@@ -639,9 +713,15 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
             <button onClick={enhancePrompt} disabled={!prompt.trim() || enhancing} style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid rgba(108,63,197,0.35)', backgroundColor: 'rgba(108,63,197,0.08)', color: enhancing ? 'var(--text-faint)' : '#9B72E8', fontSize: 12, fontWeight: 600, cursor: (!prompt.trim() || enhancing) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
               {enhancing ? '✦ Enhancing…' : '✨ Enhance'}
             </button>
-            <button onClick={run} disabled={loading || !basePrompt.trim()} style={{ padding: '9px 18px', borderRadius: 8, background: (loading || !basePrompt.trim()) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (loading || !basePrompt.trim()) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
-              {loading ? 'Generating…' : `⚡ Generate — $${costFor(mode).toFixed(2)}`}
-            </button>
+            {mediaType === 'image' ? (
+              <button onClick={run} disabled={loading || !basePrompt.trim()} style={{ padding: '9px 18px', borderRadius: 8, background: (loading || !basePrompt.trim()) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (loading || !basePrompt.trim()) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+                {loading ? 'Generating…' : `⚡ Generate — $${costFor(mode).toFixed(2)}`}
+              </button>
+            ) : (
+              <button onClick={runVideo} disabled={videoBusy || !basePrompt.trim()} style={{ padding: '9px 18px', borderRadius: 8, background: (videoBusy || !basePrompt.trim()) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (videoBusy || !basePrompt.trim()) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+                {videoBusy ? 'Generating…' : '🎬 Generate video — $0.20'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -668,8 +748,39 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
       {/* ── Result area ────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+        {/* Video result / loading / empty */}
+        {mediaType === 'video' && (
+          videoBusy ? (
+            <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, border: '1px solid rgba(108,63,197,0.3)', padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
+              🎬 Generating video with fal.ai LTX… this can take a minute or two.
+            </div>
+          ) : videoUrl ? (
+            <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.3)' }}>
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video src={videoUrl} controls style={{ width: '100%', display: 'block', background: '#000' }} />
+              <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border-soft)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#9B72E8', backgroundColor: 'rgba(108,63,197,0.15)', padding: '3px 10px', borderRadius: 999 }}>Video · fal.ai LTX</span>
+                <span style={{ flex: 1 }} />
+                <button onClick={saveVideo} disabled={videoBusy || videoSaved} style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${videoSaved ? 'rgba(0,200,83,0.4)' : 'var(--border-strong)'}`, backgroundColor: videoSaved ? 'rgba(0,200,83,0.1)' : 'transparent', color: videoSaved ? '#00C853' : 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: videoSaved ? 'default' : 'pointer' }}>
+                  {videoSaved ? '✓ In gallery' : 'Save to gallery'}
+                </button>
+                <a href={videoUrl} download target="_blank" rel="noopener noreferrer" style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(108,63,197,0.3)', backgroundColor: 'rgba(108,63,197,0.1)', color: '#9B72E8', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>↓ Download</a>
+              </div>
+            </div>
+          ) : videoErr ? (
+            <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, padding: 40, border: '1px solid rgba(220,38,38,0.3)', textAlign: 'center', color: '#DC2626', fontSize: 14 }}>{videoErr}</div>
+          ) : (
+            <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, border: '1px dashed var(--border)', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+              <div style={{ textAlign: 'center', padding: 20 }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>🎬</div>
+                <p style={{ color: 'var(--text-faint)', fontSize: 13, margin: 0 }}>Text-to-video via fal.ai LTX · $0.20/clip</p>
+              </div>
+            </div>
+          )
+        )}
+
         {/* Loading */}
-        {loading && mode === 'single' && (
+        {mediaType === 'image' && loading && mode === 'single' && (
           <div style={{ position: 'relative', backgroundColor: 'var(--bg-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.3)', aspectRatio: platform.aspectRatio }}>
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, var(--bg-surface) 0%, var(--bg-inset) 50%, var(--bg-surface) 100%)', backgroundSize: '200% 100%', animation: 'shimmer 1.6s ease-in-out infinite' }} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px' }}>
@@ -684,7 +795,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
           </div>
         )}
 
-        {loading && mode !== 'single' && (
+        {mediaType === 'image' && loading && mode !== 'single' && (
           <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, border: '1px solid rgba(108,63,197,0.3)', padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Generating {mode === 'batch' ? '4 variants' : 'full asset pack'}…</span>
@@ -703,7 +814,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         )}
 
         {/* Single result */}
-        {!loading && single && (
+        {mediaType === 'image' && !loading && single && (
           <>
             <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(108,63,197,0.3)' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -776,7 +887,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         )}
 
         {/* Multi result grid */}
-        {!loading && results.length > 0 && !single && (
+        {mediaType === 'image' && !loading && results.length > 0 && !single && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
@@ -791,7 +902,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         )}
 
         {/* Error */}
-        {!loading && error && results.length === 0 && (
+        {mediaType === 'image' && !loading && error && results.length === 0 && (
           <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, padding: '40px', border: '1px solid rgba(220,38,38,0.3)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 24 }}>⚠</span>
             <p style={{ color: '#DC2626', fontSize: 14, textAlign: 'center', margin: 0 }}>{error}</p>
@@ -799,7 +910,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
         )}
 
         {/* Empty */}
-        {!loading && results.length === 0 && !error && (
+        {mediaType === 'image' && !loading && results.length === 0 && !error && (
           <div style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 16, border: '1px dashed var(--border)', aspectRatio: mode === 'all' ? '16/9' : platform.aspectRatio, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
             <div style={{ textAlign: 'center', padding: 20 }}>
               <div style={{ fontSize: 40, color: 'var(--bg-inset)', marginBottom: 10 }}>🎨</div>
@@ -1160,8 +1271,10 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
           {assets.map(a => (
             <div key={a.id} onClick={() => setSelected(a)} style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', cursor: 'pointer' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={a.public_url} alt={a.alt_text} loading="lazy" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
+              {a.media_type === 'video'
+                ? <video src={a.public_url} muted style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', background: '#000' }} />
+                // eslint-disable-next-line @next/next/no-img-element
+                : <img src={a.public_url} alt={a.alt_text} loading="lazy" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />}
               <div style={{ padding: '10px 12px' }}>
                 <p style={{ color: 'var(--text)', fontSize: 12, fontWeight: 600, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title || a.prompt.slice(0, 40)}</p>
                 <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
@@ -1179,8 +1292,10 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
         <>
           <div onClick={() => { setSelected(null); setAddOpen(false) }} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 49, cursor: 'pointer' }} />
           <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(640px, 92vw)', maxHeight: '88vh', overflowY: 'auto', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-strong)', borderRadius: 16, zIndex: 50 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={selected.public_url} alt={selected.alt_text} style={{ width: '100%', display: 'block', borderTopLeftRadius: 16, borderTopRightRadius: 16 }} />
+            {selected.media_type === 'video'
+              ? <video src={selected.public_url} controls style={{ width: '100%', display: 'block', borderTopLeftRadius: 16, borderTopRightRadius: 16, background: '#000' }} />
+              // eslint-disable-next-line @next/next/no-img-element
+              : <img src={selected.public_url} alt={selected.alt_text} style={{ width: '100%', display: 'block', borderTopLeftRadius: 16, borderTopRightRadius: 16 }} />}
             <div style={{ padding: 20 }}>
               <h3 style={{ color: 'var(--text-strong)', fontSize: 16, fontWeight: 700, margin: '0 0 10px' }}>{selected.title}</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>

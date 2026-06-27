@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   const {
     url, title, alt_text, keywords, platform, dimensions,
     aspect_ratio, style, prompt, campaign_tag, seed, cost_usd,
-    image_engine,
+    image_engine, media_type,
   } = body
 
   if (!url) {
@@ -68,6 +68,24 @@ export async function POST(req: Request) {
   }
 
   const service = await createServiceClient()
+
+  // Video assets are already re-hosted by the /video route — store the URL as-is.
+  if (media_type === 'video') {
+    const { data: row, error: insertErr } = await service
+      .from('marketing_assets')
+      .insert({
+        storage_path: (() => { try { return new URL(url).pathname.split('/marketing-media/')[1] ?? '' } catch { return '' } })(),
+        public_url:   url,
+        title:        title ?? '', alt_text: alt_text ?? '', keywords: keywords ?? [],
+        platform:     platform ?? '', dimensions: dimensions ?? '', aspect_ratio: aspect_ratio ?? '',
+        style:        style ?? '', prompt: prompt ?? '', campaign_tag: campaign_tag ?? '',
+        seed:         null, cost_usd: cost_usd ?? 0.20, image_engine: image_engine ?? 'fal',
+        media_type:   'video', created_by: user?.id ?? null,
+      })
+      .select().single()
+    if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+    return NextResponse.json({ asset: row })
+  }
 
   // Ideogram URLs are temporary — fetch the bytes and re-host in Storage.
   let imageBytes: ArrayBuffer

@@ -13,6 +13,17 @@ function openaiSize(aspect: string | undefined): string {
   }
 }
 
+// Map our aspect ratios to fal.ai (FLUX) named image sizes.
+function falImageSize(aspect: string | undefined): string {
+  switch (aspect) {
+    case 'ASPECT_16_9': case 'ASPECT_16_10': return 'landscape_16_9'
+    case 'ASPECT_9_16': case 'ASPECT_10_16': return 'portrait_16_9'
+    case 'ASPECT_4_3':  case 'ASPECT_3_2':   return 'landscape_4_3'
+    case 'ASPECT_3_4':  case 'ASPECT_2_3':   return 'portrait_4_3'
+    default: return 'square_hd'
+  }
+}
+
 export async function POST(req: Request) {
   const { role } = await getAuthContext()
   if (role !== 'admin') {
@@ -67,6 +78,25 @@ export async function POST(req: Request) {
     await svc.from('ai_call_log').insert({ call_type: 'openai-image', model: 'gpt-image-1', success: true, from_cache: false })
 
     return NextResponse.json({ url, seed: null, provider: 'openai' })
+  }
+
+  // ── fal.ai path (FLUX) ──────────────────────────────────────────────────────
+  if (provider === 'fal') {
+    const res = await fetch(`${supabaseUrl}/functions/v1/fal-proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceRoleKey}` },
+      body: JSON.stringify({ op: 'image', prompt, image_size: falImageSize(aspect_ratio) }),
+      signal: AbortSignal.timeout(95_000),
+    })
+    const data = await res.json()
+    const svc = await createServiceClient()
+    if (!res.ok || data.error || !data.url) {
+      await svc.from('ai_call_log').insert({ call_type: 'fal-image', model: 'fal-ai/flux/schnell', success: false, from_cache: false, error_message: (data.error ?? `status ${res.status}`)?.toString().slice(0, 300) })
+      return NextResponse.json({ error: data.error ?? 'fal.ai image generation failed' }, { status: res.status || 502 })
+    }
+    await svc.rpc('track_api_call', { p_api_name: 'fal.ai' }).then(() => {}, () => {})
+    await svc.from('ai_call_log').insert({ call_type: 'fal-image', model: 'fal-ai/flux/schnell', success: true, from_cache: false })
+    return NextResponse.json({ url: data.url, seed: null, provider: 'fal' })
   }
 
   // ── Ideogram path (default) ─────────────────────────────────────────────────
