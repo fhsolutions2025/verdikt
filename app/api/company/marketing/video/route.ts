@@ -38,16 +38,6 @@ async function finishJob(svc: Svc, where: { id?: string; request_id?: string }, 
   } catch { /* best-effort */ }
 }
 
-// TEMP (Phase P1): capture fal's raw payload when no URL was extracted, for diagnosis.
-async function captureNoUrl(svc: Svc, model: string | undefined, result: { raw?: unknown }) {
-  try {
-    await svc.from('ai_call_log').insert({
-      call_type: 'fal-video-debug', model: model ?? 'fal-video', success: false,
-      error_message: JSON.stringify(result.raw ?? result).slice(0, 4000),
-    })
-  } catch { /* best-effort */ }
-}
-
 // Re-host a completed fal video into Storage and return its public URL (fal CDN
 // urls expire ~7 days).
 async function rehost(svc: Svc, videoUrl: string): Promise<string> {
@@ -137,7 +127,6 @@ export async function POST(req: Request) {
     if (!/duration/i.test(sub.error ?? '')) break
   }
   if (!sub.request_id) {
-    await captureNoUrl(svc, falModel, { raw: JSON.stringify({ error: sub.error, sent: input }) })
     if (jobId) await finishJob(svc, { id: jobId }, { status: 'failed', error: sub.error ?? 'submit failed' })
     return NextResponse.json({ error: sub.error ? `Video submit failed — ${sub.error}` : 'Video submit failed', jobId }, { status: subStatus || 502 })
   }
@@ -156,9 +145,8 @@ export async function POST(req: Request) {
       const resRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.result', request_id, model, response_url }) })
       const result = await resRes.json()
       if (!result.video_url) {
-        await captureNoUrl(svc, model, result)
         if (jobId) await finishJob(svc, { id: jobId }, { status: 'failed', error: result.error ?? 'no url' })
-        return NextResponse.json({ error: result.error ? `Video generation failed — ${result.error}` : `Video completed but no URL returned${result.raw ? ` — fal shape: ${result.raw}` : ''}`, jobId }, { status: 502 })
+        return NextResponse.json({ error: result.error ? `Video generation failed — ${result.error}` : 'Video completed but no URL returned', jobId }, { status: 502 })
       }
       const url = await rehost(svc, result.video_url)
       await svc.rpc('track_api_call', { p_api_name: 'fal.ai' }).then(() => {}, () => {})
@@ -202,9 +190,8 @@ export async function GET(req: Request) {
   const resRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.result', request_id, model, response_url }) })
   const result = await resRes.json()
   if (!result.video_url) {
-    await captureNoUrl(svc, model, result)
     await finishJob(svc, { request_id }, { status: 'failed', error: result.error ?? 'no url' })
-    return NextResponse.json({ error: result.error ? `Video generation failed — ${result.error}` : `Video completed but no URL returned${result.raw ? ` — fal shape: ${result.raw}` : ''}` }, { status: 502 })
+    return NextResponse.json({ error: result.error ? `Video generation failed — ${result.error}` : 'Video completed but no URL returned' }, { status: 502 })
   }
   const url = await rehost(svc, result.video_url)
   await svc.from('ai_call_log').insert({ call_type: 'fal-video', model: model ?? 'fal-video', success: true, from_cache: false })
