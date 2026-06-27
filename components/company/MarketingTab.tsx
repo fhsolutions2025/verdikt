@@ -1551,6 +1551,7 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<GalleryAsset | null>(null)
   const [editing, setEditing]   = useState<GalleryAsset | null>(null)
+  const [hovered, setHovered]   = useState<string | null>(null)
   const [totalSpend, setTotalSpend] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
 
@@ -1655,11 +1656,18 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
           {assets.map(a => (
-            <div key={a.id} onClick={() => setSelected(a)} style={{ backgroundColor: 'var(--bg-surface)', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', cursor: 'pointer' }}>
+            <div key={a.id} onClick={() => setSelected(a)} onMouseEnter={() => setHovered(a.id)} onMouseLeave={() => setHovered(h => h === a.id ? null : h)} style={{ position: 'relative', backgroundColor: 'var(--bg-surface)', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', cursor: 'pointer' }}>
               {a.media_type === 'video'
                 ? <video src={a.public_url} muted style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', background: '#000' }} />
                 // eslint-disable-next-line @next/next/no-img-element
                 : <img src={a.public_url} alt={a.alt_text} loading="lazy" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />}
+              {/* Quick-edit on hover (images only) — edit in one click, no modal/scroll. */}
+              {a.media_type !== 'video' && hovered === a.id && (
+                <button onClick={(e) => { e.stopPropagation(); setEditing(a) }}
+                  style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, border: 'none', background: 'rgba(108,63,197,0.92)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+                  ✏ Edit
+                </button>
+              )}
               <div style={{ padding: '10px 12px' }}>
                 <p style={{ color: 'var(--text)', fontSize: 12, fontWeight: 600, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.title || a.prompt.slice(0, 40)}</p>
                 <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
@@ -1718,16 +1726,17 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={() => addOpen ? setAddOpen(false) : openAddForm(selected)} disabled={added} style={{ flex: 1, minWidth: 160, padding: '9px 0', borderRadius: 9, border: 'none', backgroundColor: added ? 'rgba(0,200,83,0.15)' : '#00C853', color: added ? '#00A844' : '#fff', fontSize: 13, fontWeight: 700, cursor: added ? 'default' : 'pointer' }}>
+              {/* Sticky action bar — always reachable without scrolling past the image/metadata */}
+              <div style={{ position: 'sticky', bottom: 0, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '4px -20px -20px', padding: '14px 20px', backgroundColor: 'var(--bg-base)', borderTop: '1px solid var(--border)' }}>
+                {selected.media_type !== 'video' && (
+                  <button onClick={() => { setEditing(selected); setSelected(null); setAddOpen(false) }} style={{ flex: 1, minWidth: 140, padding: '10px 0', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg, #6C3FC5, #9B72E8)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>✏ Edit image</button>
+                )}
+                <button onClick={() => addOpen ? setAddOpen(false) : openAddForm(selected)} disabled={added} style={{ flex: 1, minWidth: 150, padding: '10px 0', borderRadius: 9, border: 'none', backgroundColor: added ? 'rgba(0,200,83,0.15)' : '#00C853', color: added ? '#00A844' : '#fff', fontSize: 13, fontWeight: 700, cursor: added ? 'default' : 'pointer' }}>
                   {added ? '✓ Added to carousel' : '+ Add to Home Carousel'}
                 </button>
-                {selected.media_type !== 'video' && (
-                  <button onClick={() => { setEditing(selected); setSelected(null); setAddOpen(false) }} style={{ padding: '9px 16px', borderRadius: 9, border: '1px solid rgba(108,63,197,0.4)', backgroundColor: 'rgba(108,63,197,0.12)', color: '#9B72E8', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>✏ Edit</button>
-                )}
-                <a href={selected.public_url} download target="_blank" rel="noopener noreferrer" style={{ textAlign: 'center', padding: '9px 14px', borderRadius: 9, border: '1px solid rgba(108,63,197,0.3)', backgroundColor: 'rgba(108,63,197,0.1)', color: '#9B72E8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>↓ Download</a>
-                <button onClick={() => remove(selected.id)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid rgba(220,38,38,0.3)', backgroundColor: 'rgba(220,38,38,0.1)', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
-                <button onClick={() => { setSelected(null); setAddOpen(false) }} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid var(--border-strong)', backgroundColor: 'transparent', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer' }}>Close</button>
+                <a href={selected.public_url} download target="_blank" rel="noopener noreferrer" style={{ textAlign: 'center', padding: '10px 14px', borderRadius: 9, border: '1px solid rgba(108,63,197,0.3)', backgroundColor: 'rgba(108,63,197,0.1)', color: '#9B72E8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>↓ Download</a>
+                <button onClick={() => remove(selected.id)} style={{ padding: '10px 16px', borderRadius: 9, border: '1px solid rgba(220,38,38,0.3)', backgroundColor: 'rgba(220,38,38,0.1)', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
+                <button onClick={() => { setSelected(null); setAddOpen(false) }} style={{ padding: '10px 16px', borderRadius: 9, border: '1px solid var(--border-strong)', backgroundColor: 'transparent', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer' }}>Close</button>
               </div>
             </div>
           </div>
