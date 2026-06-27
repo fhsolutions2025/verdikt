@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
 
   let body: {
     op?: string; model?: string; prompt?: string; image_size?: string;
-    request_id?: string; image_url?: string;
+    request_id?: string; image_url?: string; input?: Record<string, unknown>;
   }
   try { body = await req.json() } catch { return json({ error: 'Invalid JSON body' }, 400) }
 
@@ -60,11 +60,19 @@ Deno.serve(async (req) => {
     }
 
     // ── Video submit (async queue) ──────────────────────────────────────────────
+    // Accepts a generic `input` (built by the app's model registry) or falls back
+    // to a simple { prompt }.
     if (op === 'video.submit') {
-      if (!body.prompt?.trim()) return json({ error: 'prompt is required' }, 400)
       const model = body.model || DEFAULT_VIDEO_MODEL
-      const payload: Record<string, unknown> = { prompt: body.prompt }
-      if (body.image_url) payload.image_url = body.image_url // image-to-video (future use)
+      const payload = body.input && Object.keys(body.input).length
+        ? body.input
+        : (() => {
+            if (!body.prompt?.trim()) return null
+            const p: Record<string, unknown> = { prompt: body.prompt }
+            if (body.image_url) p.image_url = body.image_url
+            return p
+          })()
+      if (!payload) return json({ error: 'input or prompt is required' }, 400)
       const res = await fetch(`https://queue.fal.run/${model}`, {
         method: 'POST', headers: falHeaders(), body: JSON.stringify(payload),
         signal: AbortSignal.timeout(30_000),

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { FAL_VIDEO_MODELS, getFalVideoModel } from '@/lib/falVideoModels'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -423,12 +424,55 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [published, setPublished]   = useState(false)
   const [bannerRefresh, setBannerRefresh] = useState(0)
 
-  // Video (fal.ai text-to-video)
+  // Video (fal.ai — model picker, frames, output controls)
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image')
   const [videoUrl, setVideoUrl]   = useState<string | null>(null)
   const [videoBusy, setVideoBusy] = useState(false)
   const [videoErr, setVideoErr]   = useState<string | null>(null)
   const [videoSaved, setVideoSaved] = useState(false)
+  const [vModelId, setVModelId]   = useState<string>(FAL_VIDEO_MODELS[0].id)
+  const [vAspect, setVAspect]     = useState<string>(FAL_VIDEO_MODELS[0].aspects[0])
+  const [vDuration, setVDuration] = useState<number>(FAL_VIDEO_MODELS[0].durations[0])
+  const [vResolution, setVResolution] = useState<string>(FAL_VIDEO_MODELS[0].resolutions[0])
+  const [vAudio, setVAudio]       = useState(false)
+  const [vStartUrl, setVStartUrl] = useState<string | null>(null)
+  const [vEndUrl, setVEndUrl]     = useState<string | null>(null)
+  const [vUploading, setVUploading] = useState<'start' | 'end' | null>(null)
+  const [historyFor, setHistoryFor] = useState<'start' | 'end' | null>(null)
+  const [historyImages, setHistoryImages] = useState<{ public_url: string; title?: string }[]>([])
+  const vModel = getFalVideoModel(vModelId) ?? FAL_VIDEO_MODELS[0]
+
+  // Load gallery images when the History (frame picker) modal opens.
+  useEffect(() => {
+    if (!historyFor) return
+    let cancelled = false
+    fetch('/api/company/marketing/gallery').then(r => r.json()).then(d => {
+      if (cancelled) return
+      const imgs = (d.assets ?? []).filter((a: { media_type?: string }) => a.media_type !== 'video')
+      setHistoryImages(imgs.map((a: { public_url: string; title?: string }) => ({ public_url: a.public_url, title: a.title })))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [historyFor])
+
+  const selectVideoModel = (id: string) => {
+    const m = getFalVideoModel(id); if (!m) return
+    setVModelId(id)
+    setVAspect(m.aspects[0]); setVDuration(m.durations[0]); setVResolution(m.resolutions[0])
+    if (!m.caps.audio) setVAudio(false)
+    if (!m.caps.end) setVEndUrl(null)
+    if (!m.caps.start) { setVStartUrl(null); setVEndUrl(null) }
+  }
+
+  const uploadFrame = async (which: 'start' | 'end', file: File) => {
+    setVUploading(which)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch('/api/company/marketing/video/upload', { method: 'POST', body: fd })
+      const d = await res.json()
+      if (res.ok && d.url) { if (which === 'start') setVStartUrl(d.url); else setVEndUrl(d.url) }
+      else setVideoErr(d.error ?? 'Frame upload failed')
+    } finally { setVUploading(null) }
+  }
 
   useEffect(() => { setCustomSizes(loadCustomSizes()) }, [])
 
@@ -560,7 +604,11 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
     try {
       let res = await fetch('/api/company/marketing/video', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: effectivePrompt }),
+        body: JSON.stringify({
+          modelId: vModelId, prompt: effectivePrompt,
+          startUrl: vStartUrl ?? undefined, endUrl: vEndUrl ?? undefined,
+          aspect: vAspect, duration: vDuration, resolution: vResolution, audio: vAudio,
+        }),
       })
       let d = await res.json()
       if (!res.ok) { setVideoErr(d.error ?? 'Video generation failed'); return }
@@ -678,8 +726,10 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
 
           {mediaType === 'video' && (
             <div>
-              <label style={fldLabel}>Engine</label>
-              <div style={{ ...selStyle, cursor: 'default', display: 'flex', alignItems: 'center' }}>fal.ai LTX — $0.20</div>
+              <label style={fldLabel}>Model</label>
+              <select value={vModelId} onChange={e => selectVideoModel(e.target.value)} style={selStyle}>
+                {FAL_VIDEO_MODELS.map(m => <option key={m.id} value={m.id}>{m.label} — ${m.costPerClip.toFixed(2)}</option>)}
+              </select>
             </div>
           )}
 
@@ -706,6 +756,58 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
           <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: 0 }}>OpenAI gpt-image-1 via openai-image-proxy. Style presets apply to Ideogram only.</p>
         )}
 
+        {/* Video controls: frames + output (per model) */}
+        {mediaType === 'video' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px', borderRadius: 10, backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
+            <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: 0 }}>
+              {vModel.label} · {[vModel.caps.text && 'text→video', vModel.caps.start && 'image→video', vModel.caps.end && 'end frame', vModel.caps.audio && 'audio'].filter(Boolean).join(' · ')}
+            </p>
+
+            {/* Frames */}
+            {vModel.caps.start && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {([['start', 'Start frame', vStartUrl, setVStartUrl] as const,
+                   ...(vModel.caps.end ? [['end', 'End frame', vEndUrl, setVEndUrl] as const] : [])
+                  ]).map(([which, label, url, setUrl]) => (
+                  <div key={which} style={{ width: 150 }}>
+                    <label style={fldLabel}>{label}</label>
+                    <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', borderRadius: 8, border: '1px dashed var(--border-strong)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-surface)' }}>
+                      {url ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <button onClick={() => setUrl(null)} title="Remove" style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 6, border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', cursor: 'pointer', fontSize: 13 }}>×</button>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{vUploading === which ? 'Uploading…' : 'No frame'}</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      <label style={{ flex: 1, textAlign: 'center', fontSize: 11, padding: '5px 0', borderRadius: 6, border: '1px solid var(--border-strong)', cursor: 'pointer', color: 'var(--text-dim)' }}>
+                        Upload
+                        <input type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) uploadFrame(which, f) }} />
+                      </label>
+                      <button onClick={() => setHistoryFor(which)} style={{ flex: 1, fontSize: 11, padding: '5px 0', borderRadius: 6, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>Gallery</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Output controls */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div><label style={fldLabel}>Aspect</label><select value={vAspect} onChange={e => setVAspect(e.target.value)} style={selStyle}>{vModel.aspects.map(a => <option key={a} value={a}>{a}</option>)}</select></div>
+              <div><label style={fldLabel}>Duration</label><select value={vDuration} onChange={e => setVDuration(Number(e.target.value))} style={selStyle}>{vModel.durations.map(d => <option key={d} value={d}>{d}s</option>)}</select></div>
+              <div><label style={fldLabel}>Resolution</label><select value={vResolution} onChange={e => setVResolution(e.target.value)} style={selStyle}>{vModel.resolutions.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+              {vModel.caps.audio && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-dim)', cursor: 'pointer', paddingBottom: 8 }}>
+                  <input type="checkbox" checked={vAudio} onChange={e => setVAudio(e.target.checked)} /> Audio
+                </label>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Row 2: prompt + actions */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <textarea value={prompt} onChange={e => { setPrompt(e.target.value); setEnhanced(null) }} placeholder="Describe your creative in a few words…" rows={2} style={{ flex: 1, minWidth: 240, padding: '10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
@@ -718,8 +820,8 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
                 {loading ? 'Generating…' : `⚡ Generate — $${costFor(mode).toFixed(2)}`}
               </button>
             ) : (
-              <button onClick={runVideo} disabled={videoBusy || !basePrompt.trim()} style={{ padding: '9px 18px', borderRadius: 8, background: (videoBusy || !basePrompt.trim()) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (videoBusy || !basePrompt.trim()) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
-                {videoBusy ? 'Generating…' : '🎬 Generate video — $0.20'}
+              <button onClick={runVideo} disabled={videoBusy || (!basePrompt.trim() && !vStartUrl)} style={{ padding: '9px 18px', borderRadius: 8, background: (videoBusy || (!basePrompt.trim() && !vStartUrl)) ? 'rgba(108,63,197,0.3)' : 'linear-gradient(135deg, #6C3FC5, #9B72E8)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (videoBusy || (!basePrompt.trim() && !vStartUrl)) ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+                {videoBusy ? 'Generating…' : `🎬 Generate video — $${vModel.costPerClip.toFixed(2)}`}
               </button>
             )}
           </div>
@@ -919,6 +1021,30 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
           </div>
         )}
       </div>
+
+      {/* Frame picker (History) modal */}
+      {historyFor && (
+        <>
+          <div onClick={() => setHistoryFor(null)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 59 }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(680px, 92vw)', maxHeight: '82vh', overflowY: 'auto', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-strong)', borderRadius: 16, zIndex: 60, padding: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--text-strong)' }}>Pick a {historyFor} frame</h3>
+              <button onClick={() => setHistoryFor(null)} style={{ border: 'none', background: 'var(--bg-inset)', borderRadius: 6, width: 28, height: 28, cursor: 'pointer', color: 'var(--text-dim)', fontSize: 16 }}>×</button>
+            </div>
+            {historyImages.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-faint)', textAlign: 'center', padding: 30 }}>No gallery images yet — generate some images first.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+                {historyImages.map((a, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={a.public_url} alt={a.title ?? ''} onClick={() => { if (historyFor === 'start') setVStartUrl(a.public_url); else setVEndUrl(a.public_url); setHistoryFor(null) }}
+                    style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--border)' }} />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* ── Home Carousel manager ──────────────────────────────────────────── */}
       <CarouselManager refreshKey={bannerRefresh} />

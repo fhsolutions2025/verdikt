@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getFalVideoModel, type FalVideoParams } from '@/lib/falVideoModels'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -27,20 +28,31 @@ async function rehost(videoUrl: string): Promise<string> {
   return svc.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
 }
 
-// POST { prompt } → submit text-to-video, poll ~100s; returns { url } when done or
-// { request_id, model } if still processing (client re-polls via GET).
+// POST { modelId, prompt, startUrl?, endUrl?, aspect?, duration?, resolution?, audio? }
+// → resolve the model from the registry, build its fal input, submit, poll ~100s;
+// returns { url } when done or { request_id, model } if still processing.
 export async function POST(req: Request) {
   const { role } = await getAuthContext()
   if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { prompt } = await req.json().catch(() => ({}))
-  if (!prompt?.trim()) return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
+  const body = await req.json().catch(() => ({}))
+  const { modelId, prompt, startUrl, endUrl, aspect, duration, resolution, audio } = body as {
+    modelId?: string; prompt?: string; startUrl?: string; endUrl?: string;
+    aspect?: string; duration?: number; resolution?: string; audio?: boolean
+  }
+  if (!prompt?.trim() && !startUrl) return NextResponse.json({ error: 'Prompt or a start frame is required' }, { status: 400 })
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json({ error: 'Server not configured' }, { status: 503 })
   }
 
+  const def = getFalVideoModel(modelId ?? '') ?? getFalVideoModel('fal-ai/ltx-video')!
+  // Use the image-to-video endpoint when a start frame is supplied.
+  const falModel = startUrl && def.i2vId ? def.i2vId : def.id
+  const params: FalVideoParams = { prompt: prompt ?? '', startUrl, endUrl, aspect, duration, resolution, audio }
+  const input = def.buildInput(params)
+
   // Submit.
-  const subRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.submit', prompt }) })
+  const subRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.submit', model: falModel, input }) })
   const sub = await subRes.json()
   if (!subRes.ok || !sub.request_id) {
     return NextResponse.json({ error: sub.error ?? 'Video submit failed' }, { status: subRes.status || 502 })
