@@ -28,6 +28,7 @@ interface MarketSeed {
   closes_at:         string
   resolution_source: string
   source_feed:       string
+  rationale:         string
 }
 
 function fmt(n: number, decimals = 0): string {
@@ -82,6 +83,7 @@ async function cryptoMarkets(cgEnabled: boolean): Promise<MarketSeed[]> {
       closes_at:         date.iso,
       resolution_source: `CoinGecko ${cfg.symbol}/USD spot price`,
       source_feed:       'CoinGecko',
+      rationale:         `${cfg.symbol} is trading near $${fmt(price, price < 1 ? 4 : 0)} (CoinGecko spot). The target of $${fmt(target, price < 1 ? 4 : 0)} is roughly +${Math.round(cfg.pctUp * 100)}% over ${cfg.daysOut} days, so YES opens below 50 (${40}) — a move of that size in the window is plausible but not the base case. Resolves on CoinGecko ${cfg.symbol}/USD spot at close.`,
     })
   }
   return seeds
@@ -116,6 +118,7 @@ async function commodityMarkets(avEnabled: boolean): Promise<MarketSeed[]> {
       closes_at:         date.iso,
       resolution_source: `Alpha Vantage ${c.sym}/USD spot price`,
       source_feed:       'Alpha Vantage',
+      rationale:         `${c.name} spot is around $${fmt(price)} /oz (Alpha Vantage). The $${fmt(target)} target is about +${Math.round(c.pctUp * 100)}% over ${c.daysOut} days; YES opens at ${40} because a sustained breakout that far above spot in the window is the upside, not the expected, case. Resolves on Alpha Vantage ${c.sym}/USD spot at close.`,
     })
   }
   return seeds
@@ -151,6 +154,7 @@ async function forexMarkets(fxEnabled: boolean): Promise<MarketSeed[]> {
       closes_at:         date.iso,
       resolution_source: `Frankfurter ${p.label} exchange rate`,
       source_feed:       'Frankfurter',
+      rationale:         `${p.label} is currently ~${spotRate} (Frankfurter). The ${target} target is about +${Math.round(p.pct * 100)}% over ${p.daysOut} days; for a major FX pair that is a meaningful move, so YES opens at ${40}. Resolves on the Frankfurter ${p.label} rate at close.`,
     })
   }
   return seeds
@@ -231,6 +235,7 @@ Deno.serve(async () => {
       resolution_source: seed.resolution_source,
       closes_at:         seed.closes_at,
       source_feed:       seed.source_feed,
+      ai_rationale:      seed.rationale,
       volume:            0,
     })
 

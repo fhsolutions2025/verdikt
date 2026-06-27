@@ -55,7 +55,7 @@ async function fetchUpcomingFixtures(): Promise<Fixture[]> {
   }))
 }
 
-function fixtureToMarket(f: Fixture): { question: string; closes_at: string } {
+function fixtureToMarket(f: Fixture): { question: string; closes_at: string; rationale: string } {
   const matchDate = new Date(f.utcDate)
   const dateStr   = matchDate.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -66,6 +66,7 @@ function fixtureToMarket(f: Fixture): { question: string; closes_at: string } {
   return {
     question:   `Will ${f.homeTeam} beat ${f.awayTeam} in the ${f.competition} on ${dateStr}?`,
     closes_at,
+    rationale:  `Auto-created from the official ${f.competition} fixture ${f.homeTeam} vs ${f.awayTeam} on ${dateStr}. Opens at an even 50/50 line (no model edge applied); resolves on the official full-time match result the day after kickoff.`,
   }
 }
 
@@ -118,7 +119,7 @@ Deno.serve(async () => {
   let skipped  = 0
 
   for (const fixture of fixtures) {
-    const { question, closes_at } = fixtureToMarket(fixture)
+    const { question, closes_at, rationale } = fixtureToMarket(fixture)
 
     if (tooSimilar(question, existingQuestions)) { skipped++; continue }
 
@@ -134,6 +135,7 @@ Deno.serve(async () => {
       resolution_source: `Official match result — ${fixture.competition}`,
       closes_at,
       source_feed:       'football-data.org',
+      ai_rationale:      rationale,
       volume:            0,
     })
 

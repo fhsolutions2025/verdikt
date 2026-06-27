@@ -64,6 +64,7 @@ export interface Market {
   player_original_question: string | null
   rejection_reason:         string | null
   source_feed:              string | null
+  ai_rationale:             string | null
 }
 
 export interface PriceTick {

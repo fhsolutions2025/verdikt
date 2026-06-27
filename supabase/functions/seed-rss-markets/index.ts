@@ -30,6 +30,7 @@ interface MarketDraft {
   ai_confidence:     number
   resolution_source: string
   closes_at:         string
+  rationale:         string
   viable:            boolean
 }
 
@@ -130,7 +131,8 @@ Otherwise return exactly this JSON (no other text, no markdown):
   "yes_price": <integer 5-95>,
   "closes_at": "YYYY-MM-DD",
   "resolution_source": "<how outcome is publicly verified>",
-  "ai_confidence": <integer 40-95>
+  "ai_confidence": <integer 40-95>,
+  "rationale": "<2-3 sentences for a human reviewer: why this is a good, fair market — the key driver(s) behind the event, why the suggested YES probability, and how it will resolve>"
 }`
 
   let body: string
@@ -266,6 +268,7 @@ Deno.serve(async () => {
       resolution_source: draft.resolution_source ?? 'Public record',
       closes_at:         draft.closes_at,
       source_feed:       item.source_feed,
+      ai_rationale:      draft.rationale ?? null,
       volume:            0,
     })
 

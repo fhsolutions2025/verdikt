@@ -292,6 +292,7 @@ JSON shape:
   "resolution_source": string,
   "confidence_score": number,
   "suggested_yes_price": number,
+  "rationale": string,
   "rejection_reason": string | null,
   "deadline_warning": string | null
 }
@@ -299,6 +300,7 @@ JSON shape:
 Rules:
 - confidence_score is 0–100
 - confidence < 40: set is_verifiable false and provide rejection_reason
+- rationale: 2-3 sentences for a human reviewer and players — why this is a fair, well-formed market, the key driver(s), why the suggested YES price, and how it resolves
 - suggested_yes_price must be between 1 and 99 (integer or one decimal)
 - Never output currency symbols in JSON string values
 - Never do arithmetic — prices come from context below
@@ -403,6 +405,9 @@ Deno.serve(async (_req) => {
     }
 
     const confidence = Math.round(Number(aiJson.confidence_score) || 0)
+    const rationale  = typeof aiJson.rationale === 'string' && aiJson.rationale.trim()
+      ? aiJson.rationale.trim()
+      : null
 
     let marketUpdate: Record<string, unknown>
     let auditDesc: string
@@ -416,6 +421,8 @@ Deno.serve(async (_req) => {
         ai_confidence:            confidence,
         resolution_source:        String(aiJson.resolution_source),
         player_original_question: market.question,
+        // Only overwrite seed-time rationale when the AI produced one
+        ...(rationale ? { ai_rationale: rationale } : {}),
       }
       auditDesc = `AI normalized (conf ${confidence}%): "${aiJson.cleaned_question}" — via ${aiJson.resolution_source}`
     } else if (confidence >= 40) {
@@ -423,6 +430,7 @@ Deno.serve(async (_req) => {
         status:                   'ai_ready',
         ai_confidence:            confidence,
         player_original_question: market.question,
+        ...(rationale ? { ai_rationale: rationale } : {}),
       }
       auditDesc = `AI low-confidence (conf ${confidence}%) — needs company review: "${market.question}"`
     } else {
