@@ -22,9 +22,9 @@ export default async function CompanyPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayISO = today.toISOString()
+  // Use a UTC day boundary so the "today" window matches stored UTC timestamps
+  // regardless of the server's local timezone (keeps API Health cost/calls accurate).
+  const todayISO = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z'
 
   const [
     totalsRes,
