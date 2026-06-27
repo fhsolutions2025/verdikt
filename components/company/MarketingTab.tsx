@@ -550,6 +550,15 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const costFor = (m: GenMode) => m === 'single' ? perImageCost : m === 'batch' ? perImageCost * 4 : perImageCost * 8
   const single  = results.length === 1 && mode === 'single'
 
+  // Pre-fill the carousel headline from the prompt when a carousel result lands.
+  useEffect(() => {
+    if (single && isCarousel && !bHeadline.trim()) {
+      const first = basePrompt.split(/[,.]/)[0].trim()
+      if (first) setBHeadline(first.length > 48 ? first.slice(0, 48) : first)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [single, isCarousel])
+
   const selStyle: React.CSSProperties = { padding: '8px 10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 13, cursor: 'pointer', outline: 'none' }
   const fldLabel: React.CSSProperties = { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }
 
@@ -702,23 +711,28 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
               <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border-soft)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#9B72E8', backgroundColor: 'rgba(108,63,197,0.15)', padding: '3px 10px', borderRadius: 999, border: '1px solid rgba(108,63,197,0.3)' }}>{results[0].platform.label} · {results[0].platform.dims}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-faint)', flex: 1 }}>{results[0].style}</span>
-                <SaveAndDownload meta={results[0]} campaignTag={campaignTag} onSaved={onGallerySaved} />
+                {!isCarousel && <SaveAndDownload meta={results[0]} campaignTag={campaignTag} onSaved={onGallerySaved} />}
               </div>
             </div>
 
-            {/* Publish to Home Carousel (carousel size only) */}
+            {/* Publish to Home Carousel — primary action at carousel size */}
             {isCarousel && (
-              <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(0,200,83,0.3)', borderRadius: 14, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(0,200,83,0.35)', borderRadius: 14, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: '#00A844', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Publish to Home Carousel</p>
+                <p style={{ fontSize: 11, color: 'var(--text-faint)', margin: '-4px 0 0' }}>Overlay text is optional — leave blank if the artwork already contains the headline.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <div><label style={fldLabel}>Headline</label><input value={bHeadline} onChange={e => setBHeadline(e.target.value)} placeholder="Predict. Win. Repeat." style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
                   <div><label style={fldLabel}>Subtext</label><input value={bSubtext} onChange={e => setBSubtext(e.target.value)} placeholder="Trade real-world outcomes." style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
                   <div><label style={fldLabel}>CTA label</label><input value={bCtaLabel} onChange={e => setBCtaLabel(e.target.value)} style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
                   <div><label style={fldLabel}>CTA link</label><input value={bCtaHref} onChange={e => setBCtaHref(e.target.value)} style={{ ...selStyle, width: '100%', cursor: 'text', boxSizing: 'border-box' }} /></div>
                 </div>
-                <button onClick={publishToCarousel} disabled={publishing || published} style={{ alignSelf: 'flex-start', padding: '9px 18px', borderRadius: 8, border: 'none', backgroundColor: published ? 'rgba(0,200,83,0.15)' : '#00C853', color: published ? '#00A844' : '#fff', fontSize: 13, fontWeight: 700, cursor: (publishing || published) ? 'default' : 'pointer' }}>
-                  {published ? '✓ Published to carousel' : publishing ? 'Publishing…' : 'Publish to Home Carousel'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <button onClick={publishToCarousel} disabled={publishing || published} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', backgroundColor: published ? 'rgba(0,200,83,0.15)' : '#00C853', color: published ? '#00A844' : '#fff', fontSize: 13, fontWeight: 700, cursor: (publishing || published) ? 'default' : 'pointer' }}>
+                    {published ? '✓ Published to carousel' : publishing ? 'Publishing…' : 'Publish to Home Carousel'}
+                  </button>
+                  <span style={{ fontSize: 11, color: 'var(--text-faintest)' }}>Also:</span>
+                  <SaveAndDownload meta={results[0]} campaignTag={campaignTag} onSaved={onGallerySaved} />
+                </div>
               </div>
             )}
 
@@ -1044,6 +1058,38 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
   const [totalSpend, setTotalSpend] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
 
+  // "Add to Home Carousel" form (inside the detail modal)
+  const [addOpen, setAddOpen]   = useState(false)
+  const [aHeadline, setAHeadline] = useState('')
+  const [aSubtext, setASubtext] = useState('')
+  const [aCta, setACta]         = useState('Explore markets →')
+  const [aHref, setAHref]       = useState('/player')
+  const [adding, setAdding]     = useState(false)
+  const [added, setAdded]       = useState(false)
+
+  const openAddForm = (a: GalleryAsset) => {
+    // Pre-fill headline from a cleaned title (strip the "Platform — " prefix).
+    const clean = (a.title || a.prompt || '').replace(/^[^—]*—\s*/, '').split(/[,.]/)[0].trim()
+    setAHeadline(clean.length > 48 ? clean.slice(0, 48) : clean)
+    setASubtext(''); setACta('Explore markets →'); setAHref('/player')
+    setAdded(false); setAddOpen(true)
+  }
+
+  const addToCarousel = async () => {
+    if (!selected) return
+    setAdding(true)
+    try {
+      const res = await fetch('/api/company/banners', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: selected.public_url, headline: aHeadline, subtext: aSubtext,
+          cta_label: aCta, cta_href: aHref || '/player', sort_order: 999, is_active: true,
+        }),
+      })
+      if (res.ok) { setAdded(true); setAddOpen(false) }
+    } finally { setAdding(false) }
+  }
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -1131,7 +1177,7 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
       {/* Detail modal */}
       {selected && (
         <>
-          <div onClick={() => setSelected(null)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 49, cursor: 'pointer' }} />
+          <div onClick={() => { setSelected(null); setAddOpen(false) }} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 49, cursor: 'pointer' }} />
           <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(640px, 92vw)', maxHeight: '88vh', overflowY: 'auto', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-strong)', borderRadius: 16, zIndex: 50 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={selected.public_url} alt={selected.alt_text} style={{ width: '100%', display: 'block', borderTopLeftRadius: 16, borderTopRightRadius: 16 }} />
@@ -1152,10 +1198,33 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
                   </div>
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <a href={selected.public_url} download target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '9px 0', borderRadius: 9, border: '1px solid rgba(108,63,197,0.3)', backgroundColor: 'rgba(108,63,197,0.1)', color: '#9B72E8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>↓ Download</a>
+              {/* Add to Home Carousel — inline form */}
+              {addOpen && (
+                <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 10, backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(0,200,83,0.3)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#00A844', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Add to Home Carousel</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-faint)', margin: '-2px 0 0' }}>Overlay text is optional — leave blank if the artwork already has the headline.</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {([['Headline', aHeadline, setAHeadline], ['Subtext', aSubtext, setASubtext], ['CTA label', aCta, setACta], ['CTA link', aHref, setAHref]] as [string, string, (v: string) => void][]).map(([lbl, val, set]) => (
+                      <div key={lbl}>
+                        <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{lbl}</label>
+                        <input value={val} onChange={e => set(e.target.value)} style={{ width: '100%', padding: '8px 10px', backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-strong)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={addToCarousel} disabled={adding} style={{ padding: '9px 18px', borderRadius: 8, border: 'none', backgroundColor: '#00C853', color: '#fff', fontSize: 13, fontWeight: 700, cursor: adding ? 'default' : 'pointer' }}>{adding ? 'Adding…' : 'Add slide'}</button>
+                    <button onClick={() => setAddOpen(false)} style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => addOpen ? setAddOpen(false) : openAddForm(selected)} disabled={added} style={{ flex: 1, minWidth: 160, padding: '9px 0', borderRadius: 9, border: 'none', backgroundColor: added ? 'rgba(0,200,83,0.15)' : '#00C853', color: added ? '#00A844' : '#fff', fontSize: 13, fontWeight: 700, cursor: added ? 'default' : 'pointer' }}>
+                  {added ? '✓ Added to carousel' : '+ Add to Home Carousel'}
+                </button>
+                <a href={selected.public_url} download target="_blank" rel="noopener noreferrer" style={{ textAlign: 'center', padding: '9px 14px', borderRadius: 9, border: '1px solid rgba(108,63,197,0.3)', backgroundColor: 'rgba(108,63,197,0.1)', color: '#9B72E8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>↓ Download</a>
                 <button onClick={() => remove(selected.id)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid rgba(220,38,38,0.3)', backgroundColor: 'rgba(220,38,38,0.1)', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
-                <button onClick={() => setSelected(null)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid var(--border-strong)', backgroundColor: 'transparent', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer' }}>Close</button>
+                <button onClick={() => { setSelected(null); setAddOpen(false) }} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid var(--border-strong)', backgroundColor: 'transparent', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer' }}>Close</button>
               </div>
             </div>
           </div>
