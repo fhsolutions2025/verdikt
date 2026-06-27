@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
   let body: {
     op?: string; model?: string; prompt?: string; image_size?: string;
     request_id?: string; image_url?: string; input?: Record<string, unknown>;
-    status_url?: string; response_url?: string;
+    status_url?: string; response_url?: string; webhook_url?: string;
   }
   try { body = await req.json() } catch { return json({ error: 'Invalid JSON body' }, 400) }
 
@@ -112,7 +112,10 @@ Deno.serve(async (req) => {
             return p
           })()
       if (!payload) return json({ error: 'input or prompt is required' }, 400)
-      const res = await fetch(`https://queue.fal.run/${model}`, {
+      // Phase 3: when a webhook url is supplied, fal POSTs the result there on
+      // completion (no polling needed). Polling stays as a fallback.
+      const wh = body.webhook_url ? `?fal_webhook=${encodeURIComponent(body.webhook_url)}` : ''
+      const res = await fetch(`https://queue.fal.run/${model}${wh}`, {
         method: 'POST', headers: falHeaders(), body: JSON.stringify(payload),
         signal: AbortSignal.timeout(30_000),
       })

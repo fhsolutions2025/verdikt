@@ -16,6 +16,16 @@ function authHeader() {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''}` }
 }
 
+// Public base URL fal should call back on completion. Set FAL_WEBHOOK_BASE_URL to
+// your ngrok url for local testing, or your deployed origin in prod. Empty = no
+// webhook (polling-only), which still works via the durable jobs panel.
+function webhookUrl(): string | undefined {
+  const base = process.env.FAL_WEBHOOK_BASE_URL
+    ?? process.env.NEXT_PUBLIC_SITE_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
+  return base ? `${base.replace(/\/$/, '')}/api/webhooks/fal` : undefined
+}
+
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
 
 // Mark a durable job done/failed. Reconciling by id (or request_id) means a billed
@@ -116,10 +126,11 @@ export async function POST(req: Request) {
     : [input.duration]
   let sub: { request_id?: string; model?: string; status_url?: string; response_url?: string; error?: string } = {}
   let subStatus = 502
+  const wh = webhookUrl()
   for (const enc of durationEncodings) {
     const attempt = { ...input }
     if (duration) attempt.duration = enc
-    const r = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.submit', model: falModel, input: attempt }) })
+    const r = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.submit', model: falModel, input: attempt, webhook_url: wh }) })
     subStatus = r.status
     sub = await r.json()
     if (r.ok && sub.request_id) break
