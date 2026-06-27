@@ -65,8 +65,10 @@ export const INTERVIEW: InterviewStep[] = [
   {
     id: 'region',
     prompt: 'Which region governs the compliance framing?',
+    helper: 'Pick a configured region, or add your own country/market below.',
     kind: 'mcq',
     dynamicOptions: 'regions',
+    allowCustom: true,
   },
   {
     id: 'channels',

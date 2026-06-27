@@ -264,8 +264,8 @@ function CampaignDetail({ campaignId, onBack, onChanged }: { campaignId: string;
           </div>
         </Card>
 
-        {/* plan */}
-        {campaign?.plan && (
+        {/* plan (guarded: Director campaigns store a different plan shape with no content_items) */}
+        {campaign?.plan?.content_items && (
           <Section title="Plan">
             <p style={{ fontSize: 13, margin: '0 0 8px' }}>{campaign.plan.objective}</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

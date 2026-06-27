@@ -90,9 +90,10 @@ export async function POST(req: Request) {
   if (!brand) return NextResponse.json({ error: 'brand not found' }, { status: 404 })
   const region = brief.region || brand.regions?.[0] || ''
   if (!region) return NextResponse.json({ error: 'region required' }, { status: 400 })
+  // A configured region must not be 'blocked'. Custom countries the operator typed
+  // (not in the compliance table) are allowed and treated as prediction-market framing.
   const { data: regRow } = await svc.from('mkt_compliance_regions').select('framing').eq('region', region).eq('enabled', true).maybeSingle()
-  if (!regRow) return NextResponse.json({ error: `Region ${region} is not configured for compliance`, code: 'region_unconfigured' }, { status: 422 })
-  if (regRow.framing === 'blocked') return NextResponse.json({ error: `Marketing is blocked in region ${region}`, code: 'region_blocked' }, { status: 422 })
+  if (regRow?.framing === 'blocked') return NextResponse.json({ error: `Marketing is blocked in region ${region}`, code: 'region_blocked' }, { status: 422 })
 
   const name = (brief.goal || brief.vertical || 'Director campaign').slice(0, 70)
   const bctx: BrandCtx = { name: brand.name, voice: brand.voice ?? {}, region }

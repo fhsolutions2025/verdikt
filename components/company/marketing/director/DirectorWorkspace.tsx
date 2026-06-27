@@ -116,6 +116,22 @@ export function DirectorWorkspace({
     }
   }
 
+  // Export the plan as a downloadable JSON (brief + generated assets). Safe + offline
+  // — replaces the old navigation that crashed the legacy campaign-detail view.
+  const onExport = () => {
+    const title = brief?.goal?.trim() ? brief.goal : 'New Campaign'
+    const payload = {
+      campaign: title, brand: brandName, brief, stats,
+      assets: assets.map(a => ({ type: a.type, label: a.label, channel: a.channel, state: a.state, url: a.url, text: a.text })),
+      exported_at: new Date().toISOString(),
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-plan.json`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
   const header: CampaignHeader = {
     title: brief?.goal?.trim() ? brief.goal : 'New Campaign',
     live: started,
@@ -148,7 +164,8 @@ export function DirectorWorkspace({
             header={header}
             stats={stats}
             brief={brief ?? emptyBrief}
-            onExport={() => campaignId && onOpenCampaign?.(campaignId)}
+            onShare={() => campaignId && onOpenCampaign?.(campaignId)}
+            onExport={onExport}
           >
             {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
             <AssetGrid assets={assets} onGenerateVideo={onGenerateVideo} generatingId={generatingId} />

@@ -43,6 +43,7 @@ export function ChatPanel({
   const [stepIdx, setStepIdx] = React.useState(0)
   const [answers, setAnswers] = React.useState<InterviewAnswers>({})
   const [custom, setCustom] = React.useState('')
+  const [typing, setTyping] = React.useState(true)   // brief "typing…" reveal per question
 
   const total = INTERVIEW.length
   const step = INTERVIEW[Math.min(stepIdx, total - 1)]
@@ -53,7 +54,15 @@ export function ChatPanel({
   React.useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [stepIdx, started, submitting])
+  }, [stepIdx, started, submitting, typing])
+
+  // Stream each question in: show a short "typing…" indicator, then reveal the step.
+  React.useEffect(() => {
+    if (started) return
+    setTyping(true)
+    const t = setTimeout(() => setTyping(false), 650)
+    return () => clearTimeout(t)
+  }, [stepIdx, started])
 
   // ── Dynamic option resolution ──────────────────────────────────────────────
   const optionsFor = React.useCallback(
@@ -224,8 +233,18 @@ export function ChatPanel({
           <AnsweredPair key={s.id} prompt={s.prompt} answer={displayAnswer(s) || '—'} />
         ))}
 
-        {/* Current step (hidden once started) */}
-        {!started && (
+        {/* Typing indicator while the next question "streams" in */}
+        {!started && typing && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+            <Avatar label="Campaign Director" size={28} />
+            <div style={{ ...S.bubble, display: 'inline-flex', alignItems: 'center' }}>
+              <TypingDots />
+            </div>
+          </div>
+        )}
+
+        {/* Current step (hidden once started or while typing) */}
+        {!started && !typing && (
           <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
             <Avatar label="Campaign Director" size={28} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -265,6 +284,21 @@ export function ChatPanel({
                       />
                     )
                   })}
+
+                  {step.kind === 'multi' && opts.length > 0 && (
+                    <div style={{ display: 'flex', gap: 14, padding: '2px 2px 0' }}>
+                      <button
+                        type="button"
+                        onClick={() => setAnswers(prev => ({ ...prev, [step.id]: opts.map(o => o.value) }))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: PURPLE_LIGHT, padding: 0 }}
+                      >Select all</button>
+                      <button
+                        type="button"
+                        onClick={() => setAnswers(prev => ({ ...prev, [step.id]: [] }))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--text-faint)', padding: 0 }}
+                      >Clear</button>
+                    </div>
+                  )}
 
                   {step.allowCustom && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
