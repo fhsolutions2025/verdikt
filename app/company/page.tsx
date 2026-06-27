@@ -128,10 +128,12 @@ export default async function CompanyPage() {
   let cachedCount = 0
   let lastError: string | null = null
   let lastErrorAt = ''
+  let lastSuccessAt = ''
 
   for (const c of rows) {
     if (c.from_cache) { cachedCount++; continue }
     if (c.success) {
+      if (c.created_at > lastSuccessAt) lastSuccessAt = c.created_at
       if (c.latency_ms != null) { sumLatency += c.latency_ms; latencyCount++ }
     } else if (c.error_message) {
       if (!lastErrorAt || c.created_at > lastErrorAt) {
@@ -141,6 +143,10 @@ export default async function CompanyPage() {
     totalInputTokens  += c.input_tokens  ?? 0
     totalOutputTokens += c.output_tokens ?? 0
   }
+
+  // Self-clearing: if the most recent call succeeded, the provider has recovered —
+  // don't keep surfacing an older error as "degraded".
+  if (lastErrorAt && lastSuccessAt && lastSuccessAt >= lastErrorAt) lastError = null
 
   const avgLatency = latencyCount > 0 ? sumLatency / latencyCount : null
   const costToday  = (totalInputTokens  / 1_000_000) * HAIKU_INPUT_PRICE_PER_M
@@ -231,9 +237,13 @@ export default async function CompanyPage() {
     const outP = mini ? 0.60 : 10.00
     return s + ((r.input_tokens ?? 0) / 1_000_000) * inP + ((r.output_tokens ?? 0) / 1_000_000) * outP
   }, 0)
-  const openAiLastError = allRows
-    .filter(r => (isOpenAiText(r) || isOpenAiImage(r)) && !r.success && r.error_message)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.error_message ?? null
+  // Self-clearing: only show an OpenAI error if the most recent OpenAI call failed.
+  const openAiRowsByRecency = allRows
+    .filter(r => isOpenAiText(r) || isOpenAiImage(r))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+  const openAiLastError = openAiRowsByRecency[0] && !openAiRowsByRecency[0].success
+    ? (openAiRowsByRecency[0].error_message ?? null)
+    : null
   const openaiStats = {
     text_calls_today:   openAiTextRows.length,
     text_cost_today:    openAiTextCost,
