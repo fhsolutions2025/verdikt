@@ -1388,6 +1388,12 @@ function BrandKitSection({ brandKit, setBrandKit }: { brandKit: BrandKit; setBra
     return `${base}. Brand palette: ${colors}. ${brandKit.visualStyle}`.trim()
   }
 
+  // A generated-but-unsaved preview is cached so it survives leaving/returning to
+  // the Brand Kit tab (it's only persisted to Supabase on Save).
+  useEffect(() => {
+    try { const p = localStorage.getItem('verdikt_logo_preview'); if (p) setLogoPreview(p) } catch { /* ignore */ }
+  }, [])
+
   const generateLogo = async () => {
     setLogoBusy(true); setLogoErr(null); setLogoPreview(null)
     try {
@@ -1396,7 +1402,7 @@ function BrandKitSection({ brandKit, setBrandKit }: { brandKit: BrandKit; setBra
         body: JSON.stringify({ prompt: logoPrompt(), model: logoModel }),
       })
       const d = await r.json()
-      if (r.ok && d.url) setLogoPreview(d.url)
+      if (r.ok && d.url) { setLogoPreview(d.url); try { localStorage.setItem('verdikt_logo_preview', d.url) } catch { /* ignore */ } }
       else setLogoErr(d.error ?? 'Logo generation failed')
     } catch { setLogoErr('Network error') } finally { setLogoBusy(false) }
   }
@@ -1412,6 +1418,7 @@ function BrandKitSection({ brandKit, setBrandKit }: { brandKit: BrandKit; setBra
       const d = await r.json()
       if (r.ok && d.logo_url) {
         setBrandKit({ ...brandKit, logoUrl: d.logo_url }); setLogoPreview(null)
+        try { localStorage.removeItem('verdikt_logo_preview') } catch { /* ignore */ }
         // Also surface it in the asset gallery (reads marketing_assets).
         fetch('/api/company/marketing/gallery', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1492,8 +1499,9 @@ function BrandKitSection({ brandKit, setBrandKit }: { brandKit: BrandKit; setBra
           {logoPreview && (
             <div style={{ marginBottom: 12 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logoPreview} alt="Logo preview" style={{ width: '100%', borderRadius: 10, border: '1px solid rgba(108,63,197,0.4)', background: '#0a0a0f', display: 'block' }} />
-              <button onClick={saveLogo} disabled={logoSaving} style={{ width: '100%', marginTop: 8, padding: '9px 0', borderRadius: 9, border: 'none', background: logoSaving ? 'rgba(0,200,83,0.4)' : 'linear-gradient(135deg, #00A847, #00C853)', color: '#fff', fontSize: 12, fontWeight: 800, cursor: logoSaving ? 'default' : 'pointer' }}>
+              <img src={logoPreview} alt="Logo preview" style={{ width: '100%', borderRadius: 10, border: '1px solid rgba(224,92,32,0.55)', background: '#0a0a0f', display: 'block' }} />
+              <p style={{ fontSize: 11, color: '#E05C20', fontWeight: 700, margin: '6px 0 0', textAlign: 'center' }}>⚠ Not saved yet — click Save to keep it</p>
+              <button onClick={saveLogo} disabled={logoSaving} style={{ width: '100%', marginTop: 6, padding: '10px 0', borderRadius: 9, border: 'none', background: logoSaving ? 'rgba(0,200,83,0.4)' : 'linear-gradient(135deg, #00A847, #00C853)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: logoSaving ? 'default' : 'pointer' }}>
                 {logoSaving ? 'Saving…' : '✓ Save to Brand Kit'}
               </button>
             </div>
