@@ -83,7 +83,10 @@ export async function POST(req: Request) {
   const subRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.submit', model: falModel, input }) })
   const sub = await subRes.json()
   if (!subRes.ok || !sub.request_id) {
-    return NextResponse.json({ error: sub.error ?? 'Video submit failed' }, { status: subRes.status || 502 })
+    // Capture the exact submit rejection (incl. the input we sent) so per-model
+    // param quirks can be diagnosed via MCP.
+    await captureNoUrl(falModel, { raw: JSON.stringify({ error: sub.error, sent: input }) })
+    return NextResponse.json({ error: sub.error ? `Video submit failed — ${sub.error}` : 'Video submit failed' }, { status: subRes.status || 502 })
   }
   const { request_id, model, status_url, response_url } = sub
 
