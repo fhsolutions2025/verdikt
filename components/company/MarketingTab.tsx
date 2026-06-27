@@ -1410,7 +1410,14 @@ function BrandKitSection({ brandKit, setBrandKit }: { brandKit: BrandKit; setBra
         body: JSON.stringify({ url: logoPreview }),
       })
       const d = await r.json()
-      if (r.ok && d.logo_url) { setBrandKit({ ...brandKit, logoUrl: d.logo_url }); setLogoPreview(null) }
+      if (r.ok && d.logo_url) {
+        setBrandKit({ ...brandKit, logoUrl: d.logo_url }); setLogoPreview(null)
+        // Also surface it in the asset gallery (reads marketing_assets).
+        fetch('/api/company/marketing/gallery', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: d.logo_url, media_type: 'image', title: 'Brand Logo', alt_text: 'Verdikt brand logo', platform: 'Brand', dimensions: '', prompt: 'brand logo', campaign_tag: 'brand', cost_usd: 0, image_engine: 'fal' }),
+        }).catch(() => {})
+      }
       else setLogoErr(d.error ?? 'Save failed')
     } catch { setLogoErr('Network error') } finally { setLogoSaving(false) }
   }
@@ -1770,11 +1777,24 @@ export function MarketingTab() {
   const brandSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Brand kit lives in Supabase (brand_settings); localStorage is a fast cache/fallback.
+  // CRITICAL: only overlay DB fields that actually have content — a blank/seeded DB
+  // row must never erase the cached/default kit (that bug wiped everything).
   useEffect(() => {
     let cancelled = false
-    setBrandKitState(loadBrandKit())   // instant from cache
+    const base = loadBrandKit()   // cache, or defaults
+    setBrandKitState(base)
     fetch('/api/company/marketing/brand').then(r => r.ok ? r.json() : null).then(d => {
-      if (!cancelled && d?.brand) { const bk = { ...DEFAULT_BRAND_KIT, ...d.brand }; setBrandKitState(bk); saveBrandKit(bk) }
+      if (cancelled || !d?.brand) return
+      const db = d.brand as Partial<BrandKit>
+      const merged: BrandKit = {
+        colors:          Array.isArray(db.colors) && db.colors.length ? db.colors : base.colors,
+        tone:            db.tone?.trim()            ? db.tone            : base.tone,
+        visualStyle:     db.visualStyle?.trim()     ? db.visualStyle     : base.visualStyle,
+        logoDescription: db.logoDescription?.trim() ? db.logoDescription : base.logoDescription,
+        autoInject:      typeof db.autoInject === 'boolean' ? db.autoInject : base.autoInject,
+        logoUrl:         db.logoUrl ?? base.logoUrl ?? null,
+      }
+      setBrandKitState(merged); saveBrandKit(merged)
     }).catch(() => {})
     return () => { cancelled = true }
   }, [])

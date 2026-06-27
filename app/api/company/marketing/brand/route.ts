@@ -43,6 +43,11 @@ export async function PUT(req: Request) {
   const { role } = await getAuthContext()
   if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const b = await req.json().catch(() => ({})) as Partial<BrandKitDTO>
+  // Defense-in-depth: refuse a fully-empty payload so a stray blank write can never
+  // wipe a populated row (the state bug that erased the kit).
+  const empty = (!b.colors || b.colors.length === 0) && !b.tone?.trim()
+    && !b.visualStyle?.trim() && !b.logoDescription?.trim()
+  if (empty) return NextResponse.json({ ok: true, skipped: 'empty payload ignored' })
   const svc = await createServiceClient()
   const { error } = await svc.from('brand_settings').update({
     colors: b.colors ?? [], tone: b.tone ?? '', visual_style: b.visualStyle ?? '',
