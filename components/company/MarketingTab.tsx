@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FAL_VIDEO_MODELS, getFalVideoModel, makeCustomVideoModel, estVideoCost, FAL_DRAFT_MODEL_ID, FAL_TIER_ORDER, FAL_TIER_LABEL, type FalVideoModel, type CustomVideoSpec } from '@/lib/falVideoModels'
 import VideoJobsPanel from '@/components/company/VideoJobsPanel'
+import AssetEditorModal from '@/components/company/AssetEditorModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1549,6 +1550,7 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
   const [activeTag, setActiveTag] = useState('')
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<GalleryAsset | null>(null)
+  const [editing, setEditing]   = useState<GalleryAsset | null>(null)
   const [totalSpend, setTotalSpend] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
 
@@ -1720,6 +1722,9 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
                 <button onClick={() => addOpen ? setAddOpen(false) : openAddForm(selected)} disabled={added} style={{ flex: 1, minWidth: 160, padding: '9px 0', borderRadius: 9, border: 'none', backgroundColor: added ? 'rgba(0,200,83,0.15)' : '#00C853', color: added ? '#00A844' : '#fff', fontSize: 13, fontWeight: 700, cursor: added ? 'default' : 'pointer' }}>
                   {added ? '✓ Added to carousel' : '+ Add to Home Carousel'}
                 </button>
+                {selected.media_type !== 'video' && (
+                  <button onClick={() => { setEditing(selected); setSelected(null); setAddOpen(false) }} style={{ padding: '9px 16px', borderRadius: 9, border: '1px solid rgba(108,63,197,0.4)', backgroundColor: 'rgba(108,63,197,0.12)', color: '#9B72E8', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>✏ Edit</button>
+                )}
                 <a href={selected.public_url} download target="_blank" rel="noopener noreferrer" style={{ textAlign: 'center', padding: '9px 14px', borderRadius: 9, border: '1px solid rgba(108,63,197,0.3)', backgroundColor: 'rgba(108,63,197,0.1)', color: '#9B72E8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>↓ Download</a>
                 <button onClick={() => remove(selected.id)} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid rgba(220,38,38,0.3)', backgroundColor: 'rgba(220,38,38,0.1)', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
                 <button onClick={() => { setSelected(null); setAddOpen(false) }} style={{ padding: '9px 18px', borderRadius: 9, border: '1px solid var(--border-strong)', backgroundColor: 'transparent', color: 'var(--text-dim)', fontSize: 13, cursor: 'pointer' }}>Close</button>
@@ -1727,6 +1732,14 @@ function GallerySection({ refreshKey }: { refreshKey: number }) {
             </div>
           </div>
         </>
+      )}
+
+      {editing && (
+        <AssetEditorModal
+          asset={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load() }}
+        />
       )}
     </div>
   )

@@ -98,6 +98,24 @@ Deno.serve(async (req) => {
       return json({ url })
     }
 
+    // ── Image edit (synchronous) ────────────────────────────────────────────────
+    // Generic passthrough for editing endpoints (FLUX Fill, text/object removal):
+    // forwards the caller-built `input` verbatim to fal.run/<model>.
+    if (op === 'edit') {
+      const model = body.model
+      if (!model) return json({ error: 'model is required' }, 400)
+      if (!body.input || !Object.keys(body.input).length) return json({ error: 'input is required' }, 400)
+      const res = await fetch(`https://fal.run/${model}`, {
+        method: 'POST', headers: falHeaders(), body: JSON.stringify(body.input),
+        signal: AbortSignal.timeout(90_000),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) return json({ error: falErrText(data) ?? `fal status ${res.status}` }, res.status)
+      const url = data?.images?.[0]?.url ?? data?.image?.url ?? data?.images?.[0] ?? data?.url
+      if (!url) return json({ error: 'fal returned no image', raw: JSON.stringify(data).slice(0, 2000) }, 502)
+      return json({ url })
+    }
+
     // ── Video submit (async queue) ──────────────────────────────────────────────
     // Accepts a generic `input` (built by the app's model registry) or falls back
     // to a simple { prompt }.
