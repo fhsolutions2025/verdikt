@@ -585,7 +585,7 @@ export function CompanyDashboard({
           {tab === 'health' && (
             <TabSection
               title="API Health"
-              subtitle="External data source status and Claude usage today"
+              subtitle="Model engines (Claude · OpenAI · Ideogram) and external data sources"
             >
               <ApiHealthMonitor sources={apiSources} callsToday={callsToday} aiStats={aiStats} aiDaily7d={aiDaily7d} ideogramStats={ideogramStats} openaiStats={openaiStats} defaultOpen />
             </TabSection>
