@@ -158,8 +158,22 @@ pending_ai ──normalize──> ai_ready ──┐
 
 - Player: `app/player/*`, `components/player/*` (MarketCard, PlayerFeedClient, TradeTicket,
   PositionsClient, WalletStatement). Time-to-expire: `lib/marketTime.ts`.
+  - **Header menu**: the player header (`components/shared/PersonaSwitcher.tsx`) shows a
+    **hamburger** → `PlayerMenuDrawer` (theme `ThemeToggle`, display `SkinToggle`, links,
+    Log Out). Results is a **slide-over** (`ResultsDrawer`, self-fetches) not a tab/route;
+    `SideDrawer` is the shared right slide-over primitive. mm-desk keeps inline toggles.
+  - **Home banner** = `BannerCarousel` (Visual skin only) over `promo_banners` (active,
+    ordered); falls back to the `hero_cta_banner` page asset when none. VisualHero is gone.
+  - **CMS info pages**: `/player/info/[slug]` renders published `cms_pages` via
+    `lib/markdownLite.tsx` (dependency-free). Slugs: about/privacy/terms/support/rewards.
+    `/player/profile` is the user's own account (not CMS).
 - Company: `app/company/page.tsx`, `components/company/*` (CompanyDashboard, ApiHealthMonitor,
   MarketsPipelineTab, PendingReviewSection, marketing/*). Marketing workspace: `app/company/marketing/*`.
+  - **Content** tab (`ContentPagesTab` → `/api/company/cms`) edits `cms_pages`; **Banners**
+    tab (`BannersTab` → `/api/company/banners` + `/banners/image`) manages the carousel,
+    generating art via the Ideogram + Storage re-host pipeline (bucket `marketing-media`).
+  - Admin writes use the **service client** (RLS bypass); player/anon reads are gated to
+    `is_published` / `is_active` (mirrors `page_assets`).
 - MM desk: `components/mm-desk/*` (AiReadyMarketCard, MmDeskClient).
 - Agent/marketing libs: `lib/llm/*`, `lib/marketing/*`. Image/IP guard: `lib/promptGuard.ts`.
 - Generators / jobs: `supabase/functions/*`. RPCs/schema: `supabase/migrations/*`.
