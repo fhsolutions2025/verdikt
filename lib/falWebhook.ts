@@ -10,7 +10,7 @@
 
 import crypto from 'node:crypto'
 
-const JWKS_URL = process.env.FAL_JWKS_URL ?? 'https://rest.alpha.fal.ai/.well-known/jwks.json'
+const JWKS_URL = process.env.FAL_JWKS_URL ?? 'https://rest.fal.ai/.well-known/jwks.json'
 const MAX_SKEW_SECONDS = 300
 
 export interface FalWebhookHeaders {
