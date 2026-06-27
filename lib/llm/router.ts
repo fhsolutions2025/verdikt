@@ -52,6 +52,12 @@ const MODEL_IDS: Record<Provider, Record<ModelClass, string>> = {
   },
 }
 
+// Models that reject the `temperature` parameter (Anthropic deprecated it on some
+// newer models). Their requests must omit temperature entirely.
+function modelRejectsTemperature(model: string): boolean {
+  return model.startsWith('claude-opus-4')
+}
+
 export interface CompleteArgs {
   task:        LlmTask
   system:      string
@@ -97,16 +103,21 @@ async function anthropicComplete(model: string, args: CompleteArgs): Promise<Com
   if (!baseUrl || !key) throw new Error('LLM not configured (Supabase env missing)')
 
   const route = ROUTING[args.task]
+  const reqBody: Record<string, unknown> = {
+    model,
+    max_tokens: args.maxTokens ?? route.maxTokens,
+    system:     args.system,
+    messages:   args.messages,
+  }
+  // Some newer Claude models (e.g. Opus 4.8) reject `temperature`
+  // ("temperature is deprecated for this model"); only send it when supported.
+  if (!modelRejectsTemperature(model)) {
+    reqBody.temperature = args.temperature ?? route.temperature
+  }
   const res = await fetch(`${baseUrl}/functions/v1/anthropic-proxy`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model,
-      max_tokens:  args.maxTokens ?? route.maxTokens,
-      temperature: args.temperature ?? route.temperature,
-      system:      args.system,
-      messages:    args.messages,
-    }),
+    body: JSON.stringify(reqBody),
     signal: AbortSignal.timeout(55_000),
   })
   if (!res.ok) {
