@@ -4,15 +4,12 @@ import Link from 'next/link'
 import { Market, PriceTick } from '@/lib/types'
 import { LiveDot } from '@/components/shared/LiveDot'
 import { formatVolume } from '@/lib/calculations'
+import { timeToClose } from '@/lib/marketTime'
 import { useTheme } from '@/components/shared/ThemeProvider'
 import { ThemeImage } from '@/components/shared/PageAssets'
 import { thumbnailSlotCandidates } from '@/lib/pageAssets'
 
-interface LivePrice {
-  label:  string   // e.g. 'BTC/USD'
-  value:  string   // e.g. '$67,420'
-  source: string
-}
+interface LivePrice { label: string; value: string; source: string }
 
 interface Props {
   market:     Market
@@ -21,189 +18,98 @@ interface Props {
   isHot?:     boolean
 }
 
-function relativeCreatedTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60_000)
-  if (mins < 2)  return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24)  return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  return `${days}d ago`
+const CATEGORY_LABEL: Record<string, string> = {
+  sports: 'Sports', finance: 'Finance', politics: 'Politics',
+  current_affairs: 'News', custom: 'Custom',
 }
 
-const SOURCE_LABEL: Record<string, string> = {
-  'BBC RSS':           'BBC',
-  'Al Jazeera RSS':    'AJ',
-  'Reuters RSS':       'Reuters',
-  'football-data.org': 'Football',
-  'CoinGecko':         'CoinGecko',
-  'Alpha Vantage':     'Alpha Vantage',
-  'Frankfurter':       'Forex',
+// One status badge max — priority order.
+function statusBadge(isHot: boolean, isNew: boolean): { label: string; color: string } | null {
+  if (isHot) return { label: 'Hot', color: '#E05C20' }
+  if (isNew) return { label: 'New', color: '#3B82F6' }
+  return null
 }
 
-export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
-  const isLive        = market.status === 'live'
-  const now           = Date.now()
-  const createdAt     = new Date(market.created_at).getTime()
-  const closesAt      = new Date(market.closes_at).getTime()
-  const isNew         = now - createdAt < 24 * 60 * 60 * 1000
-  const closingSoon   = closesAt > now && closesAt - now < 24 * 60 * 60 * 1000
-  const sourceLabel   = market.source_feed ? (SOURCE_LABEL[market.source_feed] ?? market.source_feed) : null
+export function MarketCard({ market, ticks, livePrice, isHot = false }: Props) {
+  const now      = Date.now()
+  const isNew    = now - new Date(market.created_at).getTime() < 24 * 60 * 60 * 1000
+  const ttc      = timeToClose(market.closes_at, now)
+  const badge    = statusBadge(isHot, isNew)
+  const prob     = Math.round(market.yes_price)
 
-  const { skin }   = useTheme()
-  const isVisual   = skin === 'visual'
+  const { skin } = useTheme()
+  const isVisual = skin === 'visual'
   const thumbSlots = thumbnailSlotCandidates(market.id, market.category)
 
-  // Rows 1 (badges) + 2 (heading). In the visual skin they sit to the right of a
-  // thumbnail; in classic they're plain children so the card's space-y-3 holds.
-  const badges = (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className="text-xs font-bold uppercase px-2 py-0.5 rounded-full"
-            style={{
-              backgroundColor: 'var(--bg-inset)',
-              color: 'var(--text)',
-              letterSpacing: '0.06em',
-            }}
-          >
-            {CATEGORY_ICON[market.category]} {market.category.replace('_', ' ')}
-          </span>
+  // trend from ticks
+  const prices = ticks.map(t => t.price)
+  const up = prices.length >= 2 ? prices[prices.length - 1]! >= prices[0]! : true
 
-          {sourceLabel && (
-            <span
-              className="text-xs font-semibold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text-faint)' }}
-            >
-              {sourceLabel}
-            </span>
-          )}
-
-          {market.ai_confidence != null && (
-            <span
-              className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: 'rgba(0,200,83,0.10)', color: '#00A844' }}
-            >
-              Verdikt AI {market.ai_confidence.toFixed(0)}%
-            </span>
-          )}
-
-          {isHot && (
-            <span
-              className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: 'rgba(224,92,32,0.10)', color: '#E05C20' }}
-            >
-              🔥 Hot
-            </span>
-          )}
-          {isNew && !isHot && (
-            <span
-              className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: 'rgba(59,130,246,0.10)', color: '#3B82F6' }}
-            >
-              NEW
-            </span>
-          )}
-          {closingSoon && (
-            <span
-              className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: 'rgba(220,38,38,0.06)', color: '#DC2626' }}
-            >
-              ⏱ Closing soon
-            </span>
-          )}
-        </div>
+  // 1 — meta row (tertiary): category · one status · time-to-expire
+  const meta = (
+    <div className="flex items-center gap-2">
+      <span className="text-xs font-semibold px-2 py-0.5 rounded-md" style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text-dim)' }}>
+        {CATEGORY_LABEL[market.category] ?? market.category}
+      </span>
+      {badge && (
+        <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ backgroundColor: `${badge.color}1A`, color: badge.color }}>
+          {badge.label}
+        </span>
+      )}
+      <span className="ml-auto text-xs font-medium" style={{ color: ttc.closingSoon ? '#DC2626' : 'var(--text-faint)' }}>
+        {ttc.text}
+      </span>
+    </div>
   )
 
-  const heading = (
-    <>
-      <p
-        className="font-bold leading-snug line-clamp-2"
-        style={{ fontSize: 14, color: 'var(--text-strong)' }}
-      >
-        {market.question}
-      </p>
-      <p style={{ fontSize: 11, color: 'var(--text-faintest)', marginTop: -6 }}>
-        created {relativeCreatedTime(market.created_at)}
-      </p>
-    </>
+  // 2 — question (primary)
+  const question = (
+    <p className="leading-snug line-clamp-2" style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-strong)' }}>
+      {market.question}
+    </p>
   )
 
   return (
     <Link href={`/player/${market.id}`} className="block">
       <div
-        className="rounded-2xl p-4 space-y-3 transition-transform active:scale-[0.98]"
-        style={{
-          backgroundColor: 'var(--bg-surface)',
-          border: `1px solid ${isHot ? '#E05C2030' : 'var(--border)'}`,
-          cursor: 'pointer',
-        }}
+        className="rounded-2xl transition-transform active:scale-[0.985]"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', cursor: 'pointer', padding: 16 }}
       >
-        {/* Rows 1–2: thumbnail + heading (visual) or plain badges + heading (classic) */}
         {isVisual ? (
-          <div className="flex gap-3 items-start">
-            <ThemeImage
-              slot={thumbSlots}
-              width={72}
-              height={72}
-              rounded={14}
-              placeholderLabel={market.category.replace('_', ' ')}
-              style={{ marginTop: 2 }}
-            />
-            <div className="flex-1 min-w-0 space-y-2">
-              {badges}
-              {heading}
-            </div>
+          <div className="flex gap-3 items-start" style={{ marginBottom: 12 }}>
+            <ThemeImage slot={thumbSlots} width={64} height={64} rounded={12} placeholderLabel={CATEGORY_LABEL[market.category] ?? ''} />
+            <div className="flex-1 min-w-0" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{meta}{question}</div>
           </div>
         ) : (
-          <>
-            {badges}
-            {heading}
-          </>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>{meta}{question}</div>
         )}
 
-        {/* Row 3: live data strip — shown when a relevant price is available */}
-        {livePrice && (
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
-            style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}
-          >
-            <span className="text-xs font-bold font-mono" style={{ color: 'var(--text-strong)' }}>
-              {livePrice.label}
-            </span>
-            <span className="text-xs font-bold font-mono" style={{ color: '#00A844' }}>
-              {livePrice.value}
-            </span>
-            <span className="text-xs ml-auto" style={{ color: 'var(--text-faint)' }}>
-              live · {livePrice.source}
-            </span>
+        {/* 3 — probability (primary) + movement (secondary) */}
+        <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-mono font-bold" style={{ fontSize: 24, color: 'var(--text-strong)' }}>{prob}%</span>
+            <span className="text-xs" style={{ color: 'var(--text-faint)' }}>chance</span>
           </div>
-        )}
+          <div style={{ width: 96 }}><Sparkline ticks={ticks} up={up} /></div>
+        </div>
 
-        {/* Row 4: sparkline */}
-        <Sparkline ticks={ticks} />
-
-        {/* Row 5: YES / NO price blocks */}
-        <div className="flex gap-2">
+        {/* 4 — trade actions (secondary) */}
+        <div className="flex gap-2" style={{ marginBottom: 12 }}>
           <PriceBlock side="yes" price={market.yes_price} />
           <PriceBlock side="no"  price={market.no_price}  />
         </div>
 
-        {/* Row 6: live indicator + volume */}
-        <div className="flex items-center justify-between">
-          {isLive ? (
-            <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: '#00C853' }}>
-              <LiveDot size={7} />
-              LIVE
-            </span>
-          ) : (
-            <span className="text-xs font-semibold" style={{ color: 'var(--text-faint)' }}>
-              {market.status.replace(/_/g, ' ')}
+        {/* 5 — metadata (tertiary): live · volume (· underlying) */}
+        <div className="flex items-center gap-2" style={{ fontSize: 11 }}>
+          <span className="flex items-center gap-1 font-semibold" style={{ color: '#00A844' }}>
+            <LiveDot size={6} /> Live
+          </span>
+          <span style={{ color: 'var(--text-faint)' }}>· Vol {formatVolume(market.volume)}</span>
+          {livePrice && (
+            <span className="ml-auto font-mono" style={{ color: 'var(--text-faint)' }}>
+              {livePrice.label} {livePrice.value}
             </span>
           )}
-          <span className="text-xs font-mono" style={{ color: 'var(--text-faint)' }}>
-            Vol: {formatVolume(market.volume)}
-          </span>
         </div>
       </div>
     </Link>
@@ -212,70 +118,27 @@ export function MarketCard({ market, ticks, livePrice, isHot }: Props) {
 
 function PriceBlock({ side, price }: { side: 'yes' | 'no'; price: number }) {
   const isYes = side === 'yes'
+  const color = isYes ? '#00A844' : '#E05C20'
   return (
     <div
-      className="flex-1 flex items-center justify-between px-3 py-2 rounded-xl"
-      style={{ backgroundColor: isYes ? 'rgba(0,200,83,0.10)' : 'rgba(224,92,32,0.08)' }}
+      className="flex-1 flex items-center justify-between rounded-xl"
+      style={{ backgroundColor: isYes ? 'rgba(0,200,83,0.10)' : 'rgba(224,92,32,0.08)', padding: '10px 14px', minHeight: 44 }}
     >
-      <span
-        className="text-xs font-bold uppercase"
-        style={{ color: isYes ? '#00A844' : '#E05C20' }}
-      >
-        {side}
-      </span>
-      <span
-        className="font-mono font-bold"
-        style={{ fontSize: 19, color: isYes ? '#00A844' : '#E05C20' }}
-      >
-        {price}¢
-      </span>
+      <span className="text-xs font-bold uppercase" style={{ color }}>{side}</span>
+      <span className="font-mono font-bold" style={{ fontSize: 18, color }}>{price}¢</span>
     </div>
   )
 }
 
-function Sparkline({ ticks }: { ticks: PriceTick[] }) {
-  if (ticks.length < 2) {
-    return <div style={{ height: 32 }} />
-  }
-
+function Sparkline({ ticks, up }: { ticks: PriceTick[]; up: boolean }) {
+  if (ticks.length < 2) return <div style={{ height: 28 }} />
   const prices = ticks.map(t => t.price)
-  const min    = Math.min(...prices)
-  const max    = Math.max(...prices)
-  const range  = max - min || 1
-  const W      = 280
-  const H      = 32
-
-  const points = prices.map((p, i) => {
-    const x = (i / (prices.length - 1)) * W
-    const y = H - ((p - min) / range) * H
-    return `${x},${y}`
-  }).join(' ')
-
-  const trend = prices[prices.length - 1]! > prices[0]! ? '#00C853' : '#E05C20'
-
+  const min = Math.min(...prices), max = Math.max(...prices), range = max - min || 1
+  const W = 96, H = 28
+  const points = prices.map((p, i) => `${(i / (prices.length - 1)) * W},${H - ((p - min) / range) * H}`).join(' ')
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      width="100%"
-      height={H}
-      preserveAspectRatio="none"
-    >
-      <polyline
-        points={points}
-        fill="none"
-        stroke={trend}
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-hidden="true">
+      <polyline points={points} fill="none" stroke={up ? '#00C853' : '#E05C20'} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
-}
-
-const CATEGORY_ICON: Record<string, string> = {
-  sports:          '⚽',
-  finance:         '📈',
-  politics:        '🗳',
-  current_affairs: '🌍',
-  custom:          '✨',
 }
