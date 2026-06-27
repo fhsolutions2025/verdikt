@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     if (st.status === 'COMPLETED') {
       const resRes = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.result', request_id, model, response_url }) })
       const result = await resRes.json()
-      if (!result.video_url) return NextResponse.json({ error: 'Video completed but no URL returned' }, { status: 502 })
+      if (!result.video_url) return NextResponse.json({ error: `Video completed but no URL returned${result.raw ? ` — fal shape: ${result.raw}` : ''}` }, { status: 502 })
       const url = await rehost(result.video_url)
       const svc = await createServiceClient()
       await svc.rpc('track_api_call', { p_api_name: 'fal.ai' }).then(() => {}, () => {})

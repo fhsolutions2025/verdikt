@@ -26,6 +26,27 @@ function falHeaders() {
   return { 'Content-Type': 'application/json', 'Authorization': `Key ${FAL_KEY}` }
 }
 
+// Recursively scan a fal result object for a video URL (handles unknown nesting
+// across model families). Prefers obvious container keys, then any media URL.
+function deepFindVideoUrl(v: unknown, depth = 0): string | undefined {
+  if (v == null || depth > 6) return undefined
+  if (typeof v === 'string') {
+    return /^https?:\/\/\S+\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(v) ? v : undefined
+  }
+  if (Array.isArray(v)) {
+    for (const x of v) { const u = deepFindVideoUrl(x, depth + 1); if (u) return u }
+    return undefined
+  }
+  if (typeof v === 'object') {
+    const obj = v as Record<string, unknown>
+    for (const k of ['video', 'videos', 'output', 'result', 'file', 'files']) {
+      if (k in obj) { const u = deepFindVideoUrl(obj[k], depth + 1); if (u) return u }
+    }
+    for (const val of Object.values(obj)) { const u = deepFindVideoUrl(val, depth + 1); if (u) return u }
+  }
+  return undefined
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
   if (!FAL_KEY) return json({ error: 'fal_api_key missing in Supabase secrets' }, 503)
@@ -106,9 +127,17 @@ Deno.serve(async (req) => {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) return json({ error: data?.detail ?? data?.error ?? `fal status ${res.status}` }, res.status)
       if (op === 'video.status') return json({ status: data?.status })
-      // result: normalize the video url across fal model shapes
-      const videoUrl = data?.video?.url ?? data?.videos?.[0]?.url ?? data?.output?.video?.url ?? data?.output?.url
-      return json({ status: 'COMPLETED', video_url: videoUrl, raw: videoUrl ? undefined : data })
+      // result: normalize the video url across fal model shapes. Different families
+      // nest it differently (data.video.url, data.videos[0].url, data.output.video.url,
+      // data.output.url, …), so fall back to a recursive scan.
+      const videoUrl = data?.video?.url ?? data?.videos?.[0]?.url ?? data?.output?.video?.url
+        ?? data?.output?.url ?? deepFindVideoUrl(data)
+      // On miss, return a trimmed raw payload so the shape is visible for debugging.
+      return json({
+        status: 'COMPLETED',
+        video_url: videoUrl,
+        raw: videoUrl ? undefined : JSON.stringify(data).slice(0, 600),
+      })
     }
 
     return json({ error: `Unknown op: ${op}` }, 400)
