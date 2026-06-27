@@ -41,6 +41,7 @@ interface ImageMeta {
   prompt:       string
   generated_at: string
   seed?:        number
+  engine:       string
 }
 
 interface GalleryAsset {
@@ -155,7 +156,9 @@ function saveBrandKit(bk: BrandKit) {
   try { localStorage.setItem('verdikt_brand_kit', JSON.stringify(bk)) } catch { /* ignore */ }
 }
 
-function buildMeta(data: { url: string; seed?: number }, prompt: string, style: string, platform: PlatformSize): ImageMeta {
+const ENGINE_COST = (engine?: string) => (engine === 'openai' ? 0.04 : IDEOGRAM_COST)
+
+function buildMeta(data: { url: string; seed?: number; provider?: string }, prompt: string, style: string, platform: PlatformSize): ImageMeta {
   return {
     url:          data.url,
     title:        `${platform.label} — ${prompt.slice(0, 50)}`,
@@ -166,6 +169,7 @@ function buildMeta(data: { url: string; seed?: number }, prompt: string, style: 
     prompt,
     generated_at: new Date().toISOString(),
     seed:         data.seed,
+    engine:       data.provider ?? 'ideogram',
   }
 }
 
@@ -320,7 +324,7 @@ function ImageCard({
         body: JSON.stringify({
           url: meta.url, title: meta.title, alt_text: meta.alt_text, keywords: meta.keywords,
           platform: meta.platform.label, dimensions: meta.platform.dims, aspect_ratio: meta.platform.aspect,
-          style: meta.style, prompt: meta.prompt, campaign_tag: campaignTag, seed: meta.seed, cost_usd: IDEOGRAM_COST,
+          style: meta.style, prompt: meta.prompt, campaign_tag: campaignTag, seed: meta.seed, cost_usd: ENGINE_COST(meta.engine), image_engine: meta.engine,
         }),
       })
       if (res.ok) { setSaved(true); onSaved() }
@@ -358,6 +362,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
   const [enhanced, setEnhanced]   = useState<string | null>(null)
   const [enhancing, setEnhancing] = useState(false)
   const [style, setStyle]         = useState('DESIGN')
+  const [imageProvider, setImageProvider] = useState<'ideogram' | 'openai'>('ideogram')
   const [platform, setPlatform]   = useState<PlatformSize>(PLATFORM_SIZES[0])
   const [mode, setMode]           = useState<GenMode>('single')
   const [campaignTag, setCampaignTag] = useState('')
@@ -387,7 +392,7 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
     try {
       const res  = await fetch('/api/company/marketing/media', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: effectivePrompt, style, aspect_ratio: p.aspect }),
+        body: JSON.stringify({ prompt: effectivePrompt, style, aspect_ratio: p.aspect, provider: imageProvider }),
       })
       const data = await res.json()
       if (res.ok && data.url) return buildMeta(data, basePrompt, style, p)
@@ -441,7 +446,8 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
     } finally { setEnhancing(false) }
   }
 
-  const costFor = (m: GenMode) => m === 'single' ? IDEOGRAM_COST : m === 'batch' ? IDEOGRAM_COST * 4 : IDEOGRAM_COST * 8
+  const perImageCost = imageProvider === 'openai' ? 0.04 : IDEOGRAM_COST
+  const costFor = (m: GenMode) => m === 'single' ? perImageCost : m === 'batch' ? perImageCost * 4 : perImageCost * 8
   const single  = results.length === 1 && mode === 'single'
 
   return (
@@ -487,6 +493,25 @@ function MediaStudio({ brandKit, onGallerySaved }: { brandKit: BrandKit; onGalle
             </select>
           </div>
         )}
+
+        {/* Image engine */}
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Image Engine</label>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {([
+              { id: 'ideogram', label: 'Ideogram V_2', sub: '$0.08' },
+              { id: 'openai',   label: 'GPT Image',    sub: '$0.04' },
+            ] as { id: 'ideogram' | 'openai'; label: string; sub: string }[]).map(p => (
+              <button key={p.id} onClick={() => setImageProvider(p.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '7px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${imageProvider === p.id ? 'rgba(108,63,197,0.5)' : 'var(--border-soft)'}`, backgroundColor: imageProvider === p.id ? 'rgba(108,63,197,0.12)' : 'transparent' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: imageProvider === p.id ? '#9B72E8' : 'var(--text-muted)' }}>{p.label}</span>
+                <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{p.sub}/image</span>
+              </button>
+            ))}
+          </div>
+          {imageProvider === 'openai' && (
+            <p style={{ fontSize: 10, color: 'var(--text-faintest)', margin: '6px 0 0' }}>OpenAI gpt-image-1 via openai-image-proxy. Style presets apply to Ideogram only.</p>
+          )}
+        </div>
 
         {/* Style */}
         <div>
@@ -683,7 +708,7 @@ function SaveAndDownload({ meta, campaignTag, onSaved }: { meta: ImageMeta; camp
         body: JSON.stringify({
           url: meta.url, title: meta.title, alt_text: meta.alt_text, keywords: meta.keywords,
           platform: meta.platform.label, dimensions: meta.platform.dims, aspect_ratio: meta.platform.aspect,
-          style: meta.style, prompt: meta.prompt, campaign_tag: campaignTag, seed: meta.seed, cost_usd: IDEOGRAM_COST,
+          style: meta.style, prompt: meta.prompt, campaign_tag: campaignTag, seed: meta.seed, cost_usd: ENGINE_COST(meta.engine), image_engine: meta.engine,
         }),
       })
       if (res.ok) { setSaved(true); onSaved() }

@@ -81,16 +81,25 @@ const LICENSE_LABELS: Record<string, { label: string; color: string; tooltip: st
   paid_required_at_scale: { label: 'paid at scale', color: 'var(--text-muted)', tooltip: 'Free tier available, but production volumes require a paid plan.' },
 }
 
+interface OpenAiStats {
+  text_calls_today:  number
+  text_cost_today:   number
+  images_today:      number
+  image_spend_today: number
+  last_error:        string | null
+}
+
 interface Props {
   sources:       ApiSource[]
   callsToday:    Record<string, number>
   aiStats:       AiStats
   aiDaily7d:     DailyCost[]
   ideogramStats: IdeogramStats
+  openaiStats?:  OpenAiStats
   defaultOpen?:  boolean
 }
 
-export function ApiHealthMonitor({ sources, callsToday, aiStats, aiDaily7d, ideogramStats, defaultOpen = false }: Props) {
+export function ApiHealthMonitor({ sources, callsToday, aiStats, aiDaily7d, ideogramStats, openaiStats, defaultOpen = false }: Props) {
   const [open, setOpen]               = useState(defaultOpen)
   const [showAiBreakdown, setShowAiBreakdown]           = useState(false)
   const [showIdeogramHistory, setShowIdeogramHistory]   = useState(false)
@@ -372,6 +381,60 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats, aiDaily7d, ideo
               </p>
             </div>
           </section>
+
+          {/* ── OpenAI ── */}
+          {openaiStats && (
+            <section className="space-y-2">
+              <p className="text-xs font-bold uppercase" style={{ color: 'var(--text-faintest)' }}>OpenAI</p>
+              <div className="rounded-xl p-4 space-y-3" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: openaiStats.last_error ? '#DC2626' : '#00C853' }} />
+                    <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>OpenAI (GPT-4o · gpt-image-1)</span>
+                  </div>
+                  <span className="text-xs font-bold" style={{ color: openaiStats.last_error ? '#DC2626' : '#6C3FC5' }}>
+                    {openaiStats.last_error ? 'degraded' : 'metered'}
+                  </span>
+                </div>
+
+                {/* Cost cards */}
+                <div className="flex gap-2">
+                  <div className="flex-1 rounded-lg px-3 py-2.5" style={{ backgroundColor: '#6C3FC512', border: '1px solid #6C3FC528' }}>
+                    <p className="text-xs" style={{ color: 'var(--text-dim)', margin: 0 }}>Text cost today</p>
+                    <p className="font-mono font-bold" style={{ color: '#9B6FF5', fontSize: 18, margin: '2px 0 0' }}>
+                      {fmtCost(openaiStats.text_cost_today)}
+                    </p>
+                  </div>
+                  <div className="flex-1 rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-soft)' }}>
+                    <p className="text-xs" style={{ color: 'var(--text-dim)', margin: 0 }}>Image spend today</p>
+                    <p className="font-mono font-bold" style={{ color: 'var(--text)', fontSize: 18, margin: '2px 0 0' }}>
+                      {fmtCost(openaiStats.image_spend_today)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stats grid */}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs" style={{ color: 'var(--text-dim)' }}>
+                  <span>Text calls today</span>
+                  <span className="font-mono text-right" style={{ color: 'var(--text)' }}>{openaiStats.text_calls_today.toLocaleString()}</span>
+                  <span>Images today (gpt-image-1)</span>
+                  <span className="font-mono text-right" style={{ color: 'var(--text)' }}>{openaiStats.images_today.toLocaleString()}</span>
+                  <span>Image rate</span>
+                  <span className="font-mono text-right" style={{ color: 'var(--text)' }}>~$0.04 / image</span>
+                </div>
+
+                {openaiStats.last_error && (
+                  <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#DC262618', color: '#FCA5A5' }}>
+                    Last error: {openaiStats.last_error}
+                  </p>
+                )}
+
+                <p className="text-xs" style={{ color: 'var(--text-faintest)' }}>
+                  Via openai-proxy / openai-image-proxy. Text pricing: GPT-4o $2.50/$10 per 1M, mini $0.15/$0.60.
+                </p>
+              </div>
+            </section>
+          )}
 
         </div>
       )}
