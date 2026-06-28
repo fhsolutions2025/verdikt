@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getSlot } from '@/lib/pageAssets'
+import { isSplashSlotKey } from '@/lib/splashAssets'
 import { checkPrompt } from '@/lib/promptGuard'
 
 export const dynamic = 'force-dynamic'
@@ -10,6 +11,7 @@ const BUCKET = 'marketing-media'
 
 function validSlotKey(key: string): boolean {
   if (getSlot(key)) return true
+  if (isSplashSlotKey(key)) return true       // splash-page slots (Design Splash module)
   // Per-market override: market:<uuid>
   return /^market:[0-9a-f-]{36}$/i.test(key)
 }

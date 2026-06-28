@@ -16,6 +16,7 @@ import { AgentsTab } from '@/components/company/AgentsTab'
 import { PlayersTab } from '@/components/company/PlayersTab'
 import { MarketingTab } from '@/components/company/MarketingTab'
 import { PageDesignTab, type ActivePageAsset } from '@/components/company/PageDesignTab'
+import { SplashDesignTab } from '@/components/company/SplashDesignTab'
 import { ContentPagesTab, type CmsPage } from '@/components/company/ContentPagesTab'
 import { MarketsPipelineTab } from '@/components/company/MarketsPipelineTab'
 import type { CronRunRow, PipelineMarket, LiquidityRow } from '@/components/company/MarketsPipelineTab'
@@ -28,7 +29,7 @@ import type {
   RiskMarket, ApiSource, Market,
 } from '@/lib/types'
 
-type Tab = 'overview' | 'markets' | 'review' | 'pipeline' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing' | 'page-design' | 'content'
+type Tab = 'overview' | 'markets' | 'review' | 'pipeline' | 'news' | 'sources' | 'health' | 'activity' | 'agents' | 'players' | 'marketing' | 'page-design' | 'design-splash' | 'content'
 
 interface AiStats {
   calls_today:         number
@@ -413,6 +414,7 @@ export function CompanyDashboard({
           <NavItem icon={<IconUsers />}    label="Players (PAM)" active={tab === 'players'}   onClick={() => setTab('players')} />
           <NavItem icon={<IconMegaphone />} label="Marketing"    active={tab === 'marketing'} onClick={() => setTab('marketing')} />
           <NavItem icon={<IconImageStack />} label="Page Design" active={tab === 'page-design'} onClick={() => setTab('page-design')} />
+          <NavItem icon={<IconImageStack />} label="Design Splash" active={tab === 'design-splash'} onClick={() => setTab('design-splash')} />
           <NavItem icon={<IconList />}     label="Content"      active={tab === 'content'}   onClick={() => setTab('content')} />
 
           {/* Bottom: MM status */}
@@ -664,6 +666,16 @@ export function CompanyDashboard({
                 pageAssets={pageAssets}
                 markets={allMarkets.map(m => ({ id: m.id, question: m.question, category: m.category }))}
               />
+            </TabSection>
+          )}
+
+          {/* Design Splash (public splash / login imagery) */}
+          {tab === 'design-splash' && (
+            <TabSection
+              title="Design Splash"
+              subtitle="Generate & approve the public splash / login imagery · slot-keyed · stored in Supabase"
+            >
+              <SplashDesignTab pageAssets={pageAssets} />
             </TabSection>
           )}
 
