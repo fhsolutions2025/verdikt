@@ -6,6 +6,7 @@
 
 import React from 'react'
 import { ACCENT, PURPLE, RED } from '@/components/company/marketing/director/theme'
+import { AssetInspector } from '@/components/company/marketing/director/AssetInspector'
 
 interface AssetRow {
   id: string
@@ -42,8 +43,9 @@ export function AssetLibraryPanel({
   const [assets, setAssets] = React.useState<AssetRow[]>([])
   const [collections, setCollections] = React.useState<Collection[]>([])
   const [loading, setLoading] = React.useState(false)
+  const [inspectId, setInspectId] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  const load = React.useCallback(() => {
     if (!brandId) return
     setLoading(true)
     fetch(`/api/company/marketing/v2/assets?brand_id=${encodeURIComponent(brandId)}`)
@@ -52,6 +54,8 @@ export function AssetLibraryPanel({
       .catch(() => { setAssets([]); setCollections([]) })
       .finally(() => setLoading(false))
   }, [brandId])
+
+  React.useEffect(() => { load() }, [load])
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
@@ -86,7 +90,7 @@ export function AssetLibraryPanel({
                   {assets.filter(a => a.campaign_id === col.id).map(a => {
                     const ap = approvalLabel(a.status)
                     return (
-                      <div key={a.id} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: 'var(--bg-surface)' }}>
+                      <div key={a.id} onClick={() => setInspectId(a.id)} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: 'var(--bg-surface)', cursor: 'pointer' }}>
                         <div style={{ height: 110, background: 'var(--bg-inset)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                           {a.asset_url && (a.type === 'image' || a.type === 'carousel') ? (
                             /* eslint-disable-next-line @next/next/no-img-element */
@@ -111,7 +115,7 @@ export function AssetLibraryPanel({
                             ) : null}
                           </div>
                           {a.asset_url ? (
-                            <a href={a.asset_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 600, color: PURPLE, textDecoration: 'none' }}>Open →</a>
+                            <a href={a.asset_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11, fontWeight: 600, color: PURPLE, textDecoration: 'none' }}>Open →</a>
                           ) : null}
                         </div>
                       </div>
@@ -123,6 +127,9 @@ export function AssetLibraryPanel({
           )}
         </div>
       </div>
+      {inspectId && (
+        <AssetInspector artifactId={inspectId} onClose={() => setInspectId(null)} onChanged={load} />
+      )}
     </div>
   )
 }
