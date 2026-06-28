@@ -33,17 +33,37 @@ export function ChatPanel({
   onSubmitBrief,
   submitting,
   started,
+  onChat,
 }: {
   brands: { id: string; name: string }[]
   regions: { region: string; framing: string }[]
   onSubmitBrief: (brandId: string, answers: InterviewAnswers) => void
   submitting: boolean
   started: boolean
+  onChat?: (message: string) => Promise<string>
 }): React.JSX.Element {
   const [stepIdx, setStepIdx] = React.useState(0)
   const [answers, setAnswers] = React.useState<InterviewAnswers>({})
   const [custom, setCustom] = React.useState('')
   const [typing, setTyping] = React.useState(true)   // brief "typing…" reveal per question
+  const [chatInput, setChatInput] = React.useState('')
+  const [chatBusy, setChatBusy] = React.useState(false)
+  const [messages, setMessages] = React.useState<{ role: 'user' | 'assistant'; text: string }[]>([])
+
+  const sendChat = async () => {
+    const text = chatInput.trim()
+    if (!text || chatBusy || !onChat) return
+    setChatInput(''); setChatBusy(true)
+    setMessages(m => [...m, { role: 'user', text }])
+    try {
+      const reply = await onChat(text)
+      setMessages(m => [...m, { role: 'assistant', text: reply }])
+    } catch {
+      setMessages(m => [...m, { role: 'assistant', text: 'Sorry — I could not reply just now.' }])
+    } finally {
+      setChatBusy(false)
+    }
+  }
 
   const total = INTERVIEW.length
   const step = INTERVIEW[Math.min(stepIdx, total - 1)]
@@ -54,7 +74,7 @@ export function ChatPanel({
   React.useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [stepIdx, started, submitting, typing])
+  }, [stepIdx, started, submitting, typing, messages.length, chatBusy])
 
   // Stream each question in: show a short "typing…" indicator, then reveal the step.
   React.useEffect(() => {
@@ -149,7 +169,8 @@ export function ChatPanel({
     return v === value
   }
 
-  const locked = started || submitting
+  // The composer is a live chat box: usable whenever onChat is wired and not busy.
+  const composerDisabled = !onChat || chatBusy || submitting
 
   // Reference buildBrief so the brief shape stays wired into this owner component.
   const briefReady = complete ? buildBrief(answers).brand_id !== '' : false
@@ -223,8 +244,7 @@ export function ChatPanel({
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <Avatar label="Campaign Director" size={28} />
           <div style={{ ...S.bubble, maxWidth: '85%' }}>
-            Hi! I&apos;m your Campaign Director. Let&apos;s build a campaign brief together —
-            answer a few quick questions and my sub-agents will get to work.
+            <RevealText text="Hi! I'm your Campaign Director. Let's build a campaign brief together — answer a few quick questions and my sub-agents will get to work." />
           </div>
         </div>
 
@@ -381,10 +401,30 @@ export function ChatPanel({
                 </>
               ) : (
                 <span style={{ fontSize: 13.5, color: 'var(--text)' }}>
-                  Brief received — my sub-agents are working on your campaign assets now. ✨
+                  <RevealText text="Brief received — my sub-agents are working on your campaign assets now. ✨" />
                 </span>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Free-chat turns (live composer) */}
+        {messages.map((m, i) => (
+          m.role === 'user' ? (
+            <div key={i} style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', background: PURPLE, borderRadius: 14, borderBottomRightRadius: 4, padding: '8px 14px', maxWidth: '80%' }}>{m.text}</div>
+            </div>
+          ) : (
+            <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <Avatar label="Campaign Director" size={28} />
+              <div style={{ ...S.bubble, maxWidth: '85%' }}><RevealText text={m.text} /></div>
+            </div>
+          )
+        ))}
+        {chatBusy && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+            <Avatar label="Campaign Director" size={28} />
+            <div style={{ ...S.bubble, display: 'inline-flex', alignItems: 'center' }}><TypingDots /></div>
           </div>
         )}
       </div>
@@ -407,14 +447,15 @@ export function ChatPanel({
             border: '1px solid var(--border)',
             borderRadius: 999,
             padding: '6px 6px 6px 16px',
-            opacity: locked ? 0.6 : 1,
+            opacity: composerDisabled ? 0.6 : 1,
           }}
         >
           <input
-            placeholder={
-              started ? 'Brief sent — sub-agents working…' : 'Message Campaign Director…'
-            }
-            disabled={locked}
+            value={chatInput}
+            onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendChat() } }}
+            placeholder={onChat ? 'Message Campaign Director…' : 'Answer the questions above to begin…'}
+            disabled={composerDisabled}
             style={{
               flex: 1,
               border: 'none',
@@ -429,13 +470,14 @@ export function ChatPanel({
           <GlyphBtn glyph="✨" title="Suggestions" />
           <button
             title="Send"
-            disabled={locked}
+            onClick={sendChat}
+            disabled={composerDisabled || !chatInput.trim()}
             style={{
               width: 38,
               height: 38,
               borderRadius: 999,
               border: 'none',
-              cursor: locked ? 'default' : 'pointer',
+              cursor: composerDisabled ? 'default' : 'pointer',
               background: GRADIENT,
               color: '#fff',
               fontSize: 16,
@@ -562,6 +604,24 @@ function OptionCard({
       )}
     </button>
   )
+}
+
+// Progressively reveals text word-by-word for a "streaming" feel (no real token stream).
+function RevealText({ text, speed = 26 }: { text: string; speed?: number }): React.JSX.Element {
+  const words = React.useMemo(() => (text || '').split(' '), [text])
+  const [n, setN] = React.useState(0)
+  React.useEffect(() => {
+    setN(0)
+    if (!words.length) return
+    const id = setInterval(() => {
+      setN(v => {
+        if (v >= words.length) { clearInterval(id); return v }
+        return v + 1
+      })
+    }, speed)
+    return () => clearInterval(id)
+  }, [words, speed])
+  return <>{words.slice(0, n).join(' ')}</>
 }
 
 function GlyphBtn({ glyph, title }: { glyph: string; title: string }): React.JSX.Element {

@@ -44,12 +44,29 @@ function AgentGlyph({ type, size = 18 }: { type: string; size?: number }) {
       </svg>
     )
   }
-  // mm_desk — candlestick / book
+  if (type === 'mm_desk') {
+    // candlestick / book
+    return (
+      <svg {...common}>
+        <path d="M5 2.5v13M13 2.5v13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <rect x="3" y="6" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.4" />
+        <rect x="11" y="4" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.4" />
+      </svg>
+    )
+  }
+  if (type === 'campaign_director_agent') {
+    // clapperboard — the Director
+    return (
+      <svg {...common}>
+        <rect x="2.5" y="6" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M2.5 6l2-3 3 2 3-2 3 2" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  // marketing sub-agents (copywriter / prompt-optimizer / router) — a spark
   return (
     <svg {...common}>
-      <path d="M5 2.5v13M13 2.5v13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <rect x="3" y="6" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="11" y="4" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M9 2.5l1.6 4.9H15l-3.7 2.7 1.4 4.4L9 11.8 5.3 14.5l1.4-4.4L3 7.4h4.4L9 2.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -58,6 +75,10 @@ const AGENT_LABELS: Record<string, { label: string; color: string; desc: string;
   player:   { label: 'Player Assistant',  color: '#00C853', desc: 'Visible to all players as a floating chat widget', tag: 'Verdikt AI' },
   company:  { label: 'Ops Assistant',     color: '#6366F1', desc: 'Platform metrics & risk analysis on the Company dashboard', tag: 'Ops AI' },
   mm_desk:  { label: 'MM Desk Assistant', color: '#F59E0B', desc: 'Repricing & book analysis on the MM Desk', tag: 'MM AI' },
+  campaign_director_agent: { label: 'Campaign Director', color: '#9B6FF5', desc: 'Marketing workspace — interviews you, then orchestrates the sub-agents', tag: 'Marketing AI' },
+  mkt_copywriter:          { label: 'Copywriter',        color: '#00C853', desc: 'Marketing sub-agent — headline hooks + copy variants', tag: 'Marketing AI' },
+  mkt_prompt_optimizer:    { label: 'Prompt Optimizer',  color: '#E0A020', desc: 'Marketing sub-agent — cinematic, localized image/video prompts', tag: 'Marketing AI' },
+  mkt_router:              { label: 'Router',             color: '#E05C20', desc: 'Marketing sub-agent — picks the optimal model + channel per asset', tag: 'Marketing AI' },
 }
 
 const ALL_TOOLS = [

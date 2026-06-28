@@ -256,17 +256,47 @@ function briefLine(brief: CampaignBrief): string {
     + `Tone: ${brief.tone}.${brief.notes ? ` Notes: ${brief.notes}` : ''}`
 }
 
+// Fetch an agent's editable instruction block from agent_configs (Agents module),
+// falling back to the in-code default if the row is missing/blank/inactive. The
+// GLOBAL_PREAMBLE + brand line are always prepended in code; only the instruction
+// body is operator-editable.
+export async function getAgentPrompt(agentType: string, fallback: string): Promise<string> {
+  try {
+    const svc = await createServiceClient()
+    const { data } = await svc.from('agent_configs').select('system_prompt,is_active').eq('agent_type', agentType).maybeSingle()
+    if (data && data.is_active !== false && typeof data.system_prompt === 'string' && data.system_prompt.trim()) {
+      return data.system_prompt
+    }
+  } catch { /* fall through to default */ }
+  return fallback
+}
+
+// In-code defaults (kept in sync with migration 0041 seeds — used if the DB row is gone).
+const DEFAULT_COPYWRITER = `Role: Copywriter sub-agent.
+Analyze the campaign brief and produce sharp, on-brand copy. Return STRICT JSON:
+{"headline_hooks":["short punchy hook", "..."],
+ "copy_variants":[{"angle":"the angle","body":"2-3 sentences","cta":"call to action"}]}
+Give 4-6 headline_hooks and 3 copy_variants (distinct angles). No invented stats; use [PLACEHOLDER] if a fact is needed.`
+
+const DEFAULT_PROMPT_OPTIMIZER = `Role: Prompt-optimizer sub-agent.
+Turn the campaign concept into vivid, concrete, cinematic, CONTEXTUALLY RELEVANT and LOCALIZED visual prompts that clearly read as the campaign's vertical for its audience. Every prompt MUST: (1) depict a concrete real-world scene tied to the vertical; (2) feature everyday people authentic to the audience and region (generic individuals only — never recognizable real people); (3) be IP-SAFE (no real logos, brand marks, team kits, flags, or named people). Do NOT be abstract; do NOT include hollow quality keywords (no "8k", "photorealistic", "masterpiece", "ultra-detailed").
+Return STRICT JSON: {"prompts":[{"idea":"the visual idea","prompt":"the full prompt","aspect":"ASPECT_16_9"}]}
+Give 3 distinct prompts.`
+
+const DEFAULT_ROUTER = `Role: Router sub-agent.
+For each planned asset, choose BOTH the optimal generation model AND the optimal channel/platform, given the brief, the copy hooks, and the visual prompts. Prefer the requested channels but recommend the best mix. Return STRICT JSON:
+{"assignments":[{"asset":"e.g. hero still / 15s teaser / blog header","model":"a model id from the catalog","channel":"platform","rationale":"one line"}]}
+Give one assignment per useful asset (4-6 total).`
+
 // ── Copywriter sub-agent ────────────────────────────────────────────────────────
 export interface CopyVariant { angle: string; body: string; cta: string }
 export interface CopywriterOut { headline_hooks: string[]; copy_variants: CopyVariant[] }
 
 export async function runCopywriter(brand: BrandCtx, brief: CampaignBrief): Promise<CopywriterOut> {
+  const instr = await getAgentPrompt('mkt_copywriter', DEFAULT_COPYWRITER)
   const system = `${GLOBAL_PREAMBLE}
-Role: Copywriter sub-agent. ${brandLine(brand)}
-Analyze the campaign brief and produce sharp, on-brand copy. Return STRICT JSON:
-{"headline_hooks":["short punchy hook", "..."],
- "copy_variants":[{"angle":"the angle","body":"2-3 sentences","cta":"call to action"}]}
-Give 4-6 headline_hooks and 3 copy_variants (distinct angles). No invented stats; use [PLACEHOLDER] if a fact is needed.`
+${brandLine(brand)}
+${instr}`
   const { data, raw } = await completeJson<CopywriterOut>({
     task: 'copywriting', system, messages: [{ role: 'user', content: briefLine(brief) }],
   })
@@ -282,17 +312,11 @@ export interface PromptOptimizerOut { prompts: OptimizedPrompt[] }
 
 export async function runPromptOptimizer(brand: BrandCtx, brief: CampaignBrief): Promise<PromptOptimizerOut> {
   const scene = verticalScene(brief.vertical)
+  const instr = await getAgentPrompt('mkt_prompt_optimizer', DEFAULT_PROMPT_OPTIMIZER)
   const system = `${GLOBAL_PREAMBLE}
-Role: Prompt-optimizer sub-agent. ${brandLine(brand)}
-Turn the campaign concept into vivid, concrete, cinematic, CONTEXTUALLY RELEVANT and
-LOCALIZED visual prompts that clearly read as "${brief.vertical}" for this audience.
-Every prompt MUST: (1) depict a concrete real-world scene tied to the vertical${scene ? ` (e.g. ${scene})` : ''};
-(2) feature everyday people authentic to the audience "${brief.audience}" and region "${brief.region}"
-(generic individuals only — never recognizable real people); (3) be IP-SAFE (no real logos,
-brand marks, team kits, flags, or named people). Do NOT be abstract; do NOT include hollow
-quality keywords (no "8k", "photorealistic", "masterpiece", "ultra-detailed").
-Return STRICT JSON: {"prompts":[{"idea":"the visual idea","prompt":"the full prompt","aspect":"ASPECT_16_9"}]}
-Give 3 distinct prompts.`
+${brandLine(brand)}
+${instr}
+Campaign context — vertical: ${brief.vertical}; audience: ${brief.audience}; region: ${brief.region}${scene ? `; scene cue: ${scene}` : ''}.`
   const { data, raw } = await completeJson<PromptOptimizerOut>({
     task: 'image_prompt', system, messages: [{ role: 'user', content: briefLine(brief) }],
   })
@@ -315,16 +339,13 @@ Video (fal): "fal-ai/veo3.1" (premium + audio), "fal-ai/ltx-2.3/text-to-video" (
 export async function runRouter(
   brand: BrandCtx, brief: CampaignBrief, copy: CopywriterOut, prompts: PromptOptimizerOut,
 ): Promise<RouterOut> {
+  const instr = await getAgentPrompt('mkt_router', DEFAULT_ROUTER)
   const system = `${GLOBAL_PREAMBLE}
-Role: Router sub-agent. ${brandLine(brand)}
-For each planned asset, choose BOTH the optimal generation model AND the optimal
-channel/platform, given the brief, the copy hooks, and the visual prompts.
-Available models:
+${brandLine(brand)}
+${instr}
+Available models (pick model ids from here):
 ${ROUTER_MODEL_CATALOG}
-Prefer the requested channels (${brief.channels.join(', ') || 'none specified'}) but
-recommend the best mix. Return STRICT JSON:
-{"assignments":[{"asset":"e.g. hero still / 15s teaser / blog header","model":"a model id from the catalog","channel":"platform","rationale":"one line"}]}
-Give one assignment per useful asset (4-6 total).`
+Requested channels: ${brief.channels.join(', ') || 'none specified'}.`
   const user = `Brief: ${briefLine(brief)}
 Hooks: ${copy.headline_hooks.join(' | ')}
 Visual ideas: ${prompts.prompts.map(p => p.idea).join(' | ')}`

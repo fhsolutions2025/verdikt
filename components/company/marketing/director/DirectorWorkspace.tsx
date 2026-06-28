@@ -154,7 +154,19 @@ export function DirectorWorkspace({
 
       {/* Left — chat (≈36%) */}
       <div style={{ width: '36%', minWidth: 360, maxWidth: 520, flexShrink: 0 }}>
-        <ChatPanel brands={brands} regions={regions} onSubmitBrief={onSubmitBrief} submitting={submitting} started={started} />
+        <ChatPanel
+          brands={brands} regions={regions} onSubmitBrief={onSubmitBrief}
+          submitting={submitting} started={started}
+          onChat={async (message) => {
+            const r = await fetch('/api/company/marketing/v2/director/chat', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message, campaign_id: campaignId }),
+            })
+            const d = await r.json()
+            if (!r.ok) throw new Error(d.error ?? 'chat failed')
+            return d.reply as string
+          }}
+        />
       </div>
 
       {/* Right — creation canvas (flex) */}

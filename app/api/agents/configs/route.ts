@@ -28,7 +28,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const agentType = String(body.agent_type ?? '')
-  if (!['player', 'company', 'mm_desk'].includes(agentType)) {
+  if (!['player', 'company', 'mm_desk', 'campaign_director_agent', 'mkt_copywriter', 'mkt_prompt_optimizer', 'mkt_router'].includes(agentType)) {
     return NextResponse.json({ error: 'Invalid agent_type' }, { status: 400 })
   }
 
