@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFalVideoModel, FAL_DRAFT_MODEL_ID, estVideoCost, type FalVideoParams } from '@/lib/falVideoModels'
+import { contextCues } from '@/lib/marketing/agents'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -44,7 +45,19 @@ export async function POST(req: Request) {
   const { data: run } = await svc.from('mkt_agent_runs').select('campaign_id').eq('id', task.run_id).maybeSingle()
   const campaignId = run?.campaign_id as string | undefined
   const spec = (task.inputs ?? {}) as { channel?: string | null; label?: string; prompt?: string }
-  const prompt = spec.prompt || 'on-brand marketing teaser, abstract, cinematic'
+
+  // Enrich the (preserved) prompt with the campaign's vertical/audience/region/headline
+  // so the clip is on-topic — not a generic teaser. Mirrors the image pipeline.
+  let prompt = spec.prompt || 'on-brand marketing teaser, cinematic'
+  if (campaignId) {
+    const { data: campaign } = await svc.from('mkt_campaigns').select('region,plan').eq('id', campaignId).maybeSingle()
+    const plan = (campaign?.plan ?? {}) as { brief?: { vertical?: string; audience?: string }; copy?: { headline_hooks?: string[] } }
+    const cues = contextCues({
+      vertical: plan.brief?.vertical, audience: plan.brief?.audience,
+      region: campaign?.region ?? undefined, headline: plan.copy?.headline_hooks?.[0],
+    })
+    if (cues) prompt = `${prompt}. ${cues}.`
+  }
 
   await svc.from('mkt_agent_tasks').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', task_id)
 

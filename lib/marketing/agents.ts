@@ -134,7 +134,7 @@ function verticalScene(vertical?: string): string {
 }
 
 // Turn the campaign context into concrete, localized, IP-safe visual cues.
-function contextCues(c?: ImageContext): string {
+export function contextCues(c?: ImageContext): string {
   if (!c) return ''
   const bits: string[] = []
   const scene = verticalScene(c.vertical)
@@ -281,11 +281,16 @@ export interface OptimizedPrompt { idea: string; prompt: string; aspect: string 
 export interface PromptOptimizerOut { prompts: OptimizedPrompt[] }
 
 export async function runPromptOptimizer(brand: BrandCtx, brief: CampaignBrief): Promise<PromptOptimizerOut> {
+  const scene = verticalScene(brief.vertical)
   const system = `${GLOBAL_PREAMBLE}
 Role: Prompt-optimizer sub-agent. ${brandLine(brand)}
-Turn the campaign concept into vivid, concrete, cinematic, IP-SAFE visual prompts
-(no real logos, teams, named people, or flags; abstract + on-brand). Do NOT include
-hollow quality keywords (no "8k", "photorealistic", "masterpiece", "ultra-detailed").
+Turn the campaign concept into vivid, concrete, cinematic, CONTEXTUALLY RELEVANT and
+LOCALIZED visual prompts that clearly read as "${brief.vertical}" for this audience.
+Every prompt MUST: (1) depict a concrete real-world scene tied to the vertical${scene ? ` (e.g. ${scene})` : ''};
+(2) feature everyday people authentic to the audience "${brief.audience}" and region "${brief.region}"
+(generic individuals only — never recognizable real people); (3) be IP-SAFE (no real logos,
+brand marks, team kits, flags, or named people). Do NOT be abstract; do NOT include hollow
+quality keywords (no "8k", "photorealistic", "masterpiece", "ultra-detailed").
 Return STRICT JSON: {"prompts":[{"idea":"the visual idea","prompt":"the full prompt","aspect":"ASPECT_16_9"}]}
 Give 3 distinct prompts.`
   const { data, raw } = await completeJson<PromptOptimizerOut>({
