@@ -292,11 +292,11 @@ Give one assignment per useful asset (4-6 total).`
 export interface CopyVariant { angle: string; body: string; cta: string }
 export interface CopywriterOut { headline_hooks: string[]; copy_variants: CopyVariant[] }
 
-export async function runCopywriter(brand: BrandCtx, brief: CampaignBrief): Promise<CopywriterOut> {
+export async function runCopywriter(brand: BrandCtx, brief: CampaignBrief, knowledge?: string): Promise<CopywriterOut> {
   const instr = await getAgentPrompt('mkt_copywriter', DEFAULT_COPYWRITER)
   const system = `${GLOBAL_PREAMBLE}
 ${brandLine(brand)}
-${instr}`
+${instr}${knowledge ? `\n\n${knowledge}` : ''}`
   const { data, raw } = await completeJson<CopywriterOut>({
     task: 'copywriting', system, messages: [{ role: 'user', content: briefLine(brief) }],
   })

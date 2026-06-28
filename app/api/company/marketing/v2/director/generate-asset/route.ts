@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFalVideoModel, FAL_DRAFT_MODEL_ID, estVideoCost, type FalVideoParams } from '@/lib/falVideoModels'
-import { contextCues } from '@/lib/marketing/agents'
+import { contextCues, type BrandCtx } from '@/lib/marketing/agents'
+import { generateStoryboard, storyboardToVideoPrompt, videoPlatformSpec, type Storyboard } from '@/lib/marketing/videoPipeline'
+import { retrieveKnowledge, formatKnowledgeContext } from '@/lib/marketing/knowledge'
+import type { CampaignBrief } from '@/lib/marketing/directorInterview'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -46,17 +49,38 @@ export async function POST(req: Request) {
   const campaignId = run?.campaign_id as string | undefined
   const spec = (task.inputs ?? {}) as { channel?: string | null; label?: string; prompt?: string }
 
-  // Enrich the (preserved) prompt with the campaign's vertical/audience/region/headline
-  // so the clip is on-topic — not a generic teaser. Mirrors the image pipeline.
+  // M5 production pipeline: build a platform-optimized script + storyboard from the
+  // brief, then assemble it into one cinematic prompt. The storyboard is stored on the
+  // job/task/artifact for the Inspector. Falls back to the cue-enriched prompt on error.
   let prompt = spec.prompt || 'on-brand marketing teaser, cinematic'
+  let storyboard: Storyboard | null = null
+  const platform = videoPlatformSpec(spec.channel)
   if (campaignId) {
-    const { data: campaign } = await svc.from('mkt_campaigns').select('region,plan').eq('id', campaignId).maybeSingle()
-    const plan = (campaign?.plan ?? {}) as { brief?: { vertical?: string; audience?: string }; copy?: { headline_hooks?: string[] } }
+    const { data: campaign } = await svc.from('mkt_campaigns').select('brand_id,region,goal,plan').eq('id', campaignId).maybeSingle()
+    const plan = (campaign?.plan ?? {}) as { brief?: Partial<CampaignBrief>; copy?: { headline_hooks?: string[] } }
+    const region = campaign?.region ?? plan.brief?.region ?? ''
     const cues = contextCues({
       vertical: plan.brief?.vertical, audience: plan.brief?.audience,
-      region: campaign?.region ?? undefined, headline: plan.copy?.headline_hooks?.[0],
+      region: region || undefined, headline: plan.copy?.headline_hooks?.[0],
     })
-    if (cues) prompt = `${prompt}. ${cues}.`
+    const { data: brand } = campaign?.brand_id
+      ? await svc.from('mkt_brands').select('name,voice').eq('id', campaign.brand_id).maybeSingle()
+      : { data: null }
+    const bctx: BrandCtx = { name: brand?.name ?? 'Verdikt', voice: brand?.voice ?? {}, region }
+    const brief: CampaignBrief = {
+      brand_id: (campaign?.brand_id as string) ?? '', vertical: plan.brief?.vertical ?? '',
+      goal: campaign?.goal ?? plan.brief?.goal ?? '', audience: plan.brief?.audience ?? '',
+      region, channels: plan.brief?.channels ?? [], tone: plan.brief?.tone ?? '', notes: plan.brief?.notes ?? '',
+    }
+    try {
+      const kb = campaign?.brand_id
+        ? await retrieveKnowledge(svc, { brandId: campaign.brand_id as string, query: `${brief.goal} ${brief.vertical}`.trim(), k: 3 })
+        : []
+      storyboard = await generateStoryboard(bctx, brief, spec.channel ?? null, formatKnowledgeContext(kb))
+      prompt = storyboardToVideoPrompt(storyboard, cues)
+    } catch {
+      if (cues) prompt = `${prompt}. ${cues}.`
+    }
   }
 
   await svc.from('mkt_agent_tasks').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', task_id)
@@ -70,15 +94,15 @@ export async function POST(req: Request) {
   const def = getFalVideoModel(FAL_DRAFT_MODEL_ID)
   if (!def) return fail('Draft video model unavailable', 500)
   const duration = def.durations[0]
-  const params: FalVideoParams = { prompt, aspect: '9:16', duration, resolution: def.resolutions[0], audio: false }
+  const params: FalVideoParams = { prompt, aspect: platform.aspect, duration, resolution: def.resolutions[0], audio: false }
   const input = def.buildInput(params)
 
   const { data: job } = await svc.from('mkt_video_jobs').insert({
-    model: def.id, model_label: def.label, prompt, is_draft: true, aspect: '9:16',
+    model: def.id, model_label: def.label, prompt, is_draft: true, aspect: platform.aspect,
     duration, resolution: def.resolutions[0], audio: false, status: 'processing', cost_est: estVideoCost(def, duration, false),
   }).select('id').single()
   const jobId = job?.id as string | undefined
-  if (jobId) await svc.from('mkt_agent_tasks').update({ outputs: { job_id: jobId } }).eq('id', task_id)
+  if (jobId) await svc.from('mkt_agent_tasks').update({ outputs: { job_id: jobId, storyboard } }).eq('id', task_id)
 
   // Submit + poll ~100s using fal's own poll urls (mirrors the video studio route).
   const sub = await fetch(falProxyUrl(), { method: 'POST', headers: authHeader(), body: JSON.stringify({ op: 'video.submit', model: def.id, input }) }).then(r => r.json()).catch(() => ({}))
@@ -105,9 +129,9 @@ export async function POST(req: Request) {
       let artId: string | null = null
       if (campaignId) {
         const { data: art } = await svc.from('mkt_artifacts').insert({ campaign_id: campaignId, type: 'video', channel: spec.channel ?? null, title: spec.label ?? 'Video', status: 'needs_review', created_by_agent: 'Campaign Director' }).select('id').single()
-        if (art) { await svc.from('mkt_artifact_versions').insert({ artifact_id: art.id, version: 1, content: { prompt }, asset_url: url, source: 'agent' }); artId = art.id as string; await svc.from('mkt_artifacts').update({ latest_version_id: (await svc.from('mkt_artifact_versions').select('id').eq('artifact_id', art.id).limit(1).single()).data?.id }).eq('id', art.id) }
+        if (art) { await svc.from('mkt_artifact_versions').insert({ artifact_id: art.id, version: 1, content: { prompt, storyboard }, asset_url: url, source: 'agent' }); artId = art.id as string; await svc.from('mkt_artifacts').update({ latest_version_id: (await svc.from('mkt_artifact_versions').select('id').eq('artifact_id', art.id).limit(1).single()).data?.id }).eq('id', art.id) }
       }
-      await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { url, job_id: jobId, artifact_id: artId }, finished_at: new Date().toISOString() }).eq('id', task_id)
+      await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { url, job_id: jobId, artifact_id: artId, storyboard }, finished_at: new Date().toISOString() }).eq('id', task_id)
       return NextResponse.json({ url, task_id }, { status: 200 })
     }
     if (st.status === 'FAILED' || st.error) {

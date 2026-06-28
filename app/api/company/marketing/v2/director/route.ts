@@ -7,6 +7,8 @@ import {
 } from '@/lib/marketing/agents'
 import { buildBrief, isComplete, type InterviewAnswers } from '@/lib/marketing/directorInterview'
 import { derivePlannedAssets } from '@/lib/marketing/directorAssets'
+import { rememberBrief } from '@/lib/marketing/memory'
+import { retrieveKnowledge, formatKnowledgeContext } from '@/lib/marketing/knowledge'
 import type { AssetItem, AssetState } from '@/components/company/marketing/director/types'
 
 export const dynamic = 'force-dynamic'
@@ -52,6 +54,9 @@ export async function GET(req: Request) {
         text: (o.text as string) || undefined,
         artifactId: (o.artifact_id as string) || undefined,
         jobId: (o.job_id as string) || undefined,
+        score: typeof (o.score as { overall?: number })?.overall === 'number' ? (o.score as { overall: number }).overall : undefined,
+        engine: (o.engine as string) || undefined,
+        variations: Array.isArray(o.variations) ? (o.variations as AssetItem['variations']) : undefined,
         error: (t.error as string) || undefined,
       }
     })
@@ -133,8 +138,21 @@ export async function POST(req: Request) {
 
   await svc.from('mkt_activity').insert({ campaign_id: campaignId, run_id: runId, type: 'agent.step', actor: 'Campaign Director', text: `Director kicked off ${name}`.slice(0, 200) })
 
+  // Remember the durable brief facts at brand scope so the next campaign for this
+  // brand pre-fills them (spec § Campaign Memory — "never ask again").
+  await rememberBrief(svc, brand_id, {
+    vertical: brief.vertical, audience: brief.audience, region: brief.region,
+    tone: brief.tone, channels: brief.channels,
+  })
+
+  // RAG — retrieve brand knowledge to ground the copywriter (spec § Knowledge Base).
+  const kbHits = await retrieveKnowledge(svc, {
+    brandId: brand_id, query: `${brief.goal} ${brief.vertical} ${brief.audience}`.trim(), k: 5,
+  })
+  const knowledge = formatKnowledgeContext(kbHits)
+
   // Copywriter + prompt-optimizer in parallel, then router.
-  const [copyRes, promptRes] = await Promise.allSettled([runCopywriter(bctx, brief), runPromptOptimizer(bctx, brief)])
+  const [copyRes, promptRes] = await Promise.allSettled([runCopywriter(bctx, brief, knowledge), runPromptOptimizer(bctx, brief)])
   const copy = copyRes.status === 'fulfilled' ? copyRes.value : null
   await finishTask(copyTaskId, copy as unknown as Record<string, unknown>, copyRes.status === 'rejected' ? String(copyRes.reason).slice(0, 200) : undefined)
   const prompts = promptRes.status === 'fulfilled' ? promptRes.value : null

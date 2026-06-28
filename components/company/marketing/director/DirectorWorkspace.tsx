@@ -13,6 +13,9 @@ import { NavRail } from './NavRail'
 import { ChatPanel } from './ChatPanel'
 import { CreationCanvas } from './CreationCanvas'
 import { AssetGrid } from './AssetGrid'
+import { KnowledgePanel } from './KnowledgePanel'
+import { AssetLibraryPanel } from './AssetLibraryPanel'
+import { AnalyticsPanel } from './AnalyticsPanel'
 import { DirectorKeyframes, ACCENT } from './theme'
 import type { AssetItem, AssetStats, Brief, CampaignHeader, NavItem } from './types'
 import { buildBrief, type InterviewAnswers } from '@/lib/marketing/directorInterview'
@@ -23,9 +26,10 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'campaigns', label: 'Campaigns', icon: '📋' },
   { id: 'assets', label: 'Asset Library', icon: '🖼️' },
   { id: 'brand', label: 'Brand Voice', icon: '🎨' },
+  { id: 'knowledge', label: 'Knowledge', icon: '📚' },
   { id: 'approvals', label: 'Approvals', icon: '✅' },
+  { id: 'analytics', label: 'Analytics', icon: '📊' },
   { id: 'chat', label: 'Chat', icon: '💬', soon: true },
-  { id: 'analytics', label: 'Analytics', icon: '📊', soon: true },
   { id: 'calendar', label: 'Calendar', icon: '📅', soon: true },
   { id: 'settings', label: 'Settings', icon: '⚙️', soon: true },
 ]
@@ -51,6 +55,9 @@ export function DirectorWorkspace({
   const [runStatus, setRunStatus] = React.useState<string>('running')
   const [generatingId, setGeneratingId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  const [showKnowledge, setShowKnowledge] = React.useState(false)
+  const [showAssets, setShowAssets] = React.useState(false)
+  const [showAnalytics, setShowAnalytics] = React.useState(false)
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
   const refresh = React.useCallback(async (rid: string) => {
@@ -116,6 +123,19 @@ export function DirectorWorkspace({
     }
   }
 
+  // Pick an image variation as the asset's primary (M4) — persists + refreshes.
+  const onSelectVariation = async (taskId: string, url: string) => {
+    setAssets(prev => prev.map(a => a.id === taskId ? { ...a, url } : a))
+    try {
+      await fetch('/api/company/marketing/v2/director/asset', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId, url }),
+      })
+    } finally {
+      if (runId) await refresh(runId)
+    }
+  }
+
   // Export the plan as a downloadable JSON (brief + generated assets). Safe + offline
   // — replaces the old navigation that crashed the legacy campaign-detail view.
   const onExport = () => {
@@ -147,10 +167,18 @@ export function DirectorWorkspace({
       <DirectorKeyframes />
       <NavRail
         items={NAV_ITEMS}
-        activeId="director"
-        onNavigate={(id) => { if (id !== 'director') onNavigate(id) }}
+        activeId={showKnowledge ? 'knowledge' : showAssets ? 'assets' : showAnalytics ? 'analytics' : 'director'}
+        onNavigate={(id) => {
+          if (id === 'knowledge') { setShowKnowledge(true); return }
+          if (id === 'assets') { setShowAssets(true); return }
+          if (id === 'analytics') { setShowAnalytics(true); return }
+          if (id !== 'director') onNavigate(id)
+        }}
         user={{ name: 'Verdikt Studio', plan: 'Marketing' }}
       />
+      {showKnowledge && <KnowledgePanel brands={brands} onClose={() => setShowKnowledge(false)} />}
+      {showAssets && <AssetLibraryPanel brands={brands} onClose={() => setShowAssets(false)} />}
+      {showAnalytics && <AnalyticsPanel brands={brands} onClose={() => setShowAnalytics(false)} />}
 
       {/* Left — chat (≈36%) */}
       <div style={{ width: '36%', minWidth: 360, maxWidth: 520, flexShrink: 0 }}>
@@ -180,7 +208,7 @@ export function DirectorWorkspace({
             onExport={onExport}
           >
             {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
-            <AssetGrid assets={assets} onGenerateVideo={onGenerateVideo} generatingId={generatingId} />
+            <AssetGrid assets={assets} onGenerateVideo={onGenerateVideo} onSelectVariation={onSelectVariation} generatingId={generatingId} />
           </CreationCanvas>
         ) : (
           <Placeholder error={error} />

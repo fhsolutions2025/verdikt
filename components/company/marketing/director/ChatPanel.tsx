@@ -84,6 +84,50 @@ export function ChatPanel({
     return () => clearTimeout(t)
   }, [stepIdx, started])
 
+  // ── Campaign Memory recall ──────────────────────────────────────────────────
+  // When a brand is chosen, prefill the durable brief facts the Director already
+  // remembers for it (spec § Campaign Memory — "never ask again"). Only empty
+  // answers are filled, so the operator's current choices always win.
+  const [recalledKeys, setRecalledKeys] = React.useState<string[]>([])
+  const recalledBrandRef = React.useRef<string>('')
+  React.useEffect(() => {
+    const brandId = typeof answers.brand === 'string' ? answers.brand : ''
+    if (!brandId || recalledBrandRef.current === brandId) return
+    recalledBrandRef.current = brandId
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/company/marketing/v2/director/memory?brand_id=${encodeURIComponent(brandId)}`)
+        if (!res.ok || cancelled) return
+        const { facts } = (await res.json()) as {
+          facts?: { vertical?: string; audience?: string; region?: string; tone?: string; channels?: string[] }
+        }
+        if (!facts || cancelled) return
+        const filled: string[] = []
+        setAnswers(prev => {
+          const next: InterviewAnswers = { ...prev }
+          const setIfEmpty = (k: string, v: string | string[] | undefined) => {
+            if (v === undefined) return
+            const cur = next[k]
+            const empty =
+              cur === undefined ||
+              (typeof cur === 'string' && !cur.trim()) ||
+              (Array.isArray(cur) && cur.length === 0)
+            if (empty) { next[k] = v; filled.push(k) }
+          }
+          setIfEmpty('vertical', facts.vertical)
+          setIfEmpty('audience', facts.audience)
+          setIfEmpty('region', facts.region)
+          setIfEmpty('tone', facts.tone)
+          setIfEmpty('channels', facts.channels)
+          return next
+        })
+        if (!cancelled) setRecalledKeys(filled)
+      } catch { /* memory is best-effort; ignore */ }
+    })()
+    return () => { cancelled = true }
+  }, [answers.brand])
+
   // ── Dynamic option resolution ──────────────────────────────────────────────
   const optionsFor = React.useCallback(
     (s: InterviewStep): InterviewOption[] => {
@@ -278,6 +322,11 @@ export function ChatPanel({
                 {step.helper && (
                   <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>
                     {step.helper}
+                  </div>
+                )}
+                {recalledKeys.includes(step.id) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: ACCENT, marginTop: 8, fontWeight: 600 }}>
+                    <span>✓</span> Remembered from a previous campaign — edit if needed.
                   </div>
                 )}
               </div>

@@ -33,8 +33,14 @@ Deno.serve(async (req) => {
     })
   }
 
-  // Forward the full Chat Completions request body to OpenAI unchanged.
-  const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+  // Route to embeddings when the body is an embeddings request (has `input` and no
+  // `messages`), otherwise to chat completions. Body is forwarded unchanged.
+  const isEmbed = typeof body.input !== 'undefined' && typeof body.messages === 'undefined'
+  const endpoint = isEmbed
+    ? 'https://api.openai.com/v1/embeddings'
+    : 'https://api.openai.com/v1/chat/completions'
+
+  const upstream = await fetch(endpoint, {
     method:  'POST',
     headers: {
       'Content-Type':  'application/json',
