@@ -15,6 +15,7 @@ import { CreationCanvas } from './CreationCanvas'
 import { AssetGrid } from './AssetGrid'
 import { KnowledgePanel } from './KnowledgePanel'
 import { AssetLibraryPanel } from './AssetLibraryPanel'
+import { AnalyticsPanel } from './AnalyticsPanel'
 import { DirectorKeyframes, ACCENT } from './theme'
 import type { AssetItem, AssetStats, Brief, CampaignHeader, NavItem } from './types'
 import { buildBrief, type InterviewAnswers } from '@/lib/marketing/directorInterview'
@@ -27,8 +28,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'brand', label: 'Brand Voice', icon: '🎨' },
   { id: 'knowledge', label: 'Knowledge', icon: '📚' },
   { id: 'approvals', label: 'Approvals', icon: '✅' },
+  { id: 'analytics', label: 'Analytics', icon: '📊' },
   { id: 'chat', label: 'Chat', icon: '💬', soon: true },
-  { id: 'analytics', label: 'Analytics', icon: '📊', soon: true },
   { id: 'calendar', label: 'Calendar', icon: '📅', soon: true },
   { id: 'settings', label: 'Settings', icon: '⚙️', soon: true },
 ]
@@ -56,6 +57,7 @@ export function DirectorWorkspace({
   const [error, setError] = React.useState<string | null>(null)
   const [showKnowledge, setShowKnowledge] = React.useState(false)
   const [showAssets, setShowAssets] = React.useState(false)
+  const [showAnalytics, setShowAnalytics] = React.useState(false)
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
   const refresh = React.useCallback(async (rid: string) => {
@@ -165,16 +167,18 @@ export function DirectorWorkspace({
       <DirectorKeyframes />
       <NavRail
         items={NAV_ITEMS}
-        activeId={showKnowledge ? 'knowledge' : showAssets ? 'assets' : 'director'}
+        activeId={showKnowledge ? 'knowledge' : showAssets ? 'assets' : showAnalytics ? 'analytics' : 'director'}
         onNavigate={(id) => {
           if (id === 'knowledge') { setShowKnowledge(true); return }
           if (id === 'assets') { setShowAssets(true); return }
+          if (id === 'analytics') { setShowAnalytics(true); return }
           if (id !== 'director') onNavigate(id)
         }}
         user={{ name: 'Verdikt Studio', plan: 'Marketing' }}
       />
       {showKnowledge && <KnowledgePanel brands={brands} onClose={() => setShowKnowledge(false)} />}
       {showAssets && <AssetLibraryPanel brands={brands} onClose={() => setShowAssets(false)} />}
+      {showAnalytics && <AnalyticsPanel brands={brands} onClose={() => setShowAnalytics(false)} />}
 
       {/* Left — chat (≈36%) */}
       <div style={{ width: '36%', minWidth: 360, maxWidth: 520, flexShrink: 0 }}>
