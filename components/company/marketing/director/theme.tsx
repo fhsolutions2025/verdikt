@@ -132,13 +132,32 @@ export function Spinner({ size = 18, color = PURPLE_LIGHT }: { size?: number; co
   )
 }
 
-// Inject the keyframes once (spinner + subtle pulse). Render <DirectorKeyframes/> high
-// in the tree so animations work without touching globals.css.
+// Draw-on "V" loader — the brand mark animating itself in. Used for every asset
+// that is loading/generating (lazy-load placeholder + in-progress state).
+export function VLoader({ size = 44, color = ACCENT }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" role="img" aria-label="loading">
+      <path
+        d="M9 11 L20 29 L31 11"
+        stroke={color}
+        strokeWidth={3.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray={64}
+        style={{ animation: 'vd-draw 1.4s ease-in-out infinite' }}
+      />
+    </svg>
+  )
+}
+
+// Inject the keyframes once (spinner + pulse + dots + the V draw-on). Render
+// <DirectorKeyframes/> high in the tree so animations work without touching globals.css.
 export function DirectorKeyframes() {
   return <style>{`
 @keyframes vd-spin { to { transform: rotate(360deg) } }
 @keyframes vd-pulse { 0%,100% { opacity: .5 } 50% { opacity: 1 } }
 @keyframes vd-dots { 0%,80%,100% { transform: scale(.6); opacity:.4 } 40% { transform: scale(1); opacity:1 } }
+@keyframes vd-draw { 0% { stroke-dashoffset: 64 } 50% { stroke-dashoffset: 0 } 100% { stroke-dashoffset: -64 } }
 `}</style>
 }
 

@@ -112,11 +112,51 @@ Return STRICT JSON: {"platform":"${platform}","caption":"","hashtags":[],"media_
 // ── Image prompt + generation ───────────────────────────────────────────────────
 export interface ImagePromptOut { prompt: string; aspect: string; alt_text: string; seo_tags: string[] }
 
-export async function buildImagePrompt(brand: BrandCtx, briefText: string): Promise<ImagePromptOut> {
+// Campaign context woven into the image so the visual matches the text assets.
+export interface ImageContext {
+  vertical?: string
+  audience?: string
+  region?: string
+  headline?: string
+  brandColors?: string[]
+}
+
+// Map a vertical to a concrete scene so the image reads as on-topic (not generic stock).
+function verticalScene(vertical?: string): string {
+  const v = (vertical || '').toLowerCase()
+  if (v.includes('sport')) return 'energetic sports-viewing atmosphere'
+  if (v.includes('crypto')) return 'sleek digital finance / crypto-trading atmosphere'
+  if (v.includes('current') || v.includes('affairs') || v.includes('politic')) return 'contemporary current-events / newsroom atmosphere'
+  if (v.includes('finance')) return 'modern financial / markets atmosphere'
+  if (v.includes('retail')) return 'modern retail / shopping environment'
+  if (v.includes('responsible') || v.includes('gaming')) return 'calm, trustworthy responsible-gaming atmosphere'
+  return ''
+}
+
+// Turn the campaign context into concrete, localized, IP-safe visual cues.
+function contextCues(c?: ImageContext): string {
+  if (!c) return ''
+  const bits: string[] = []
+  const scene = verticalScene(c.vertical)
+  if (scene) bits.push(scene)
+  if (c.audience) bits.push(`authentically reflecting the audience: ${c.audience} (depict everyday people of that demographic, no recognizable real individuals)`)
+  if (c.region) bits.push(`localized to a ${c.region} setting`)
+  if (c.brandColors?.length) bits.push(`use the brand color palette ${c.brandColors.join(', ')}`)
+  if (c.headline) bits.push(`evoke the message "${c.headline}"`)
+  bits.push('contextually relevant, localized, and IP-safe (no real logos, brand marks, or named individuals)')
+  return bits.join('; ')
+}
+
+export async function buildImagePrompt(brand: BrandCtx, briefText: string, context?: ImageContext): Promise<ImagePromptOut> {
+  const cues = contextCues(context)
   const system = `${GLOBAL_PREAMBLE}
 Role: Image Generation Agent. ${brandLine(brand)}
-Write ONE vivid, concrete, IP-SAFE image prompt (no real logos, teams, named people, or flags),
-on-brand and abstract. Return STRICT JSON: {"prompt":"","aspect":"ASPECT_16_9","alt_text":"","seo_tags":[]}`
+Write ONE vivid, concrete, CONTEXTUALLY RELEVANT, LOCALIZED, and IP-SAFE image prompt.
+Explicitly include visual cues that match the target region and demographic when relevant
+(e.g. "East African urban environment", "modern retail setting"). Do NOT use real logos,
+brand marks, flags, or named/recognizable real people — but everyday, demographically
+authentic people and places ARE encouraged.${cues ? `\nCampaign cues to honor: ${cues}.` : ''}
+Return STRICT JSON: {"prompt":"","aspect":"ASPECT_16_9","alt_text":"","seo_tags":[]}`
   const { data, raw } = await completeJson<ImagePromptOut>({ task: 'image_prompt', system, messages: [{ role: 'user', content: `Creative brief: ${briefText}` }] })
   const out = data ?? { prompt: raw.slice(0, 300), aspect: 'ASPECT_16_9', alt_text: briefText.slice(0, 80), seo_tags: [] }
   if (!out.aspect) out.aspect = 'ASPECT_16_9'
@@ -128,10 +168,33 @@ export interface GeneratedImage { url: string; seed: number | null; prompt: stri
 // Generate via ideogram-proxy, then re-host into the marketing-media bucket and
 // record a marketing_assets row (so the Asset Library shows it). Returns the
 // public URL. IP guard runs before the provider call.
-export async function generateImage(brand: BrandCtx, briefText: string, campaignId: string): Promise<GeneratedImage> {
-  const spec = await buildImagePrompt(brand, briefText)
+//
+// `opts.prompt` (the prompt-optimizer's output) is PRESERVED — it is sent to the
+// model with campaign context appended, rather than being rewritten from scratch.
+// Only when no prompt is supplied do we fall back to buildImagePrompt (now
+// context-aware). `opts.context` ties the visual to the campaign's vertical,
+// audience, region, brand colors, and headline.
+export async function generateImage(
+  brand: BrandCtx, briefText: string, campaignId: string,
+  opts?: { prompt?: string; context?: ImageContext },
+): Promise<GeneratedImage> {
+  let spec: ImagePromptOut
+  if (opts?.prompt?.trim()) {
+    // Preserve the optimized prompt; append concrete campaign cues.
+    const cues = contextCues(opts.context)
+    const merged = cues ? `${opts.prompt.trim()}. ${cues}.` : opts.prompt.trim()
+    spec = { prompt: merged, aspect: 'ASPECT_16_9', alt_text: (opts.context?.headline || briefText).slice(0, 80), seo_tags: [] }
+  } else {
+    spec = await buildImagePrompt(brand, briefText, opts?.context)
+  }
 
-  const guard = checkPrompt(spec.prompt)
+  // IP guard. If the context-merged prompt trips it, fall back to the bare optimized
+  // prompt before giving up (so localized cues never block a valid render).
+  let guard = checkPrompt(spec.prompt)
+  if (!guard.ok && opts?.prompt?.trim()) {
+    spec = { ...spec, prompt: opts.prompt.trim() }
+    guard = checkPrompt(spec.prompt)
+  }
   if (!guard.ok) throw new Error(`Image prompt blocked by IP guard: ${guard.reason}`)
 
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

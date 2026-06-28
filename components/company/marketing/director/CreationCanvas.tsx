@@ -67,6 +67,7 @@ export function CreationCanvas({ header, stats, brief, onShare, onExport, childr
   onExport?: () => void
   children?: React.ReactNode
 }): React.JSX.Element {
+  const [activeTab, setActiveTab] = React.useState<(typeof TABS)[number]>('Plan')
   const pct = stats.total ? Math.round((stats.generated / stats.total) * 100) : 0
   const vertical = header.vertical || brief.vertical
 
@@ -95,24 +96,29 @@ export function CreationCanvas({ header, stats, brief, onShare, onExport, childr
         </div>
       </div>
 
-      {/* Tab row (visual only — Plan active) */}
+      {/* Tab row */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 4, marginTop: 14,
         borderBottom: '1px solid var(--border-soft)',
       }}>
         {TABS.map((t) => {
-          const active = t === 'Plan'
+          const active = t === activeTab
           return (
-            <div key={t} style={{
-              padding: '9px 14px', fontSize: 13.5, fontWeight: 700, cursor: 'default',
+            <button key={t} type="button" onClick={() => setActiveTab(t)} style={{
+              padding: '9px 14px', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+              background: 'none', border: 'none',
               color: active ? 'var(--text-strong)' : 'var(--text-dim)',
               borderBottom: active ? `2px solid ${PURPLE}` : '2px solid transparent',
               marginBottom: -1,
-            }}>{t}</div>
+            }}>{t}</button>
           )
         })}
       </div>
 
+      {activeTab !== 'Plan' && <TabPlaceholder name={activeTab} />}
+
+      {activeTab === 'Plan' && (
+      <>
       {/* Planning heading + agent activity chip */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginTop: 22, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -177,6 +183,21 @@ export function CreationCanvas({ header, stats, brief, onShare, onExport, childr
       <div style={{ marginTop: 16 }}>
         {children}
       </div>
+      </>
+      )}
+    </div>
+  )
+}
+
+// Clean placeholder for not-yet-built tabs (Create / Review / Publish / Analyze).
+function TabPlaceholder({ name }: { name: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '64px 24px', gap: 10 }}>
+      <div style={{ fontSize: 36 }}>🛠️</div>
+      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--text-strong)' }}>{name}</h2>
+      <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-dim)', maxWidth: 380 }}>
+        The <strong>{name}</strong> workspace is coming soon. For now, build and watch your assets generate under the <strong>Plan</strong> tab.
+      </p>
     </div>
   )
 }

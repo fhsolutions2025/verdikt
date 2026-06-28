@@ -40,11 +40,22 @@ export async function POST(req: Request) {
   if (!run) return NextResponse.json({ error: 'run not found' }, { status: 404 })
   const campaignId = run.campaign_id as string
 
-  const { data: campaign } = await svc.from('mkt_campaigns').select('brand_id,region,goal').eq('id', campaignId).single()
+  const { data: campaign } = await svc.from('mkt_campaigns').select('brand_id,region,goal,plan').eq('id', campaignId).single()
   if (!campaign) return NextResponse.json({ error: 'campaign not found' }, { status: 404 })
   const { data: brand } = await svc.from('mkt_brands').select('name,voice,regions').eq('id', campaign.brand_id).single()
   const region = campaign.region ?? brand?.regions?.[0] ?? ''
   const bctx: BrandCtx = { name: brand?.name ?? 'Verdikt', voice: brand?.voice ?? {}, region }
+
+  // Campaign context for context-aware image generation (vertical/audience/headline/colors).
+  const plan = (campaign.plan ?? {}) as { brief?: { vertical?: string; audience?: string }; copy?: { headline_hooks?: string[] } }
+  const { data: brandKit } = await svc.from('brand_settings').select('colors').eq('id', 'default').maybeSingle()
+  const brandColors = Array.isArray(brandKit?.colors)
+    ? (brandKit!.colors as { hex?: string }[]).map(c => c?.hex).filter((h): h is string => !!h)
+    : []
+  const imageContext = {
+    vertical: plan.brief?.vertical, audience: plan.brief?.audience, region,
+    headline: plan.copy?.headline_hooks?.[0], brandColors,
+  }
 
   // Pending non-video asset tasks.
   const { data: tasks } = await svc.from('mkt_agent_tasks')
@@ -60,7 +71,7 @@ export async function POST(req: Request) {
         const artId = await createArtifact(svc, { campaign_id: campaignId, type: 'social', channel: spec.channel ?? null, title: spec.label ?? 'Copy', content: { body: text } })
         await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { text, artifact_id: artId }, finished_at: new Date().toISOString() }).eq('id', t.id)
       } else {
-        const img = await generateImage(bctx, spec.prompt || campaign.goal || 'on-brand marketing visual', campaignId)
+        const img = await generateImage(bctx, spec.prompt || campaign.goal || 'on-brand marketing visual', campaignId, { prompt: spec.prompt, context: imageContext })
         const artId = await createArtifact(svc, { campaign_id: campaignId, type: t.type === 'asset.carousel' ? 'carousel' : 'image', channel: spec.channel ?? null, title: spec.label ?? 'Image', content: { prompt: img.prompt, alt_text: img.alt_text }, asset_url: img.url })
         await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { url: img.url, artifact_id: artId }, finished_at: new Date().toISOString() }).eq('id', t.id)
       }

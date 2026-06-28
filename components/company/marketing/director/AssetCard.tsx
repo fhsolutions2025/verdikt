@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { CSSProperties, ReactNode, JSX } from 'react'
 import {
   PURPLE,
@@ -7,7 +8,7 @@ import {
   S,
   Btn,
   Badge,
-  Spinner,
+  VLoader,
   ProgressBar,
   assetStateColor,
   assetStateLabel,
@@ -86,7 +87,7 @@ export function AssetCard({
         {pct !== null ? (
           <div style={{ fontSize: 30, fontWeight: 800, color: PURPLE, lineHeight: 1 }}>{pct}%</div>
         ) : (
-          <Spinner size={30} color={PURPLE} />
+          <VLoader size={42} />
         )}
         <div style={{ width: '100%' }}>
           <ProgressBar value={pct ?? 35} />
@@ -102,6 +103,7 @@ export function AssetCard({
         <MediaShell style={{ padding: 0 }}>
           <video
             controls
+            preload="metadata"
             src={asset.url}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
@@ -110,12 +112,7 @@ export function AssetCard({
     } else if (isImageLike && asset.url) {
       media = (
         <MediaShell style={{ padding: 0 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={asset.url}
-            alt={asset.label}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
+          <LazyImage src={asset.url} alt={asset.label} />
         </MediaShell>
       )
     } else {
@@ -229,6 +226,29 @@ export function AssetCard({
           ) : null}
         </div>
       </div>
+    </div>
+  )
+}
+
+// Lazy-loaded image: native lazy loading + a draw-on "V" placeholder until decoded.
+function LazyImage({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false)
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {!loaded && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-inset)' }}>
+          <VLoader />
+        </div>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: loaded ? 1 : 0, transition: 'opacity .3s' }}
+      />
     </div>
   )
 }
