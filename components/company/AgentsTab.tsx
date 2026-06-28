@@ -2,6 +2,18 @@
 
 import { useState, useEffect } from 'react'
 
+interface AgentPermissions {
+  read:     boolean
+  write:    boolean
+  generate: boolean
+  publish:  boolean
+}
+
+interface AgentRetryPolicy {
+  max_attempts:    number
+  backoff_seconds: number[]
+}
+
 interface AgentConfig {
   id:                   string
   agent_type:           string
@@ -14,6 +26,39 @@ interface AgentConfig {
   is_active:            boolean
   version:              number
   updated_at:           string
+  // ── §23 full registry attributes (optional-safe) ──────────────────────────
+  mission?:               string
+  responsibilities?:      string[]
+  capabilities?:          string[]
+  restrictions?:          string[]
+  memory_sources?:        string[]
+  provider?:              'anthropic' | 'openai' | null
+  model?:                 string | null
+  streaming?:             boolean
+  timeout_seconds?:       number
+  retry_policy?:          AgentRetryPolicy | null
+  permissions?:           AgentPermissions | null
+  output_schema?:         Record<string, unknown> | null
+  escalation_target?:     string | null
+  execution_priority?:    number
+  supported_asset_types?: string[]
+  supported_languages?:   string[]
+}
+
+const DEFAULT_PERMISSIONS: AgentPermissions = { read: true, write: true, generate: false, publish: false }
+const DEFAULT_RETRY: AgentRetryPolicy = { max_attempts: 3, backoff_seconds: [1, 2, 4] }
+
+// ── §23 helpers: defaults + array/text bridges ────────────────────────────────
+const linesToArray = (s: string): string[] => s.split('\n').map(x => x.trim()).filter(Boolean)
+const arrayToLines = (a?: string[] | null): string => (a ?? []).join('\n')
+const csvToArray   = (s: string): string[] => s.split(',').map(x => x.trim()).filter(Boolean)
+const arrayToCsv   = (a?: string[] | null): string => (a ?? []).join(', ')
+
+function getPermissions(cfg: AgentConfig): AgentPermissions {
+  return cfg.permissions ?? DEFAULT_PERMISSIONS
+}
+function getRetry(cfg: AgentConfig): AgentRetryPolicy {
+  return cfg.retry_policy ?? DEFAULT_RETRY
 }
 
 interface EvalStats {
@@ -79,6 +124,10 @@ const AGENT_LABELS: Record<string, { label: string; color: string; desc: string;
   mkt_copywriter:          { label: 'Copywriter',        color: '#00C853', desc: 'Marketing sub-agent — headline hooks + copy variants', tag: 'Marketing AI' },
   mkt_prompt_optimizer:    { label: 'Prompt Optimizer',  color: '#E0A020', desc: 'Marketing sub-agent — cinematic, localized image/video prompts', tag: 'Marketing AI' },
   mkt_router:              { label: 'Router',             color: '#E05C20', desc: 'Marketing sub-agent — picks the optimal model + channel per asset', tag: 'Marketing AI' },
+  mkt_brand_guardian:      { label: 'Brand Guardian',     color: '#9B6FF5', desc: 'Approval gate — approves or rejects content on brand alignment', tag: 'Marketing AI' },
+  mkt_compliance:          { label: 'Compliance',         color: '#DC2626', desc: 'Regulatory gate — screens content against regional iGaming rules', tag: 'Marketing AI' },
+  mkt_seo:                 { label: 'SEO Specialist',     color: '#00C853', desc: 'Optimizes content for search — keywords, meta tags, recommendations', tag: 'Marketing AI' },
+  mkt_reviewer:            { label: 'Reviewer / QA',      color: '#E0A020', desc: 'Final quality gate — scores content and decides pass or regenerate', tag: 'Marketing AI' },
 }
 
 const ALL_TOOLS = [
@@ -204,6 +253,9 @@ export function AgentsTab() {
   const [vega, setVega]           = useState<VegaPerformance | null>(null)
   const [togglingKill, setTogglingKill] = useState(false)
   const [toolsOpen, setToolsOpen] = useState<string | null>(null)
+  // §23 — output_schema is edited as raw JSON text; parsed on change.
+  const [schemaText, setSchemaText] = useState<string>('')
+  const [schemaErr, setSchemaErr]   = useState<string | null>(null)
 
   const loadAutonomous = () => {
     fetch('/api/agents/autonomous')
@@ -219,7 +271,11 @@ export function AgentsTab() {
         if (Array.isArray(d.configs)) {
           setConfigs(d.configs)
           const first = d.configs.find((c: AgentConfig) => c.agent_type === 'player') ?? d.configs[0]
-          if (first) setEditing(JSON.parse(JSON.stringify(first)))
+          if (first) {
+            setEditing(JSON.parse(JSON.stringify(first)))
+            setSchemaText(first.output_schema ? JSON.stringify(first.output_schema, null, 2) : '')
+            setSchemaErr(null)
+          }
         }
       })
       .catch(() => {})
@@ -255,23 +311,48 @@ export function AgentsTab() {
   const selectAgent = (type: string) => {
     setSelected(type)
     const cfg = configs.find(c => c.agent_type === type)
-    if (cfg) setEditing(JSON.parse(JSON.stringify(cfg)))
+    if (cfg) {
+      setEditing(JSON.parse(JSON.stringify(cfg)))
+      setSchemaText(cfg.output_schema ? JSON.stringify(cfg.output_schema, null, 2) : '')
+    }
+    setSchemaErr(null)
     setSaveMsg(null)
   }
 
   const save = async () => {
     if (!editing) return
+
+    // §23 — resolve output_schema from the raw JSON textarea.
+    let outputSchema: Record<string, unknown> | null = null
+    const trimmed = schemaText.trim()
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          setSchemaErr('Output schema must be a JSON object.')
+          return
+        }
+        outputSchema = parsed as Record<string, unknown>
+      } catch {
+        setSchemaErr('Invalid JSON.')
+        return
+      }
+    }
+    setSchemaErr(null)
+
+    const payload: AgentConfig = { ...editing, output_schema: outputSchema }
+
     setSaving(true)
     setSaveMsg(null)
     try {
       const res = await fetch('/api/agents/configs', {
         method:  'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(editing),
+        body:    JSON.stringify(payload),
       })
       const d = await res.json()
       if (res.ok) {
-        setConfigs(prev => prev.map(c => c.agent_type === editing.agent_type ? editing : c))
+        setConfigs(prev => prev.map(c => c.agent_type === editing.agent_type ? payload : c))
         setSaveMsg('Saved successfully.')
         setTimeout(() => setSaveMsg(null), 2500)
       } else {
@@ -711,12 +792,207 @@ export function AgentsTab() {
               borderRadius: 13, padding: '18px 20px',
               display: 'flex', flexDirection: 'column', gap: 18,
             }}>
-              <SectionLabel accent={meta.color}>Parameters</SectionLabel>
+              <SectionLabel accent={meta.color}>Rate Limits</SectionLabel>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 28px' }}>
+                <Slider accent={meta.color} label="Rate limit / minute" min={1} max={60} value={cfg.rate_limit_per_minute} onChange={v => setEditing({ ...cfg, rate_limit_per_minute: v })} />
+                <Slider accent={meta.color} label="Rate limit / day" min={10} max={5000} step={10} value={cfg.rate_limit_per_day} onChange={v => setEditing({ ...cfg, rate_limit_per_day: v })} />
+              </div>
+            </div>
+
+            {/* ── §23 Identity ──────────────────────────────────────────────── */}
+            <div style={{
+              backgroundColor: CARD_BG, border: `1px solid ${CARD_BORDER}`,
+              borderRadius: 13, padding: '18px 20px',
+              display: 'flex', flexDirection: 'column', gap: 16,
+            }}>
+              <SectionLabel accent={meta.color}>Identity</SectionLabel>
+              <FieldLabel>Mission</FieldLabel>
+              <ConfigTextarea
+                accent={meta.color} rows={3} value={cfg.mission ?? ''}
+                placeholder="One-sentence mandate for this agent…"
+                onChange={v => setEditing({ ...cfg, mission: v })}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Responsibilities <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(one per line)</span></FieldLabel>
+                  <ConfigTextarea
+                    accent={meta.color} rows={5} value={arrayToLines(cfg.responsibilities)}
+                    placeholder={'Draft daily market briefs\nMonitor open positions'}
+                    onChange={v => setEditing({ ...cfg, responsibilities: linesToArray(v) })}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Restrictions <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(one per line)</span></FieldLabel>
+                  <ConfigTextarea
+                    accent={meta.color} rows={5} value={arrayToLines(cfg.restrictions)}
+                    placeholder={'Never give financial advice\nNo PII in outputs'}
+                    onChange={v => setEditing({ ...cfg, restrictions: linesToArray(v) })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── §23 Model ─────────────────────────────────────────────────── */}
+            <div style={{
+              backgroundColor: CARD_BG, border: `1px solid ${CARD_BORDER}`,
+              borderRadius: 13, padding: '18px 20px',
+              display: 'flex', flexDirection: 'column', gap: 16,
+            }}>
+              <SectionLabel accent={meta.color}>Model</SectionLabel>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Provider</FieldLabel>
+                  <ConfigSelect
+                    accent={meta.color}
+                    value={cfg.provider ?? ''}
+                    options={[
+                      { value: '', label: 'Auto (task router)' },
+                      { value: 'anthropic', label: 'anthropic' },
+                      { value: 'openai', label: 'openai' },
+                    ]}
+                    onChange={v => setEditing({ ...cfg, provider: v === '' ? null : (v as 'anthropic' | 'openai') })}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Model</FieldLabel>
+                  <ConfigInput
+                    accent={meta.color}
+                    value={cfg.model ?? ''}
+                    placeholder="default by task router"
+                    onChange={v => setEditing({ ...cfg, model: v.trim() === '' ? null : v })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── §23 Runtime ───────────────────────────────────────────────── */}
+            <div style={{
+              backgroundColor: CARD_BG, border: `1px solid ${CARD_BORDER}`,
+              borderRadius: 13, padding: '18px 20px',
+              display: 'flex', flexDirection: 'column', gap: 18,
+            }}>
+              <SectionLabel accent={meta.color}>Runtime</SectionLabel>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 28px' }}>
                 <Slider accent={meta.color} label="Temperature" min={0} max={1} step={0.05} value={cfg.temperature} onChange={v => setEditing({ ...cfg, temperature: v })} />
                 <Slider accent={meta.color} label="Max tokens" min={256} max={4096} step={128} value={cfg.max_tokens} onChange={v => setEditing({ ...cfg, max_tokens: v })} />
-                <Slider accent={meta.color} label="Rate limit / minute" min={1} max={60} value={cfg.rate_limit_per_minute} onChange={v => setEditing({ ...cfg, rate_limit_per_minute: v })} />
-                <Slider accent={meta.color} label="Rate limit / day" min={10} max={5000} step={10} value={cfg.rate_limit_per_day} onChange={v => setEditing({ ...cfg, rate_limit_per_day: v })} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px 20px', alignItems: 'end' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Timeout (seconds)</FieldLabel>
+                  <ConfigInput
+                    accent={meta.color} type="number"
+                    value={String(cfg.timeout_seconds ?? 60)}
+                    onChange={v => setEditing({ ...cfg, timeout_seconds: Math.max(1, Math.round(Number(v) || 0)) })}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Retry — max attempts</FieldLabel>
+                  <ConfigInput
+                    accent={meta.color} type="number"
+                    value={String(getRetry(cfg).max_attempts)}
+                    onChange={v => setEditing({
+                      ...cfg,
+                      retry_policy: { ...getRetry(cfg), max_attempts: Math.max(1, Math.round(Number(v) || 0)) },
+                    })}
+                  />
+                </div>
+                <Toggle
+                  accent={meta.color} label="Streaming"
+                  on={cfg.streaming !== false}
+                  onToggle={() => setEditing({ ...cfg, streaming: !(cfg.streaming !== false) })}
+                />
+              </div>
+            </div>
+
+            {/* ── §23 Permissions matrix ────────────────────────────────────── */}
+            <div style={{
+              backgroundColor: CARD_BG, border: `1px solid ${CARD_BORDER}`,
+              borderRadius: 13, padding: '18px 20px',
+              display: 'flex', flexDirection: 'column', gap: 14,
+            }}>
+              <SectionLabel accent={meta.color}>Permissions</SectionLabel>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+                {(['read', 'write', 'generate', 'publish'] as const).map(cap => (
+                  <Toggle
+                    key={cap} accent={meta.color}
+                    label={cap.charAt(0).toUpperCase() + cap.slice(1)}
+                    on={getPermissions(cfg)[cap]}
+                    onToggle={() => setEditing({
+                      ...cfg,
+                      permissions: { ...getPermissions(cfg), [cap]: !getPermissions(cfg)[cap] },
+                    })}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* ── §23 Output schema ─────────────────────────────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <SectionLabel accent={meta.color}>Output Schema · JSON</SectionLabel>
+              <textarea
+                value={schemaText}
+                onChange={e => { setSchemaText(e.target.value); if (schemaErr) setSchemaErr(null) }}
+                rows={8}
+                spellCheck={false}
+                placeholder={'{\n  "type": "object",\n  "properties": {}\n}'}
+                style={{
+                  width: '100%', backgroundColor: 'var(--bg-inset)',
+                  border: `1px solid ${schemaErr ? '#DC262660' : CARD_BORDER}`, borderRadius: 11,
+                  padding: '14px 16px', color: 'var(--text)', fontSize: 12,
+                  fontFamily: 'ui-monospace, SFMono-Regular, monospace', lineHeight: 1.6,
+                  resize: 'vertical', outline: 'none', boxSizing: 'border-box',
+                }}
+                onFocus={e => { if (!schemaErr) e.currentTarget.style.borderColor = meta.color + '60' }}
+                onBlur={e => { if (!schemaErr) e.currentTarget.style.borderColor = CARD_BORDER }}
+              />
+              {schemaErr && (
+                <span style={{ color: '#F87171', fontSize: 11.5, fontWeight: 600 }}>{schemaErr}</span>
+              )}
+            </div>
+
+            {/* ── §23 Governance ────────────────────────────────────────────── */}
+            <div style={{
+              backgroundColor: CARD_BG, border: `1px solid ${CARD_BORDER}`,
+              borderRadius: 13, padding: '18px 20px',
+              display: 'flex', flexDirection: 'column', gap: 16,
+            }}>
+              <SectionLabel accent={meta.color}>Governance</SectionLabel>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Escalation target</FieldLabel>
+                  <ConfigInput
+                    accent={meta.color}
+                    value={cfg.escalation_target ?? ''}
+                    placeholder="e.g. campaign_director_agent"
+                    onChange={v => setEditing({ ...cfg, escalation_target: v.trim() === '' ? null : v })}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Execution priority</FieldLabel>
+                  <ConfigInput
+                    accent={meta.color} type="number"
+                    value={String(cfg.execution_priority ?? 100)}
+                    onChange={v => setEditing({ ...cfg, execution_priority: Math.max(0, Math.round(Number(v) || 0)) })}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Supported asset types <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(comma-separated)</span></FieldLabel>
+                  <ConfigInput
+                    accent={meta.color}
+                    value={arrayToCsv(cfg.supported_asset_types)}
+                    placeholder="image, video, copy"
+                    onChange={v => setEditing({ ...cfg, supported_asset_types: csvToArray(v) })}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <FieldLabel>Supported languages <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(comma-separated)</span></FieldLabel>
+                  <ConfigInput
+                    accent={meta.color}
+                    value={arrayToCsv(cfg.supported_languages)}
+                    placeholder="en, es, fr"
+                    onChange={v => setEditing({ ...cfg, supported_languages: csvToArray(v) })}
+                  />
+                </div>
               </div>
             </div>
 
@@ -821,6 +1097,104 @@ export function AgentsTab() {
         )}
       </div>
     </div>
+  )
+}
+
+// ── §23 form controls (match the file's input/label styling) ─────────────────
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span style={{
+      color: 'var(--text-muted)', fontSize: 11, fontWeight: 700,
+      textTransform: 'uppercase', letterSpacing: '0.06em',
+    }}>
+      {children}
+    </span>
+  )
+}
+
+const FIELD_BASE: React.CSSProperties = {
+  width: '100%', backgroundColor: 'var(--bg-inset)',
+  border: '1px solid var(--border)', borderRadius: 10,
+  padding: '10px 12px', color: 'var(--text)', fontSize: 12.5,
+  outline: 'none', boxSizing: 'border-box',
+}
+
+function ConfigInput({
+  value, onChange, placeholder, accent, type = 'text',
+}: { value: string; onChange: (v: string) => void; placeholder?: string; accent: string; type?: string }) {
+  return (
+    <input
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      onChange={e => onChange(e.target.value)}
+      style={FIELD_BASE}
+      onFocus={e => { e.currentTarget.style.borderColor = accent + '60' }}
+      onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+    />
+  )
+}
+
+function ConfigTextarea({
+  value, onChange, placeholder, accent, rows = 4,
+}: { value: string; onChange: (v: string) => void; placeholder?: string; accent: string; rows?: number }) {
+  return (
+    <textarea
+      value={value}
+      placeholder={placeholder}
+      rows={rows}
+      spellCheck={false}
+      onChange={e => onChange(e.target.value)}
+      style={{ ...FIELD_BASE, lineHeight: 1.55, resize: 'vertical' }}
+      onFocus={e => { e.currentTarget.style.borderColor = accent + '60' }}
+      onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+    />
+  )
+}
+
+function ConfigSelect({
+  value, onChange, options, accent,
+}: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; accent: string }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      style={{ ...FIELD_BASE, cursor: 'pointer', appearance: 'none' }}
+      onFocus={e => { e.currentTarget.style.borderColor = accent + '60' }}
+      onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+    >
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  )
+}
+
+function Toggle({ label, on, onToggle, accent }: { label: string; on: boolean; onToggle: () => void; accent: string }) {
+  return (
+    <label
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 13px', borderRadius: 10, cursor: 'pointer',
+        backgroundColor: on ? accent + '0E' : 'var(--fill-subtle)',
+        border: `1px solid ${on ? accent + '38' : 'var(--border)'}`,
+        transition: 'all 0.12s',
+      }}
+    >
+      <div style={{
+        width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+        backgroundColor: on ? accent : 'var(--text-faintest)',
+        position: 'relative', transition: 'background-color 0.2s',
+      }}>
+        <div style={{
+          position: 'absolute', top: 3, left: on ? 19 : 3,
+          width: 14, height: 14, borderRadius: '50%',
+          backgroundColor: '#fff', transition: 'left 0.2s',
+        }} />
+      </div>
+      <span style={{ color: on ? 'var(--text-strong)' : 'var(--text-dim)', fontSize: 12.5, fontWeight: 600 }}>
+        {label}
+      </span>
+    </label>
   )
 }
 

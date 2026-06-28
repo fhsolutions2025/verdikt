@@ -2,11 +2,43 @@ import { NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { generateImage, type BrandCtx } from '@/lib/marketing/agents'
+import { runBrandGuardian, runComplianceReviewer } from '@/lib/marketing/specialists'
+import { runQa, type QaResult } from '@/lib/marketing/qa'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
+
+// §23/§25 quality + governance gates over a generated asset. Runs the QA inspector
+// on every asset, plus Brand Guardian (and Compliance for text-bearing assets), and
+// folds the verdicts into a single review block stored on the artifact + task. The
+// artifact stays in 'needs_review' so the human approval gate sees these findings;
+// a hard compliance block or critical QA failure is flagged as blocking.
+interface AssetReview {
+  qa: QaResult
+  brand: { verdict: 'approve' | 'reject'; score: number; issues: string[] }
+  compliance: { verdict: 'pass' | 'warn' | 'block'; risks: string[]; required_disclosures: string[] } | null
+  blocked: boolean
+}
+
+async function reviewAsset(
+  bctx: BrandCtx, region: string, vertical: string,
+  assetType: string, content: string, brief: string,
+  opts: { compliance: boolean },
+): Promise<AssetReview> {
+  const [qa, brand, compliance] = await Promise.all([
+    runQa({ asset_type: assetType, content, brief, brand: `${bctx.name} (region ${region})` }),
+    runBrandGuardian(bctx, assetType, content),
+    opts.compliance ? runComplianceReviewer(region, vertical, content) : Promise.resolve(null),
+  ])
+  const blocked =
+    qa.blocked_from_publish ||
+    qa.severity === 'critical' ||
+    brand.verdict === 'reject' ||
+    compliance?.verdict === 'block'
+  return { qa, brand, compliance, blocked }
+}
 
 // Insert an artifact + immutable v1, point latest_version_id at it. Returns id.
 async function createArtifact(svc: Svc, a: {
@@ -48,6 +80,8 @@ export async function POST(req: Request) {
 
   // Campaign context for context-aware image generation (vertical/audience/headline/colors).
   const plan = (campaign.plan ?? {}) as { brief?: { vertical?: string; audience?: string }; copy?: { headline_hooks?: string[] } }
+  const vertical = plan.brief?.vertical ?? ''
+  const briefText = campaign.goal ?? ''
   const { data: brandKit } = await svc.from('brand_settings').select('colors').eq('id', 'default').maybeSingle()
   const brandColors = Array.isArray(brandKit?.colors)
     ? (brandKit!.colors as { hex?: string }[]).map(c => c?.hex).filter((h): h is string => !!h)
@@ -68,12 +102,16 @@ export async function POST(req: Request) {
     try {
       if (t.type === 'asset.copy') {
         const text = spec.text || campaign.goal || ''
-        const artId = await createArtifact(svc, { campaign_id: campaignId, type: 'social', channel: spec.channel ?? null, title: spec.label ?? 'Copy', content: { body: text } })
-        await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { text, artifact_id: artId }, finished_at: new Date().toISOString() }).eq('id', t.id)
+        // §25 QA + §23 Brand/Compliance gates over the copy (text-bearing → run compliance too).
+        const review = await reviewAsset(bctx, region, vertical, 'copy', text, briefText, { compliance: true })
+        const artId = await createArtifact(svc, { campaign_id: campaignId, type: 'social', channel: spec.channel ?? null, title: spec.label ?? 'Copy', content: { body: text, review } })
+        await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { text, artifact_id: artId, review }, finished_at: new Date().toISOString() }).eq('id', t.id)
       } else {
         const img = await generateImage(bctx, spec.prompt || campaign.goal || 'on-brand marketing visual', campaignId, { prompt: spec.prompt, context: imageContext })
-        const artId = await createArtifact(svc, { campaign_id: campaignId, type: t.type === 'asset.carousel' ? 'carousel' : 'image', channel: spec.channel ?? null, title: spec.label ?? 'Image', content: { prompt: img.prompt, alt_text: img.alt_text }, asset_url: img.url })
-        await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { url: img.url, artifact_id: artId }, finished_at: new Date().toISOString() }).eq('id', t.id)
+        // QA + Brand gate over the visual concept (prompt + alt text); compliance is copy-oriented, skip for pure imagery.
+        const review = await reviewAsset(bctx, region, vertical, t.type === 'asset.carousel' ? 'carousel' : 'image', `${img.prompt}\n${img.alt_text}`, briefText, { compliance: false })
+        const artId = await createArtifact(svc, { campaign_id: campaignId, type: t.type === 'asset.carousel' ? 'carousel' : 'image', channel: spec.channel ?? null, title: spec.label ?? 'Image', content: { prompt: img.prompt, alt_text: img.alt_text, review }, asset_url: img.url })
+        await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { url: img.url, artifact_id: artId, review }, finished_at: new Date().toISOString() }).eq('id', t.id)
       }
       made++
     } catch (err) {
