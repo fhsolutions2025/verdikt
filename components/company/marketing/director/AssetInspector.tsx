@@ -24,6 +24,8 @@ export function AssetInspector({
   const [downstream, setDownstream] = React.useState<string[]>([])
   const [comment, setComment] = React.useState('')
   const [busy, setBusy] = React.useState(false)
+  const [pubs, setPubs] = React.useState<{ id: string; channel: string; status: string }[]>([])
+  const [pubMsg, setPubMsg] = React.useState<string | null>(null)
 
   const load = React.useCallback(async () => {
     const r = await fetch(`/api/company/marketing/v2/artifact?id=${artifactId}`).then(x => x.json()).catch(() => null)
@@ -31,7 +33,26 @@ export function AssetInspector({
     setArtifact(r.artifact); setVersions(r.versions ?? []); setComments(r.comments ?? []); setDownstream(r.downstream ?? [])
   }, [artifactId])
 
-  React.useEffect(() => { void load() }, [load])
+  const loadPubs = React.useCallback(async () => {
+    const r = await fetch(`/api/company/marketing/v2/publish?artifact_id=${artifactId}`).then(x => x.json()).catch(() => null)
+    if (r && Array.isArray(r.publications)) setPubs(r.publications)
+  }, [artifactId])
+
+  React.useEffect(() => { void load(); void loadPubs() }, [load, loadPubs])
+
+  const publish = async (channel: string) => {
+    if (busy) return
+    setBusy(true); setPubMsg(null)
+    try {
+      const r = await fetch('/api/company/marketing/v2/publish', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artifact_id: artifactId, channel }),
+      })
+      const d = await r.json()
+      setPubMsg(r.ok ? (d.status === 'published' ? 'Published live ✓' : 'Exported ✓') : `Error: ${d.error ?? 'failed'}`)
+      if (r.ok) { await loadPubs(); onChanged?.() }
+    } finally { setBusy(false) }
+  }
 
   const act = async (action: 'approve' | 'reject' | 'comment') => {
     if (busy) return
@@ -91,6 +112,31 @@ export function AssetInspector({
               <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>If this changes, consider regenerating: <strong style={{ color: 'var(--text)' }}>{downstream.join(', ')}</strong>.</div>
             </div>
           )}
+
+          {/* Publishing */}
+          <div>
+            <SectionTitle>Publish</SectionTitle>
+            {artifact?.status !== 'approved' ? (
+              <Empty>Approve this asset to enable publishing.</Empty>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {(artifact?.type === 'image' || artifact?.type === 'carousel') && (
+                  <button onClick={() => publish('home_carousel')} disabled={busy} style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 9, padding: '8px 14px', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'default' : 'pointer' }}>
+                    Publish to Home Carousel
+                  </button>
+                )}
+                <button onClick={() => publish('export')} disabled={busy} style={{ background: 'transparent', color: PURPLE, border: `1px solid ${PURPLE}55`, borderRadius: 9, padding: '8px 14px', fontSize: 12.5, fontWeight: 700, cursor: busy ? 'default' : 'pointer' }}>
+                  Mark exported
+                </button>
+                {pubMsg && <span style={{ fontSize: 12, fontWeight: 600, color: pubMsg.startsWith('Error') ? RED : ACCENT }}>{pubMsg}</span>}
+              </div>
+            )}
+            {pubs.length > 0 && (
+              <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--text-dim)' }}>
+                {pubs.map(p => <span key={p.id} style={{ marginRight: 10 }}>• {p.channel} ({p.status})</span>)}
+              </div>
+            )}
+          </div>
 
           {/* Comments */}
           <div>
