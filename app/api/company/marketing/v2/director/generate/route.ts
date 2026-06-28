@@ -4,6 +4,9 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { generateImage, type BrandCtx } from '@/lib/marketing/agents'
 import { runBrandGuardian, runComplianceReviewer } from '@/lib/marketing/specialists'
 import { runQa, type QaResult } from '@/lib/marketing/qa'
+import { runChannelCopy } from '@/lib/marketing/copyPipeline'
+import { retrieveKnowledge, formatKnowledgeContext } from '@/lib/marketing/knowledge'
+import type { CampaignBrief } from '@/lib/marketing/directorInterview'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -79,9 +82,20 @@ export async function POST(req: Request) {
   const bctx: BrandCtx = { name: brand?.name ?? 'Verdikt', voice: brand?.voice ?? {}, region }
 
   // Campaign context for context-aware image generation (vertical/audience/headline/colors).
-  const plan = (campaign.plan ?? {}) as { brief?: { vertical?: string; audience?: string }; copy?: { headline_hooks?: string[] } }
+  const plan = (campaign.plan ?? {}) as { brief?: Partial<CampaignBrief>; copy?: { headline_hooks?: string[] } }
   const vertical = plan.brief?.vertical ?? ''
   const briefText = campaign.goal ?? ''
+  // Full brief + retrieved knowledge drive the channel-adapted copy pipeline (M3).
+  const brief: CampaignBrief = {
+    brand_id: campaign.brand_id as string,
+    vertical, goal: campaign.goal ?? plan.brief?.goal ?? '',
+    audience: plan.brief?.audience ?? '', region,
+    channels: plan.brief?.channels ?? [], tone: plan.brief?.tone ?? '', notes: plan.brief?.notes ?? '',
+  }
+  const kbHits = await retrieveKnowledge(svc, {
+    brandId: campaign.brand_id as string, query: `${brief.goal} ${brief.vertical} ${brief.audience}`.trim(), k: 4,
+  })
+  const knowledge = formatKnowledgeContext(kbHits)
   const { data: brandKit } = await svc.from('brand_settings').select('colors').eq('id', 'default').maybeSingle()
   const brandColors = Array.isArray(brandKit?.colors)
     ? (brandKit!.colors as { hex?: string }[]).map(c => c?.hex).filter((h): h is string => !!h)
@@ -101,11 +115,15 @@ export async function POST(req: Request) {
     await svc.from('mkt_agent_tasks').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', t.id)
     try {
       if (t.type === 'asset.copy') {
-        const text = spec.text || campaign.goal || ''
-        // §25 QA + §23 Brand/Compliance gates over the copy (text-bearing → run compliance too).
+        // M3 copy pipeline: channel-adapted draft → multi-dimension score → self-heal.
+        const channel = spec.channel || 'instagram'
+        const scored = await runChannelCopy(bctx, brief, channel, knowledge)
+        const text = `${scored.copy.headline}\n\n${scored.copy.body}\n\nCTA: ${scored.copy.cta}${scored.copy.hashtags.length ? `\n${scored.copy.hashtags.join(' ')}` : ''}`
+        // §25 QA + §23 Brand/Compliance gates over the final copy.
         const review = await reviewAsset(bctx, region, vertical, 'copy', text, briefText, { compliance: true })
-        const artId = await createArtifact(svc, { campaign_id: campaignId, type: 'social', channel: spec.channel ?? null, title: spec.label ?? 'Copy', content: { body: text, review } })
-        await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { text, artifact_id: artId, review }, finished_at: new Date().toISOString() }).eq('id', t.id)
+        const content = { body: text, copy: scored.copy, score: scored.score, attempts: scored.attempts, review }
+        const artId = await createArtifact(svc, { campaign_id: campaignId, type: 'social', channel, title: spec.label ?? `${channel} copy`, content })
+        await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { text, artifact_id: artId, score: scored.score, review }, finished_at: new Date().toISOString() }).eq('id', t.id)
       } else {
         const img = await generateImage(bctx, spec.prompt || campaign.goal || 'on-brand marketing visual', campaignId, { prompt: spec.prompt, context: imageContext })
         // QA + Brand gate over the visual concept (prompt + alt text); compliance is copy-oriented, skip for pure imagery.

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { CSSProperties, ReactNode, JSX } from 'react'
 import {
+  ACCENT,
   PURPLE,
   RED,
   S,
@@ -200,6 +201,11 @@ export function AssetCard({
           <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2 }}>{asset.dims}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {asset.type === 'copy' && asset.state === 'completed' && typeof asset.score === 'number' ? (
+            <Badge color={asset.score >= 80 ? ACCENT : asset.score >= 60 ? '#E0A020' : RED}>
+              {asset.score}/100
+            </Badge>
+          ) : null}
           <Badge color={stateColor}>{assetStateLabel(asset.state)}</Badge>
           {canDownload ? (
             <button

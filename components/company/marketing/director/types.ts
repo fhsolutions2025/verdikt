@@ -18,6 +18,7 @@ export interface AssetItem {
   text?: string         // copy body when completed (type === 'copy')
   artifactId?: string   // mkt_artifacts id when an artifact exists
   jobId?: string        // mkt_video_jobs id when a video render is in flight/done
+  score?: number        // 0-100 overall copy quality score (type === 'copy')
   error?: string
 }
 

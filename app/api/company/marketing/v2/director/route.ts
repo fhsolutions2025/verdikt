@@ -54,6 +54,7 @@ export async function GET(req: Request) {
         text: (o.text as string) || undefined,
         artifactId: (o.artifact_id as string) || undefined,
         jobId: (o.job_id as string) || undefined,
+        score: typeof (o.score as { overall?: number })?.overall === 'number' ? (o.score as { overall: number }).overall : undefined,
         error: (t.error as string) || undefined,
       }
     })
