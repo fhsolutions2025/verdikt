@@ -19,6 +19,8 @@ export interface AssetItem {
   artifactId?: string   // mkt_artifacts id when an artifact exists
   jobId?: string        // mkt_video_jobs id when a video render is in flight/done
   score?: number        // 0-100 overall copy quality score (type === 'copy')
+  engine?: string       // image engine used (fal | ideogram | openai)
+  variations?: { style: string; label: string; url: string; engine: string }[] // M4 concepts
   error?: string
 }
 

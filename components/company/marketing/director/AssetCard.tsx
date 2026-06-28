@@ -64,10 +64,12 @@ function MediaShell({ children, style }: { children: ReactNode; style?: CSSPrope
 export function AssetCard({
   asset,
   onGenerateVideo,
+  onSelectVariation,
   generating,
 }: {
   asset: AssetItem
   onGenerateVideo: (taskId: string) => void
+  onSelectVariation?: (taskId: string, url: string) => void
   generating: boolean
 }): JSX.Element {
   const stateColor = assetStateColor(asset.state)
@@ -171,10 +173,37 @@ export function AssetCard({
   }
 
   const canDownload = asset.state === 'completed' && (asset.type === 'video' || isImageLike) && !!asset.url
+  const variations = isImageLike && asset.state === 'completed' && asset.variations && asset.variations.length > 1
+    ? asset.variations : null
 
   return (
     <div style={{ ...S.card }}>
       {media}
+      {variations ? (
+        <div style={{ display: 'flex', gap: 6, padding: '8px 12px 0', flexWrap: 'wrap' }}>
+          {variations.map((v) => {
+            const selected = v.url === asset.url
+            return (
+              <button
+                key={v.url}
+                type="button"
+                title={`${v.label} · ${v.engine}`}
+                onClick={() => onSelectVariation?.(asset.id, v.url)}
+                style={{
+                  width: 40, height: 40, padding: 0, cursor: 'pointer', borderRadius: 'var(--radius-sm, 6px)',
+                  overflow: 'hidden', flexShrink: 0,
+                  border: `2px solid ${selected ? ACCENT : 'var(--border)'}`,
+                  outline: 'none', background: 'var(--bg-inset)',
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={v.url} alt={v.label} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              </button>
+            )
+          })}
+          <span style={{ alignSelf: 'center', fontSize: 10, color: 'var(--text-faint)' }}>{variations.length} concepts</span>
+        </div>
+      ) : null}
       <div
         style={{
           display: 'flex',

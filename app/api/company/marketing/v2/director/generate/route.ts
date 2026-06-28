@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { generateImage, type BrandCtx } from '@/lib/marketing/agents'
+import { generateImageVariations } from '@/lib/marketing/imageEngines'
 import { runBrandGuardian, runComplianceReviewer } from '@/lib/marketing/specialists'
 import { runQa, type QaResult } from '@/lib/marketing/qa'
 import { runChannelCopy } from '@/lib/marketing/copyPipeline'
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
 
   let made = 0, errors = 0
   for (const t of tasks ?? []) {
-    const spec = (t.inputs ?? {}) as { type?: string; channel?: string | null; label?: string; prompt?: string; text?: string }
+    const spec = (t.inputs ?? {}) as { type?: string; channel?: string | null; label?: string; prompt?: string; text?: string; model?: string }
     await svc.from('mkt_agent_tasks').update({ status: 'running', started_at: new Date().toISOString() }).eq('id', t.id)
     try {
       if (t.type === 'asset.copy') {
@@ -125,11 +126,27 @@ export async function POST(req: Request) {
         const artId = await createArtifact(svc, { campaign_id: campaignId, type: 'social', channel, title: spec.label ?? `${channel} copy`, content })
         await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { text, artifact_id: artId, score: scored.score, review }, finished_at: new Date().toISOString() }).eq('id', t.id)
       } else {
-        const img = await generateImage(bctx, spec.prompt || campaign.goal || 'on-brand marketing visual', campaignId, { prompt: spec.prompt, context: imageContext })
-        // QA + Brand gate over the visual concept (prompt + alt text); compliance is copy-oriented, skip for pure imagery.
-        const review = await reviewAsset(bctx, region, vertical, t.type === 'asset.carousel' ? 'carousel' : 'image', `${img.prompt}\n${img.alt_text}`, briefText, { compliance: false })
-        const artId = await createArtifact(svc, { campaign_id: campaignId, type: t.type === 'asset.carousel' ? 'carousel' : 'image', channel: spec.channel ?? null, title: spec.label ?? 'Image', content: { prompt: img.prompt, alt_text: img.alt_text, review }, asset_url: img.url })
-        await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { url: img.url, artifact_id: artId, review }, finished_at: new Date().toISOString() }).eq('id', t.id)
+        // M4: route to the best engine (router model / typography → Ideogram, else fal)
+        // and generate multiple style concepts to compare. Primary = first variation.
+        const basePrompt = spec.prompt || campaign.goal || 'on-brand marketing visual'
+        const altText = (imageContext.headline || briefText).slice(0, 80)
+        const variations = await generateImageVariations(svc, bctx, basePrompt, {
+          campaignId, requestedModel: spec.model ?? null, context: imageContext, altText,
+        })
+        if (!variations.length) {
+          // Fallback to the single-image path so a render still lands.
+          const img = await generateImage(bctx, basePrompt, campaignId, { prompt: spec.prompt, context: imageContext })
+          variations.push({ style: 'default', label: 'Default', url: img.url, engine: 'ideogram' })
+        }
+        const primary = variations[0]
+        const kind = t.type === 'asset.carousel' ? 'carousel' : 'image'
+        // QA + Brand gate over the visual concept; compliance is copy-oriented, skip for pure imagery.
+        const review = await reviewAsset(bctx, region, vertical, kind, `${basePrompt}\n${altText}`, briefText, { compliance: false })
+        const artId = await createArtifact(svc, {
+          campaign_id: campaignId, type: kind, channel: spec.channel ?? null, title: spec.label ?? 'Image',
+          content: { prompt: basePrompt, alt_text: altText, engine: primary.engine, variations, review }, asset_url: primary.url,
+        })
+        await svc.from('mkt_agent_tasks').update({ status: 'succeeded', outputs: { url: primary.url, artifact_id: artId, engine: primary.engine, variations, review }, finished_at: new Date().toISOString() }).eq('id', t.id)
       }
       made++
     } catch (err) {

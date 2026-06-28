@@ -119,6 +119,19 @@ export function DirectorWorkspace({
     }
   }
 
+  // Pick an image variation as the asset's primary (M4) — persists + refreshes.
+  const onSelectVariation = async (taskId: string, url: string) => {
+    setAssets(prev => prev.map(a => a.id === taskId ? { ...a, url } : a))
+    try {
+      await fetch('/api/company/marketing/v2/director/asset', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId, url }),
+      })
+    } finally {
+      if (runId) await refresh(runId)
+    }
+  }
+
   // Export the plan as a downloadable JSON (brief + generated assets). Safe + offline
   // — replaces the old navigation that crashed the legacy campaign-detail view.
   const onExport = () => {
@@ -187,7 +200,7 @@ export function DirectorWorkspace({
             onExport={onExport}
           >
             {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
-            <AssetGrid assets={assets} onGenerateVideo={onGenerateVideo} generatingId={generatingId} />
+            <AssetGrid assets={assets} onGenerateVideo={onGenerateVideo} onSelectVariation={onSelectVariation} generatingId={generatingId} />
           </CreationCanvas>
         ) : (
           <Placeholder error={error} />

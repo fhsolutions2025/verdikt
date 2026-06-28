@@ -55,6 +55,8 @@ export async function GET(req: Request) {
         artifactId: (o.artifact_id as string) || undefined,
         jobId: (o.job_id as string) || undefined,
         score: typeof (o.score as { overall?: number })?.overall === 'number' ? (o.score as { overall: number }).overall : undefined,
+        engine: (o.engine as string) || undefined,
+        variations: Array.isArray(o.variations) ? (o.variations as AssetItem['variations']) : undefined,
         error: (t.error as string) || undefined,
       }
     })

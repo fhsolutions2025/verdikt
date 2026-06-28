@@ -21,10 +21,12 @@ type ViewMode = 'grid' | 'list'
 export function AssetGrid({
   assets,
   onGenerateVideo,
+  onSelectVariation,
   generatingId,
 }: {
   assets: AssetItem[]
   onGenerateVideo: (taskId: string) => void
+  onSelectVariation?: (taskId: string, url: string) => void
   generatingId?: string | null
 }): JSX.Element {
   const [filter, setFilter] = useState<FilterKey>('all')
@@ -124,6 +126,7 @@ export function AssetGrid({
               key={a.id}
               asset={a}
               onGenerateVideo={onGenerateVideo}
+              onSelectVariation={onSelectVariation}
               generating={generatingId === a.id}
             />
           ))}
