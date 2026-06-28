@@ -13,6 +13,7 @@ import { NavRail } from './NavRail'
 import { ChatPanel } from './ChatPanel'
 import { CreationCanvas } from './CreationCanvas'
 import { AssetGrid } from './AssetGrid'
+import { KnowledgePanel } from './KnowledgePanel'
 import { DirectorKeyframes, ACCENT } from './theme'
 import type { AssetItem, AssetStats, Brief, CampaignHeader, NavItem } from './types'
 import { buildBrief, type InterviewAnswers } from '@/lib/marketing/directorInterview'
@@ -23,6 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'campaigns', label: 'Campaigns', icon: '📋' },
   { id: 'assets', label: 'Asset Library', icon: '🖼️' },
   { id: 'brand', label: 'Brand Voice', icon: '🎨' },
+  { id: 'knowledge', label: 'Knowledge', icon: '📚' },
   { id: 'approvals', label: 'Approvals', icon: '✅' },
   { id: 'chat', label: 'Chat', icon: '💬', soon: true },
   { id: 'analytics', label: 'Analytics', icon: '📊', soon: true },
@@ -51,6 +53,7 @@ export function DirectorWorkspace({
   const [runStatus, setRunStatus] = React.useState<string>('running')
   const [generatingId, setGeneratingId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  const [showKnowledge, setShowKnowledge] = React.useState(false)
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
   const refresh = React.useCallback(async (rid: string) => {
@@ -147,10 +150,14 @@ export function DirectorWorkspace({
       <DirectorKeyframes />
       <NavRail
         items={NAV_ITEMS}
-        activeId="director"
-        onNavigate={(id) => { if (id !== 'director') onNavigate(id) }}
+        activeId={showKnowledge ? 'knowledge' : 'director'}
+        onNavigate={(id) => {
+          if (id === 'knowledge') { setShowKnowledge(true); return }
+          if (id !== 'director') onNavigate(id)
+        }}
         user={{ name: 'Verdikt Studio', plan: 'Marketing' }}
       />
+      {showKnowledge && <KnowledgePanel brands={brands} onClose={() => setShowKnowledge(false)} />}
 
       {/* Left — chat (≈36%) */}
       <div style={{ width: '36%', minWidth: 360, maxWidth: 520, flexShrink: 0 }}>

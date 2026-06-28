@@ -8,6 +8,7 @@ import {
 import { buildBrief, isComplete, type InterviewAnswers } from '@/lib/marketing/directorInterview'
 import { derivePlannedAssets } from '@/lib/marketing/directorAssets'
 import { rememberBrief } from '@/lib/marketing/memory'
+import { retrieveKnowledge, formatKnowledgeContext } from '@/lib/marketing/knowledge'
 import type { AssetItem, AssetState } from '@/components/company/marketing/director/types'
 
 export const dynamic = 'force-dynamic'
@@ -141,8 +142,14 @@ export async function POST(req: Request) {
     tone: brief.tone, channels: brief.channels,
   })
 
+  // RAG — retrieve brand knowledge to ground the copywriter (spec § Knowledge Base).
+  const kbHits = await retrieveKnowledge(svc, {
+    brandId: brand_id, query: `${brief.goal} ${brief.vertical} ${brief.audience}`.trim(), k: 5,
+  })
+  const knowledge = formatKnowledgeContext(kbHits)
+
   // Copywriter + prompt-optimizer in parallel, then router.
-  const [copyRes, promptRes] = await Promise.allSettled([runCopywriter(bctx, brief), runPromptOptimizer(bctx, brief)])
+  const [copyRes, promptRes] = await Promise.allSettled([runCopywriter(bctx, brief, knowledge), runPromptOptimizer(bctx, brief)])
   const copy = copyRes.status === 'fulfilled' ? copyRes.value : null
   await finishTask(copyTaskId, copy as unknown as Record<string, unknown>, copyRes.status === 'rejected' ? String(copyRes.reason).slice(0, 200) : undefined)
   const prompts = promptRes.status === 'fulfilled' ? promptRes.value : null
