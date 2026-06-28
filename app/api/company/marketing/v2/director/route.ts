@@ -7,6 +7,7 @@ import {
 } from '@/lib/marketing/agents'
 import { buildBrief, isComplete, type InterviewAnswers } from '@/lib/marketing/directorInterview'
 import { derivePlannedAssets } from '@/lib/marketing/directorAssets'
+import { rememberBrief } from '@/lib/marketing/memory'
 import type { AssetItem, AssetState } from '@/components/company/marketing/director/types'
 
 export const dynamic = 'force-dynamic'
@@ -132,6 +133,13 @@ export async function POST(req: Request) {
     }).eq('id', id)
 
   await svc.from('mkt_activity').insert({ campaign_id: campaignId, run_id: runId, type: 'agent.step', actor: 'Campaign Director', text: `Director kicked off ${name}`.slice(0, 200) })
+
+  // Remember the durable brief facts at brand scope so the next campaign for this
+  // brand pre-fills them (spec § Campaign Memory — "never ask again").
+  await rememberBrief(svc, brand_id, {
+    vertical: brief.vertical, audience: brief.audience, region: brief.region,
+    tone: brief.tone, channels: brief.channels,
+  })
 
   // Copywriter + prompt-optimizer in parallel, then router.
   const [copyRes, promptRes] = await Promise.allSettled([runCopywriter(bctx, brief), runPromptOptimizer(bctx, brief)])
