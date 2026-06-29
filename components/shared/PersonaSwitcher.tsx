@@ -26,7 +26,7 @@ const PORTALS = [
 export function PersonaSwitcher() {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
-  if (pathname.startsWith('/(auth)') || pathname === '/') return null
+  if (pathname.startsWith('/(auth)') || pathname === '/' || pathname === '/login') return null
 
   const isCompany  = pathname.startsWith('/company')
   const isPlayer   = pathname.startsWith('/player')
