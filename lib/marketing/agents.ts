@@ -271,6 +271,21 @@ export async function getAgentPrompt(agentType: string, fallback: string): Promi
   return fallback
 }
 
+// §23 routing: read an agent's configured provider + concrete model from agent_configs
+// so the LLM router runs it on the operator-chosen engine (e.g. route the Copywriter to
+// OpenAI). Returns undefineds → the task router default is used. Never throws.
+export interface AgentRouting { providerOverride?: 'anthropic' | 'openai'; modelOverride?: string }
+export async function getAgentRouting(agentType: string): Promise<AgentRouting> {
+  try {
+    const svc = await createServiceClient()
+    const { data } = await svc.from('agent_configs').select('provider,model,is_active').eq('agent_type', agentType).maybeSingle()
+    if (!data || data.is_active === false) return {}
+    const provider = data.provider === 'anthropic' || data.provider === 'openai' ? data.provider : undefined
+    const model = typeof data.model === 'string' && data.model.trim() ? data.model.trim() : undefined
+    return { providerOverride: provider, modelOverride: model }
+  } catch { return {} }
+}
+
 // In-code defaults (kept in sync with migration 0041 seeds — used if the DB row is gone).
 const DEFAULT_COPYWRITER = `Role: Copywriter sub-agent.
 Analyze the campaign brief and produce sharp, on-brand copy. Return STRICT JSON:
@@ -293,12 +308,16 @@ export interface CopyVariant { angle: string; body: string; cta: string }
 export interface CopywriterOut { headline_hooks: string[]; copy_variants: CopyVariant[] }
 
 export async function runCopywriter(brand: BrandCtx, brief: CampaignBrief, knowledge?: string): Promise<CopywriterOut> {
-  const instr = await getAgentPrompt('mkt_copywriter', DEFAULT_COPYWRITER)
+  const [instr, routing] = await Promise.all([
+    getAgentPrompt('mkt_copywriter', DEFAULT_COPYWRITER),
+    getAgentRouting('mkt_copywriter'),
+  ])
   const system = `${GLOBAL_PREAMBLE}
 ${brandLine(brand)}
 ${instr}${knowledge ? `\n\n${knowledge}` : ''}`
   const { data, raw } = await completeJson<CopywriterOut>({
     task: 'copywriting', system, messages: [{ role: 'user', content: briefLine(brief) }],
+    ...routing,
   })
   return {
     headline_hooks: data?.headline_hooks?.length ? data.headline_hooks : [raw.slice(0, 80)],

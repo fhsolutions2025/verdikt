@@ -66,6 +66,8 @@ export interface CompleteArgs {
   temperature?: number
   /** Force a specific provider (e.g. to A/B Anthropic vs OpenAI). Defaults to the routing table. */
   providerOverride?: Provider
+  /** Force a specific concrete model id (from a §23 agent config). Skips the class table. */
+  modelOverride?: string
 }
 
 export interface CompleteResult {
@@ -178,20 +180,33 @@ export async function complete(args: CompleteArgs): Promise<CompleteResult> {
   const route = ROUTING[args.task]
   if (!route) throw new Error(`No routing entry for task "${args.task}"`)
 
-  const provider: Provider = args.providerOverride ?? route.provider
-  const run = provider === 'openai' ? openaiComplete : anthropicComplete
-
-  // Fallback chain: requested class → fast-cheap (compliance never downgrades).
-  const classes: ModelClass[] =
+  // Default class chain for the task (requested class → fast-cheap; compliance never downgrades).
+  const defaultClasses: ModelClass[] =
     args.task === 'compliance'
       ? [route.modelClass]
       : route.modelClass === 'fast-cheap'
         ? ['fast-cheap']
         : [route.modelClass, 'fast-cheap']
 
+  // Plan = ordered (provider, model) attempts. A §23 override (provider/model) runs
+  // first; if it fails entirely, fall back to the task-router default so a misconfigured
+  // or unavailable engine never hard-fails a run.
+  const plan: { provider: Provider; model: string }[] = []
+  const overrideProvider: Provider | undefined = args.providerOverride
+  if (args.modelOverride) {
+    plan.push({ provider: overrideProvider ?? route.provider, model: args.modelOverride })
+  } else if (overrideProvider) {
+    for (const cls of defaultClasses) plan.push({ provider: overrideProvider, model: MODEL_IDS[overrideProvider][cls] })
+  }
+  // Default fallback tier (task router) — appended after any override.
+  for (const cls of defaultClasses) {
+    const entry = { provider: route.provider, model: MODEL_IDS[route.provider][cls] }
+    if (!plan.some(p => p.provider === entry.provider && p.model === entry.model)) plan.push(entry)
+  }
+
   let lastErr: unknown
-  for (const cls of classes) {
-    const model = MODEL_IDS[provider][cls]
+  for (const { provider, model } of plan) {
+    const run = provider === 'openai' ? openaiComplete : anthropicComplete
     for (let attempt = 0; attempt < 3; attempt++) {
       const started = Date.now()
       try {
