@@ -26,6 +26,9 @@ export function AssetInspector({
   const [busy, setBusy] = React.useState(false)
   const [pubs, setPubs] = React.useState<{ id: string; channel: string; status: string }[]>([])
   const [pubMsg, setPubMsg] = React.useState<string | null>(null)
+  const [rewrite, setRewrite] = React.useState('')
+  const [rewriteMsg, setRewriteMsg] = React.useState<string | null>(null)
+  const isText = artifact ? ['social', 'copy', 'blog'].includes(artifact.type) : false
 
   const load = React.useCallback(async () => {
     const r = await fetch(`/api/company/marketing/v2/artifact?id=${artifactId}`).then(x => x.json()).catch(() => null)
@@ -65,6 +68,21 @@ export function AssetInspector({
       })
       if (action === 'comment') setComment('')
       await load(); onChanged?.()
+    } finally { setBusy(false) }
+  }
+
+  const doRewrite = async () => {
+    const instruction = rewrite.trim()
+    if (!instruction || busy) return
+    setBusy(true); setRewriteMsg(null)
+    try {
+      const r = await fetch('/api/company/marketing/v2/artifact/rewrite', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artifact_id: artifactId, instruction }),
+      })
+      const d = await r.json()
+      setRewriteMsg(r.ok ? `Rewritten → v${d.version}` : `Error: ${d.error ?? 'failed'}`)
+      if (r.ok) { setRewrite(''); await load(); onChanged?.() }
     } finally { setBusy(false) }
   }
 
@@ -110,6 +128,23 @@ export function AssetInspector({
             <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(108,63,197,0.08)', border: '1px solid rgba(108,63,197,0.25)' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: PURPLE, marginBottom: 4 }}>⚡ Dependent assets</div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>If this changes, consider regenerating: <strong style={{ color: 'var(--text)' }}>{downstream.join(', ')}</strong>.</div>
+            </div>
+          )}
+
+          {/* Rewrite engine (text assets only) */}
+          {isText && (
+            <div>
+              <SectionTitle>Rewrite</SectionTitle>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={rewrite} onChange={e => setRewrite(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); doRewrite() } }}
+                  placeholder="e.g. make it punchier and add urgency…"
+                  style={{ flex: 1, background: 'var(--bg-inset)', border: '1px solid var(--border)', borderRadius: 999, padding: '8px 14px', color: 'var(--text-strong)', fontSize: 13, outline: 'none' }}
+                />
+                <button onClick={doRewrite} disabled={busy || !rewrite.trim()} style={{ background: GRADIENT, color: '#fff', border: 'none', borderRadius: 999, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: busy || !rewrite.trim() ? 'default' : 'pointer', opacity: rewrite.trim() ? 1 : 0.6 }}>Rewrite</button>
+              </div>
+              {rewriteMsg && <div style={{ fontSize: 12, fontWeight: 600, marginTop: 6, color: rewriteMsg.startsWith('Error') ? RED : ACCENT }}>{rewriteMsg}</div>}
             </div>
           )}
 

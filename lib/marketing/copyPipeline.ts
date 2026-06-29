@@ -9,7 +9,7 @@
 // (grammar / brand voice / readability / CTA / SEO / overall).
 
 import { completeJson } from '@/lib/llm/router'
-import { getAgentPrompt, type BrandCtx } from '@/lib/marketing/agents'
+import { getAgentPrompt, getAgentRouting, type BrandCtx } from '@/lib/marketing/agents'
 import { generateWithSelfHeal } from '@/lib/marketing/qa'
 import type { CampaignBrief } from '@/lib/marketing/directorInterview'
 
@@ -55,7 +55,10 @@ async function draftChannelCopy(
   brand: BrandCtx, brief: CampaignBrief, channel: string, knowledge: string, lastIssues: string[],
 ): Promise<ChannelCopy> {
   const spec = channelSpec(channel)
-  const instr = await getAgentPrompt('mkt_copywriter', DEFAULT_COPY_INSTR)
+  const [instr, routing] = await Promise.all([
+    getAgentPrompt('mkt_copywriter', DEFAULT_COPY_INSTR),
+    getAgentRouting('mkt_copywriter'),
+  ])
   const repair = lastIssues.length ? `\n\nThe previous draft was rejected for: ${lastIssues.join('; ')}. Fix these.` : ''
   const system = `${instr}
 Brand: ${brand.name}. Voice: ${JSON.stringify(brand.voice)}. Region: ${brand.region}.
@@ -63,7 +66,7 @@ Channel: ${spec.label}. Format: ${spec.format}. Keep the body under ~${spec.maxC
 ${spec.wantsHashtags ? 'Include 3-6 relevant hashtags.' : 'Do not include hashtags.'}${knowledge ? `\n\n${knowledge}` : ''}${repair}
 Return STRICT JSON: {"headline":"","body":"","cta":"","hashtags":[]}`
   const user = `Campaign: goal=${brief.goal}; vertical=${brief.vertical}; audience=${brief.audience}; tone=${brief.tone}.`
-  const { data, raw } = await completeJson<ChannelCopy>({ task: 'copywriting', system, messages: [{ role: 'user', content: user }] })
+  const { data, raw } = await completeJson<ChannelCopy>({ task: 'copywriting', system, messages: [{ role: 'user', content: user }], ...routing })
   return {
     channel,
     headline: data?.headline?.trim() || (brief.goal || 'Verdikt').slice(0, 60),

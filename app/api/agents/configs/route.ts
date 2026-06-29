@@ -6,6 +6,7 @@ const ALLOWED_AGENT_TYPES = [
   'player', 'company', 'mm_desk',
   'campaign_director_agent', 'mkt_copywriter', 'mkt_prompt_optimizer', 'mkt_router',
   'mkt_brand_guardian', 'mkt_compliance', 'mkt_seo', 'mkt_reviewer',
+  'mkt_knowledge_researcher', 'mkt_creative_designer', 'mkt_video_producer', 'qa_agent',
 ]
 
 const DEFAULT_PERMISSIONS = { read: true, write: true, generate: false, publish: false }

@@ -7,7 +7,7 @@
 // scene-aware prompt — and the storyboard itself is stored for the Inspector.
 
 import { completeJson } from '@/lib/llm/router'
-import { getAgentPrompt, type BrandCtx } from '@/lib/marketing/agents'
+import { getAgentPrompt, getAgentRouting, type BrandCtx } from '@/lib/marketing/agents'
 import type { CampaignBrief } from '@/lib/marketing/directorInterview'
 
 // ── Platform optimization (spec § Step 3) ─────────────────────────────────────
@@ -56,13 +56,16 @@ export async function generateStoryboard(
   brand: BrandCtx, brief: CampaignBrief, channel: string | null, knowledge: string,
 ): Promise<Storyboard> {
   const spec = videoPlatformSpec(channel)
-  const instr = await getAgentPrompt('mkt_prompt_optimizer', DEFAULT_STORYBOARD_INSTR)
+  const [instr, routing] = await Promise.all([
+    getAgentPrompt('mkt_video_producer', DEFAULT_STORYBOARD_INSTR),
+    getAgentRouting('mkt_video_producer'),
+  ])
   const system = `${instr}
 Brand: ${brand.name}. Voice: ${JSON.stringify(brand.voice)}. Region: ${brand.region}.
 Platform: ${channel ?? 'short-form'} — aspect ${spec.aspect}, target ~${spec.seconds}s total.${knowledge ? `\n\n${knowledge}` : ''}
 Return STRICT JSON: {"video_type":"","hook":"","cta":"","scenes":[{"n":1,"objective":"","duration":0,"visual":"","voiceover":"","camera":"","transition":""}]}`
   const user = `Brief: goal=${brief.goal}; vertical=${brief.vertical}; audience=${brief.audience}; tone=${brief.tone}.`
-  const { data } = await completeJson<Storyboard>({ task: 'strategy', system, messages: [{ role: 'user', content: user }] })
+  const { data } = await completeJson<Storyboard>({ task: 'strategy', system, messages: [{ role: 'user', content: user }], ...routing })
   const scenes = Array.isArray(data?.scenes) && data!.scenes.length ? data!.scenes : [
     { n: 1, objective: 'Hook', duration: 3, visual: brief.goal || 'brand hero moment', voiceover: '', camera: 'dynamic open', transition: 'cut' },
     { n: 2, objective: 'CTA', duration: 3, visual: 'call to action card', voiceover: '', camera: 'static', transition: 'end' },

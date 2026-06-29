@@ -128,6 +128,10 @@ const AGENT_LABELS: Record<string, { label: string; color: string; desc: string;
   mkt_compliance:          { label: 'Compliance',         color: '#DC2626', desc: 'Regulatory gate — screens content against regional iGaming rules', tag: 'Marketing AI' },
   mkt_seo:                 { label: 'SEO Specialist',     color: '#00C853', desc: 'Optimizes content for search — keywords, meta tags, recommendations', tag: 'Marketing AI' },
   mkt_reviewer:            { label: 'Reviewer / QA',      color: '#E0A020', desc: 'Final quality gate — scores content and decides pass or regenerate', tag: 'Marketing AI' },
+  mkt_knowledge_researcher:{ label: 'Knowledge Researcher', color: '#00C853', desc: 'Retrieves + synthesizes brand knowledge to ground campaigns in fact', tag: 'Marketing AI' },
+  mkt_creative_designer:   { label: 'Creative Designer',  color: '#6C3FC5', desc: 'Owns visual identity — turns concepts into on-brand art direction', tag: 'Marketing AI' },
+  mkt_video_producer:      { label: 'Video Producer',     color: '#E05C20', desc: 'Scripts, storyboards and produces platform-optimized video', tag: 'Marketing AI' },
+  qa_agent:                { label: 'QA Inspector',       color: '#E0A020', desc: 'Automated quality gate — scores assets and blocks unsafe output', tag: 'Marketing AI' },
 }
 
 const ALL_TOOLS = [

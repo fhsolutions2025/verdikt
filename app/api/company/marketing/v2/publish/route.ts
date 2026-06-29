@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
+import { channelDescriptor } from '@/lib/marketing/publishers'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +30,9 @@ export async function POST(req: Request) {
   const { data: artifact } = await svc.from('mkt_artifacts').select('id,campaign_id,type,title,status,latest_version_id').eq('id', artifact_id).maybeSingle()
   if (!artifact) return NextResponse.json({ error: 'artifact not found' }, { status: 404 })
   if (artifact.status !== 'approved') return NextResponse.json({ error: 'Only approved assets can be published' }, { status: 422 })
+
+  const desc = channelDescriptor(channel)
+  if (!desc) return NextResponse.json({ error: `Unknown channel "${channel}"` }, { status: 400 })
 
   // Resolve the asset url from the latest version.
   let url: string | null = null
