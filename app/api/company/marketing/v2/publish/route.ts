@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/server'
-import { channelDescriptor } from '@/lib/marketing/publishers'
+import { channelDescriptor, publishToChannel } from '@/lib/marketing/publishers'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,6 +55,18 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     status = 'published'
     target = banner?.id as string
+  } else if (desc.requiresCredentials) {
+    // External channel: post live only if the operator has connected it with a token.
+    const { data: conn } = await svc.from('mkt_channel_connections')
+      .select('channel,account_id,access_token,status').eq('channel', channel).maybeSingle()
+    if (conn && conn.status === 'connected' && conn.access_token && url) {
+      const live = await publishToChannel(
+        { channel, account_id: conn.account_id as string | null, access_token: conn.access_token as string | null, status: conn.status as string },
+        { assetUrl: url, caption: artifact.title ?? undefined },
+      )
+      if (live.ok) { status = 'published'; target = live.ref ?? null }
+      else { status = 'failed'; target = null }
+    }
   }
 
   const { data: pub } = await svc.from('mkt_publications').insert({

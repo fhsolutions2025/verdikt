@@ -5,7 +5,9 @@
 // configured brands. No mutations — edits happen in Company → AI Agents.
 
 import React from 'react'
-import { ACCENT } from '@/components/company/marketing/director/theme'
+import { ACCENT, PURPLE } from '@/components/company/marketing/director/theme'
+
+interface ChannelRow { channel: string; label: string; connected: boolean; account_id: string | null; note: string | null }
 
 interface AgentConfig {
   agent_type: string
@@ -40,6 +42,38 @@ export function SettingsPanel({
 }): React.JSX.Element {
   const [agents, setAgents] = React.useState<AgentConfig[]>([])
   const [loading, setLoading] = React.useState(false)
+  const [channels, setChannels] = React.useState<ChannelRow[]>([])
+  const [editChan, setEditChan] = React.useState<string | null>(null)
+  const [acct, setAcct] = React.useState('')
+  const [token, setToken] = React.useState('')
+  const [chanBusy, setChanBusy] = React.useState(false)
+
+  const loadChannels = React.useCallback(async () => {
+    try {
+      const r = await fetch('/api/company/marketing/v2/channels')
+      const d: unknown = await r.json()
+      const raw = d && typeof d === 'object' ? (d as Record<string, unknown>).channels : undefined
+      setChannels(Array.isArray(raw) ? (raw as ChannelRow[]) : [])
+    } catch { setChannels([]) }
+  }, [])
+
+  React.useEffect(() => { void loadChannels() }, [loadChannels])
+
+  const connect = async (channel: string) => {
+    if (chanBusy || !token.trim()) return
+    setChanBusy(true)
+    try {
+      await fetch('/api/company/marketing/v2/channels', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, account_id: acct.trim() || undefined, access_token: token.trim() }),
+      })
+      setEditChan(null); setAcct(''); setToken(''); await loadChannels()
+    } finally { setChanBusy(false) }
+  }
+  const disconnect = async (channel: string) => {
+    await fetch(`/api/company/marketing/v2/channels?channel=${channel}`, { method: 'DELETE' }).catch(() => {})
+    await loadChannels()
+  }
 
   React.useEffect(() => {
     let cancelled = false
@@ -125,6 +159,41 @@ export function SettingsPanel({
             </div>
           </div>
 
+          {/* Channel connections */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-faint)', marginBottom: 8 }}>
+              Channel Connections
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {channels.map(c => (
+                <div key={c.channel} style={{ padding: '10px 12px', border: '1px solid var(--border-soft)', borderRadius: 10, background: 'var(--bg-inset)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: c.connected ? ACCENT : 'var(--text-faint)' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-strong)' }}>{c.label}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>{c.connected ? `Connected${c.account_id ? ` · ${c.account_id}` : ''}` : (c.note ?? 'Not connected')}</div>
+                    </div>
+                    {c.connected ? (
+                      <button onClick={() => disconnect(c.channel)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px', fontSize: 11.5, fontWeight: 700, color: 'var(--text-dim)', cursor: 'pointer' }}>Disconnect</button>
+                    ) : (
+                      <button onClick={() => { setEditChan(editChan === c.channel ? null : c.channel); setAcct(''); setToken('') }} style={{ background: 'none', border: `1px solid ${PURPLE}55`, borderRadius: 8, padding: '5px 10px', fontSize: 11.5, fontWeight: 700, color: PURPLE, cursor: 'pointer' }}>Connect</button>
+                    )}
+                  </div>
+                  {editChan === c.channel && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                      <input value={acct} onChange={e => setAcct(e.target.value)} placeholder="Account / page id (optional)" style={chanInput} />
+                      <input value={token} onChange={e => setToken(e.target.value)} placeholder="Access token" type="password" style={chanInput} />
+                      <button onClick={() => connect(c.channel)} disabled={chanBusy || !token.trim()} style={{ alignSelf: 'flex-start', background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: chanBusy || !token.trim() ? 'default' : 'pointer', opacity: token.trim() ? 1 : 0.6 }}>{chanBusy ? 'Saving…' : 'Save connection'}</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-faint)', marginTop: 10 }}>
+              Live posting activates when a channel is connected; otherwise publishing records an export.
+            </div>
+          </div>
+
           {/* Brands */}
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-faint)', marginBottom: 8 }}>
@@ -149,4 +218,10 @@ export function SettingsPanel({
       </div>
     </div>
   )
+}
+
+const chanInput: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box', background: 'var(--bg-base)',
+  border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px',
+  color: 'var(--text-strong)', fontSize: 12.5, outline: 'none',
 }

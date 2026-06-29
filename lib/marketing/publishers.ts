@@ -37,3 +37,55 @@ export function isLiveChannel(channel: string): boolean {
   const d = channelDescriptor(channel)
   return !!d && d.mode === 'live' && !d.requiresCredentials
 }
+
+// ── Live external publish (token-gated) ───────────────────────────────────────
+export interface ChannelConnection {
+  channel: string
+  account_id: string | null
+  access_token: string | null
+  status: string
+}
+
+export interface LivePublishResult { ok: boolean; ref?: string; error?: string }
+
+// Publish an approved image asset live to a connected channel. Currently implements
+// the Instagram Graph API (create media container → publish); other channels return
+// "not implemented" so the caller falls back to an export record. Reached only when a
+// `status:'connected'` connection with a token + account id exists — so the integration
+// is dormant (no live posting) until the operator supplies real credentials.
+export async function publishToChannel(
+  conn: ChannelConnection, opts: { assetUrl: string; caption?: string },
+): Promise<LivePublishResult> {
+  if (conn.status !== 'connected' || !conn.access_token || !conn.account_id) {
+    return { ok: false, error: 'channel not connected' }
+  }
+  if (conn.channel === 'instagram') return publishInstagram(conn, opts)
+  return { ok: false, error: `live publish not implemented for ${conn.channel}` }
+}
+
+// Instagram Graph API image publish: POST /{ig-user-id}/media (image_url + caption)
+// → creation_id → POST /{ig-user-id}/media_publish.
+async function publishInstagram(
+  conn: ChannelConnection, opts: { assetUrl: string; caption?: string },
+): Promise<LivePublishResult> {
+  const base = 'https://graph.facebook.com/v21.0'
+  try {
+    const createUrl = new URL(`${base}/${conn.account_id}/media`)
+    createUrl.searchParams.set('image_url', opts.assetUrl)
+    if (opts.caption) createUrl.searchParams.set('caption', opts.caption)
+    createUrl.searchParams.set('access_token', conn.access_token as string)
+    const createRes = await fetch(createUrl.toString(), { method: 'POST', signal: AbortSignal.timeout(30_000) })
+    const created = await createRes.json().catch(() => ({})) as { id?: string; error?: { message?: string } }
+    if (!createRes.ok || !created.id) return { ok: false, error: created.error?.message ?? `IG container ${createRes.status}` }
+
+    const pubUrl = new URL(`${base}/${conn.account_id}/media_publish`)
+    pubUrl.searchParams.set('creation_id', created.id)
+    pubUrl.searchParams.set('access_token', conn.access_token as string)
+    const pubRes = await fetch(pubUrl.toString(), { method: 'POST', signal: AbortSignal.timeout(30_000) })
+    const published = await pubRes.json().catch(() => ({})) as { id?: string; error?: { message?: string } }
+    if (!pubRes.ok || !published.id) return { ok: false, error: published.error?.message ?? `IG publish ${pubRes.status}` }
+    return { ok: true, ref: published.id }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
