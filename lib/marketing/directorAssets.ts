@@ -33,17 +33,33 @@ function chanLabel(c: string | null): string {
   const v = (c ?? '').toLowerCase()
   return CHANNEL_LABEL[v] ?? titleCase(c ?? 'Channel')
 }
-// Channels that read as visual placements (image/carousel/video) vs text-first.
-const VISUAL_CHANNELS = new Set(['instagram', 'facebook', 'tiktok', 'youtube', 'linkedin', 'x', 'twitter'])
-
 function titleCase(s: string): string {
   return (s || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim()
 }
 
-// Build one coordinated, per-channel asset set from the brief + sub-agent outputs.
-// Every selected channel gets channel-labelled copy; visual channels also get an
-// image; the first visual channel anchors a carousel + hero video. Caps keep spend
-// bounded while honoring "one prompt → many channel-specific deliverables".
+// §6.5 channel-native deliverables: each channel emits only its real asset types — no
+// "YouTube Copy". Copy is a deliverable only where text IS the unit (X/LinkedIn posts,
+// Blog article, Email); visual channels emit image/carousel/video.
+const CHANNEL_DELIVERABLES: Record<string, { type: PlannedAssetType; kind: string }[]> = {
+  instagram: [{ type: 'image', kind: 'Post' }, { type: 'carousel', kind: 'Carousel' }, { type: 'video', kind: 'Reel' }],
+  facebook:  [{ type: 'image', kind: 'Post' }],
+  x:         [{ type: 'copy', kind: 'Post' }],
+  twitter:   [{ type: 'copy', kind: 'Post' }],
+  linkedin:  [{ type: 'copy', kind: 'Post' }, { type: 'image', kind: 'Image' }],
+  tiktok:    [{ type: 'video', kind: 'Short' }],
+  youtube:   [{ type: 'video', kind: 'Video' }],
+  blog:      [{ type: 'copy', kind: 'Article' }],
+  email:     [{ type: 'copy', kind: 'Email' }],
+}
+const DEFAULT_DELIVERABLES: { type: PlannedAssetType; kind: string }[] = [
+  { type: 'image', kind: 'Post' }, { type: 'copy', kind: 'Post' },
+]
+const MAX_AUTO_IMAGES = 4 // bound auto image-generation spend across channels
+
+// Build the campaign's coordinated asset set: for each selected channel, emit that
+// channel's native deliverables, labelled "<Channel> · <Kind>" (e.g. "YouTube · Video",
+// "Instagram · Carousel", "Blog · Article", "Email · Email"). Copy assets are
+// channel-adapted by the copy pipeline at generation time.
 export function derivePlannedAssets(
   brief: CampaignBrief, copy: CopywriterOut | null, prompts: PromptOptimizerOut | null,
 ): PlannedAsset[] {
@@ -51,44 +67,26 @@ export function derivePlannedAssets(
   const pr = prompts?.prompts ?? []
   const variants = copy?.copy_variants ?? []
   const assets: PlannedAsset[] = []
+  let prIdx = 0, varIdx = 0, imgCount = 0
 
-  // Copy — one channel-adapted post per selected channel (the copy pipeline rewrites
-  // per channel at generation time; the seeded text is a starting variant).
-  channels.forEach((ch, i) => {
-    const v = variants[i % Math.max(variants.length, 1)]
-    assets.push({
-      type: 'copy', channel: ch, label: `${chanLabel(ch)} · Copy`,
-      dims: DIMS.copy, text: v ? [v.body, v.cta].filter(Boolean).join('\n\n') : brief.goal,
-    })
-  })
-
-  // Images — one per visual channel (up to 3), each tied to an optimized prompt.
-  const visualChannels = channels.filter(ch => VISUAL_CHANNELS.has(ch.toLowerCase()))
-  ;(visualChannels.length ? visualChannels : channels).slice(0, 3).forEach((ch, i) => {
-    const p = pr[i % Math.max(pr.length, 1)]
-    assets.push({
-      type: 'image', channel: ch, label: `${chanLabel(ch)} · Image`,
-      dims: DIMS.image, prompt: p?.prompt ?? brief.goal,
-    })
-  })
-
-  // Carousel — one slide set on the first visual channel.
-  const carouselCh = visualChannels[0] ?? channels[0]
-  if (pr[0]) assets.push({
-    type: 'carousel', channel: carouselCh, label: `${chanLabel(carouselCh)} · Carousel`,
-    dims: DIMS.carousel, prompt: pr[0].prompt,
-  })
-
-  // Videos — a hero (YouTube/first video channel) + a teaser (next channel); queued.
-  const videoChannels = channels.filter(ch => VISUAL_CHANNELS.has(ch.toLowerCase()))
-  const heroCh = videoChannels.find(c => c.toLowerCase() === 'youtube') ?? videoChannels[0] ?? channels[0]
-  pr.slice(0, 2).forEach((p, i) => {
-    const ch = i === 0 ? heroCh : (videoChannels[1] ?? heroCh)
-    assets.push({
-      type: 'video', channel: ch, label: `${chanLabel(ch)} · ${i === 0 ? 'Hero Video' : 'Teaser'}`,
-      dims: DIMS.video, prompt: p.prompt,
-    })
-  })
+  for (const ch of channels) {
+    const dels = CHANNEL_DELIVERABLES[ch.toLowerCase()] ?? DEFAULT_DELIVERABLES
+    for (const d of dels) {
+      const label = `${chanLabel(ch)} · ${d.kind}`
+      if (d.type === 'copy') {
+        const v = variants[varIdx++ % Math.max(variants.length, 1)]
+        assets.push({ type: 'copy', channel: ch, label, dims: DIMS.copy, text: v ? [v.body, v.cta].filter(Boolean).join('\n\n') : brief.goal })
+      } else if (d.type === 'video') {
+        const p = pr[prIdx++ % Math.max(pr.length, 1)]
+        assets.push({ type: 'video', channel: ch, label, dims: DIMS.video, prompt: p?.prompt ?? brief.goal })
+      } else {
+        if (imgCount >= MAX_AUTO_IMAGES) continue // cap auto image/carousel spend
+        imgCount++
+        const p = pr[prIdx++ % Math.max(pr.length, 1)]
+        assets.push({ type: d.type, channel: ch, label, dims: DIMS[d.type], prompt: p?.prompt ?? brief.goal })
+      }
+    }
+  }
 
   // Guarantee at least one image + one copy so the grid is never empty.
   if (!assets.some(a => a.type === 'image')) assets.unshift({ type: 'image', channel: channels[0], label: `${chanLabel(channels[0])} · Image`, dims: DIMS.image, prompt: brief.goal })

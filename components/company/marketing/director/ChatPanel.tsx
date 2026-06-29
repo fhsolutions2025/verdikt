@@ -24,6 +24,8 @@ import {
   Dot,
   TypingDots,
 } from '@/components/company/marketing/director/theme'
+import { SlashMenu, MentionMenu } from '@/components/company/marketing/director/chat/ComposerMenus'
+import { ErrorCard } from '@/components/company/marketing/director/chat/MessageCards'
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -50,20 +52,37 @@ export function ChatPanel({
   const [chatBusy, setChatBusy] = React.useState(false)
   const [messages, setMessages] = React.useState<{ role: 'user' | 'assistant'; text: string }[]>([])
 
-  const sendChat = async () => {
-    const text = chatInput.trim()
+  const abortRef = React.useRef<AbortController | null>(null)
+  const [chatError, setChatError] = React.useState<string | null>(null)
+  const lastSentRef = React.useRef<string>('')
+
+  const runChat = async (text: string) => {
     if (!text || chatBusy || !onChat) return
-    setChatInput(''); setChatBusy(true)
+    lastSentRef.current = text
+    setChatError(null); setChatBusy(true)
     setMessages(m => [...m, { role: 'user', text }])
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
     try {
       const reply = await onChat(text)
-      setMessages(m => [...m, { role: 'assistant', text: reply }])
+      if (!ctrl.signal.aborted) setMessages(m => [...m, { role: 'assistant', text: reply }])
     } catch {
-      setMessages(m => [...m, { role: 'assistant', text: 'Sorry — I could not reply just now.' }])
+      if (!ctrl.signal.aborted) setChatError('I could not reach the Campaign Director just now.')
     } finally {
+      abortRef.current = null
       setChatBusy(false)
     }
   }
+  const sendChat = () => { const text = chatInput.trim(); if (!text) return; setChatInput(''); void runChat(text) }
+  const stopChat = () => { abortRef.current?.abort(); abortRef.current = null; setChatBusy(false) }
+
+  // Slash / mention composer triggers (WS-3): a leading "/" opens the command menu;
+  // the last "@word" opens the agent-mention menu.
+  const slashQuery = chatInput.startsWith('/') && !chatInput.includes(' ') ? chatInput.slice(1) : null
+  const mentionMatch = chatInput.match(/(?:^|\s)@(\w*)$/)
+  const mentionQuery = mentionMatch ? mentionMatch[1] : null
+  const pickSlash = (id: string) => setChatInput(`/${id} `)
+  const pickMention = (id: string) => setChatInput(prev => prev.replace(/@(\w*)$/, `@${id} `))
 
   const total = INTERVIEW.length
   const step = INTERVIEW[Math.min(stepIdx, total - 1)]
@@ -487,6 +506,14 @@ export function ChatPanel({
           background: 'var(--bg-surface)',
         }}
       >
+        {chatError && (
+          <div style={{ marginBottom: 10 }}>
+            <ErrorCard message={chatError} onRetry={() => { setChatError(null); void runChat(lastSentRef.current) }} onAlternative={() => setChatError(null)} />
+          </div>
+        )}
+        <div style={{ position: 'relative' }}>
+          {slashQuery !== null && onChat && <SlashMenu query={slashQuery} onSelect={pickSlash} onClose={() => setChatInput('')} />}
+          {mentionQuery !== null && onChat && <MentionMenu query={mentionQuery} onSelect={pickMention} onClose={() => { /* keep text */ }} />}
         <div
           style={{
             display: 'flex',
@@ -496,14 +523,14 @@ export function ChatPanel({
             border: '1px solid var(--border)',
             borderRadius: 999,
             padding: '6px 6px 6px 16px',
-            opacity: composerDisabled ? 0.6 : 1,
+            opacity: composerDisabled && !chatBusy ? 0.6 : 1,
           }}
         >
           <input
             value={chatInput}
             onChange={e => setChatInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendChat() } }}
-            placeholder={onChat ? 'Message Campaign Director…' : 'Answer the questions above to begin…'}
+            placeholder={onChat ? 'Message Campaign Director…  (try / or @)' : 'Answer the questions above to begin…'}
             disabled={composerDisabled}
             style={{
               flex: 1,
@@ -518,17 +545,17 @@ export function ChatPanel({
           <GlyphBtn glyph="😊" title="Emoji" />
           <GlyphBtn glyph="✨" title="Suggestions" />
           <button
-            title="Send"
-            onClick={sendChat}
-            disabled={composerDisabled || !chatInput.trim()}
+            title={chatBusy ? 'Stop' : 'Send'}
+            onClick={chatBusy ? stopChat : sendChat}
+            disabled={!chatBusy && (composerDisabled || !chatInput.trim())}
             style={{
               width: 38,
               height: 38,
               borderRadius: 999,
               border: 'none',
-              cursor: composerDisabled ? 'default' : 'pointer',
-              background: GRADIENT,
-              color: '#fff',
+              cursor: composerDisabled && !chatBusy ? 'default' : 'pointer',
+              background: chatBusy ? 'var(--bg-inset)' : GRADIENT,
+              color: chatBusy ? 'var(--text-strong)' : '#fff',
               fontSize: 16,
               display: 'inline-flex',
               alignItems: 'center',
@@ -536,8 +563,9 @@ export function ChatPanel({
               flexShrink: 0,
             }}
           >
-            ↑
+            {chatBusy ? '◼' : '↑'}
           </button>
+        </div>
         </div>
         <div
           style={{

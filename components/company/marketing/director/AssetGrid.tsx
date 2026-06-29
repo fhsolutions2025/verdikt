@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode, JSX } from 'react'
 import { ACCENT, S, Btn } from './theme'
 import type { AssetItem, AssetType } from './types'
 import { AssetCard } from './AssetCard'
+import { AssetTimelineView, AssetKanbanView, AssetContextMenu } from './AssetViews'
 
 type FilterKey = 'all' | AssetType
 
@@ -16,7 +17,7 @@ const TABS: { key: FilterKey; label: string }[] = [
   { key: 'copy', label: 'Copy' },
 ]
 
-type ViewMode = 'grid' | 'list'
+type ViewMode = 'grid' | 'list' | 'timeline' | 'kanban'
 
 export function AssetGrid({
   assets,
@@ -31,6 +32,14 @@ export function AssetGrid({
 }): JSX.Element {
   const [filter, setFilter] = useState<FilterKey>('all')
   const [view, setView] = useState<ViewMode>('grid')
+  const [menu, setMenu] = useState<{ asset: AssetItem; x: number; y: number } | null>(null)
+
+  const onAssetAction = (asset: AssetItem, action: string) => {
+    if (action === 'export' && asset.url) window.open(asset.url, '_blank', 'noopener,noreferrer')
+    else if (action === 'regenerate' && asset.type === 'video') onGenerateVideo(asset.id)
+    // open / rename / duplicate / variants / approve / review / delete are wired in WS-5
+    // (persistent Inspector) — the menu is live; deeper actions land there.
+  }
 
   const counts = useMemo(() => {
     const c: Record<FilterKey, number> = { all: assets.length, image: 0, video: 0, carousel: 0, copy: 0 }
@@ -88,49 +97,51 @@ export function AssetGrid({
         {/* View toggle + filter (visual only) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ display: 'inline-flex', ...S.inset, padding: 2, gap: 2 }}>
-            <ViewToggleBtn active={view === 'grid'} onClick={() => setView('grid')} label="Grid">
-              ▦
-            </ViewToggleBtn>
-            <ViewToggleBtn active={view === 'list'} onClick={() => setView('list')} label="List">
-              ☰
-            </ViewToggleBtn>
+            <ViewToggleBtn active={view === 'grid'} onClick={() => setView('grid')} label="Grid">▦</ViewToggleBtn>
+            <ViewToggleBtn active={view === 'list'} onClick={() => setView('list')} label="List">☰</ViewToggleBtn>
+            <ViewToggleBtn active={view === 'timeline'} onClick={() => setView('timeline')} label="Timeline">⧗</ViewToggleBtn>
+            <ViewToggleBtn active={view === 'kanban'} onClick={() => setView('kanban')} label="Kanban">▥</ViewToggleBtn>
           </div>
           <Btn variant="soft" size="sm">⛃ Filter</Btn>
         </div>
       </div>
 
-      {/* Grid / empty */}
+      {/* Views */}
       {visible.length === 0 ? (
-        <div
-          style={{
-            ...S.inset,
-            padding: 36,
-            textAlign: 'center',
-            fontSize: 13,
-            color: 'var(--text-dim)',
-          }}
-        >
+        <div style={{ ...S.inset, padding: 36, textAlign: 'center', fontSize: 13, color: 'var(--text-dim)' }}>
           No assets in this view yet.
         </div>
+      ) : view === 'timeline' ? (
+        <AssetTimelineView assets={visible} onSelect={() => { /* WS-5 inspector */ }} />
+      ) : view === 'kanban' ? (
+        <AssetKanbanView assets={visible} onSelect={() => { /* WS-5 inspector */ }} />
       ) : (
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns:
-              view === 'list' ? '1fr' : 'repeat(auto-fill, minmax(220px, 1fr))',
+            gridTemplateColumns: view === 'list' ? '1fr' : 'repeat(auto-fill, minmax(220px, 1fr))',
             gap: 14,
           }}
         >
           {visible.map((a) => (
-            <AssetCard
-              key={a.id}
-              asset={a}
-              onGenerateVideo={onGenerateVideo}
-              onSelectVariation={onSelectVariation}
-              generating={generatingId === a.id}
-            />
+            <div key={a.id} onContextMenu={(e) => { e.preventDefault(); setMenu({ asset: a, x: e.clientX, y: e.clientY }) }}>
+              <AssetCard
+                asset={a}
+                onGenerateVideo={onGenerateVideo}
+                onSelectVariation={onSelectVariation}
+                generating={generatingId === a.id}
+              />
+            </div>
           ))}
         </div>
+      )}
+
+      {menu && (
+        <AssetContextMenu
+          x={menu.x} y={menu.y} asset={menu.asset}
+          onAction={(action) => onAssetAction(menu.asset, action)}
+          onClose={() => setMenu(null)}
+        />
       )}
     </div>
   )
