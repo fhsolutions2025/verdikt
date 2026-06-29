@@ -59,8 +59,13 @@ export async function publishToChannel(
   if (conn.status !== 'connected' || !conn.access_token || !conn.account_id) {
     return { ok: false, error: 'channel not connected' }
   }
-  if (conn.channel === 'instagram') return publishInstagram(conn, opts)
-  return { ok: false, error: `live publish not implemented for ${conn.channel}` }
+  switch (conn.channel) {
+    case 'instagram': return publishInstagram(conn, opts)
+    case 'facebook':  return publishFacebook(conn, opts)
+    case 'linkedin':  return publishLinkedIn(conn, opts)
+    case 'x':         return publishX(conn, opts)
+    default:          return { ok: false, error: `live publish not implemented for ${conn.channel}` }
+  }
 }
 
 // Instagram Graph API image publish: POST /{ig-user-id}/media (image_url + caption)
@@ -85,6 +90,88 @@ async function publishInstagram(
     const published = await pubRes.json().catch(() => ({})) as { id?: string; error?: { message?: string } }
     if (!pubRes.ok || !published.id) return { ok: false, error: published.error?.message ?? `IG publish ${pubRes.status}` }
     return { ok: true, ref: published.id }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
+
+// Facebook Page photo post: POST /{page-id}/photos (url + caption). account_id = page id.
+async function publishFacebook(
+  conn: ChannelConnection, opts: { assetUrl: string; caption?: string },
+): Promise<LivePublishResult> {
+  try {
+    const u = new URL(`https://graph.facebook.com/v21.0/${conn.account_id}/photos`)
+    u.searchParams.set('url', opts.assetUrl)
+    if (opts.caption) u.searchParams.set('caption', opts.caption)
+    u.searchParams.set('access_token', conn.access_token as string)
+    const res = await fetch(u.toString(), { method: 'POST', signal: AbortSignal.timeout(30_000) })
+    const d = await res.json().catch(() => ({})) as { id?: string; post_id?: string; error?: { message?: string } }
+    if (!res.ok || !(d.id || d.post_id)) return { ok: false, error: d.error?.message ?? `FB photo ${res.status}` }
+    return { ok: true, ref: d.post_id ?? d.id }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
+
+// LinkedIn UGC share posting the asset as an article link. account_id = the author URN
+// id (a person id → urn:li:person:{id}, or a full "organization:{id}" / "person:{id}"
+// to target an organization page). Image upload-and-attach is a separate multi-step
+// flow; the article share is the dependable token-only path.
+async function publishLinkedIn(
+  conn: ChannelConnection, opts: { assetUrl: string; caption?: string },
+): Promise<LivePublishResult> {
+  try {
+    const acct = (conn.account_id ?? '').trim()
+    const author = acct.includes(':') ? `urn:li:${acct}` : `urn:li:person:${acct}`
+    const body = {
+      author,
+      lifecycleState: 'PUBLISHED',
+      specificContent: {
+        'com.linkedin.ugc.ShareContent': {
+          shareCommentary: { text: opts.caption ?? '' },
+          shareMediaCategory: 'ARTICLE',
+          media: [{ status: 'READY', originalUrl: opts.assetUrl }],
+        },
+      },
+      visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
+    }
+    const res = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0',
+        Authorization: `Bearer ${conn.access_token}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    })
+    const headerId = res.headers.get('x-restli-id')
+    const d = await res.json().catch(() => ({})) as { id?: string; message?: string }
+    const ref = d.id ?? headerId ?? undefined
+    if (!res.ok || !ref) return { ok: false, error: d.message ?? `LinkedIn ${res.status}` }
+    return { ok: true, ref }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
+
+// X (Twitter) v2 text post with the asset link appended. Token = an OAuth2 user-context
+// bearer with tweet.write. (Attaching an uploaded image requires the v1.1 media/upload
+// + OAuth1.0a signing flow — a separate integration; the link post is the bearer path.)
+async function publishX(
+  conn: ChannelConnection, opts: { assetUrl: string; caption?: string },
+): Promise<LivePublishResult> {
+  try {
+    const text = `${opts.caption ? `${opts.caption} ` : ''}${opts.assetUrl}`.trim().slice(0, 280)
+    const res = await fetch('https://api.twitter.com/2/tweets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${conn.access_token}` },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    const d = await res.json().catch(() => ({})) as { data?: { id?: string }; detail?: string; title?: string }
+    if (!res.ok || !d.data?.id) return { ok: false, error: d.detail ?? d.title ?? `X ${res.status}` }
+    return { ok: true, ref: d.data.id }
   } catch (err) {
     return { ok: false, error: (err as Error).message }
   }
