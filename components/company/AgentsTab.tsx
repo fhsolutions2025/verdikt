@@ -143,6 +143,17 @@ const ALL_TOOLS = [
   { id: 'get_ai_stats',          label: 'AI Stats',           agents: ['company'] },
   { id: 'get_open_book',         label: 'Open Book (MM)',     agents: ['mm_desk'] },
   { id: 'get_market_risk',       label: 'Market Risk (MM)',   agents: ['mm_desk'] },
+
+  // ── Marketing agent tools (spec §6 Tool Access) ───────────────────────────
+  { id: 'llm_openai',     label: 'OpenAI',        agents: ['campaign_director_agent', 'mkt_copywriter', 'mkt_router', 'mkt_seo', 'mkt_knowledge_researcher'] },
+  { id: 'llm_claude',     label: 'Claude',        agents: ['campaign_director_agent', 'mkt_copywriter', 'mkt_knowledge_researcher', 'mkt_compliance', 'mkt_reviewer', 'qa_agent'] },
+  { id: 'brand_memory',   label: 'Brand Memory',  agents: ['campaign_director_agent', 'mkt_copywriter', 'mkt_creative_designer', 'mkt_brand_guardian'] },
+  { id: 'knowledge_base', label: 'Knowledge Base',agents: ['mkt_copywriter', 'mkt_knowledge_researcher', 'mkt_seo'] },
+  { id: 'fal_media',      label: 'fal.ai',        agents: ['mkt_creative_designer', 'mkt_prompt_optimizer', 'mkt_video_producer'] },
+  { id: 'ideogram',       label: 'Ideogram',      agents: ['mkt_creative_designer', 'mkt_prompt_optimizer'] },
+  { id: 'compliance_rules', label: 'Compliance Rules', agents: ['mkt_compliance'] },
+  { id: 'seo_tools',      label: 'SEO Tools',     agents: ['mkt_seo'] },
+  { id: 'publish_channels', label: 'Publish Channels', agents: ['campaign_director_agent'] },
 ]
 
 const CARD_BG = 'var(--bg-surface-2)'
