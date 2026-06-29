@@ -40,11 +40,17 @@ const EMPTY_STATS: AssetStats = { total: 0, generated: 0, in_progress: 0, queued
 
 export function DirectorWorkspace({
   brands, regions, onNavigate, onOpenCampaign,
+  embedded = false, requestedPanel = null, onPanelHandled,
 }: {
   brands: { id: string; name: string }[]
   regions: { region: string; framing: string }[]
   onNavigate: (view: string) => void
   onOpenCampaign?: (id: string) => void
+  // When embedded in the WorkspaceShell, the shell provides the global sidebar, so the
+  // Director hides its own NavRail and accepts panel-open requests from the shell.
+  embedded?: boolean
+  requestedPanel?: string | null
+  onPanelHandled?: () => void
 }): React.JSX.Element {
   const [submitting, setSubmitting] = React.useState(false)
   const [started, setStarted] = React.useState(false)
@@ -158,6 +164,17 @@ export function DirectorWorkspace({
     a.click(); URL.revokeObjectURL(url)
   }
 
+  // When embedded, the shell sidebar asks us to open a panel; honor + acknowledge it.
+  React.useEffect(() => {
+    if (!requestedPanel) return
+    if (requestedPanel === 'knowledge') setShowKnowledge(true)
+    else if (requestedPanel === 'assets') setShowAssets(true)
+    else if (requestedPanel === 'analytics') setShowAnalytics(true)
+    else if (requestedPanel === 'calendar') setShowCalendar(true)
+    else if (requestedPanel === 'settings') setShowSettings(true)
+    onPanelHandled?.()
+  }, [requestedPanel, onPanelHandled])
+
   const header: CampaignHeader = {
     title: brief?.goal?.trim() ? brief.goal : 'New Campaign',
     live: started,
@@ -169,9 +186,9 @@ export function DirectorWorkspace({
   const emptyBrief: Brief = { brand_id: '', vertical: '', goal: '', audience: '', region: '', channels: [], tone: '', notes: '' }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-base)', color: 'var(--text-strong)' }}>
+    <div style={{ display: 'flex', height: embedded ? '100%' : '100vh', overflow: 'hidden', background: 'var(--bg-base)', color: 'var(--text-strong)' }}>
       <DirectorKeyframes />
-      <NavRail
+      {!embedded && <NavRail
         items={NAV_ITEMS}
         activeId={showKnowledge ? 'knowledge' : showAssets ? 'assets' : showAnalytics ? 'analytics' : showCalendar ? 'calendar' : showSettings ? 'settings' : 'director'}
         onNavigate={(id) => {
@@ -183,7 +200,7 @@ export function DirectorWorkspace({
           if (id !== 'director') onNavigate(id)
         }}
         user={{ name: 'Verdikt Studio', plan: 'Marketing' }}
-      />
+      />}
       {showKnowledge && <KnowledgePanel brands={brands} onClose={() => setShowKnowledge(false)} />}
       {showAssets && <AssetLibraryPanel brands={brands} onClose={() => setShowAssets(false)} />}
       {showAnalytics && <AnalyticsPanel brands={brands} onClose={() => setShowAnalytics(false)} />}

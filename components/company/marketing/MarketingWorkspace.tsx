@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { DirectorWorkspace } from './director/DirectorWorkspace'
+import { WorkspaceShell } from './workspace/WorkspaceShell'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 interface Brand { id: string; name: string; voice: Record<string, unknown>; regions: string[]; status: string }
@@ -41,11 +41,12 @@ export function MarketingWorkspace({
 
   const openCampaign = (id: string) => { setSelected(id); setView('campaign') }
 
-  // The Director is a full-bleed workspace with its own nav rail.
+  // The Director is hosted inside the five-region Campaign Workspace shell (WS-1).
   if (view === 'director') {
     return (
-      <DirectorWorkspace
+      <WorkspaceShell
         brands={brands.map(b => ({ id: b.id, name: b.name }))}
+        campaigns={campaigns.map(c => ({ id: c.id, name: c.name, status: c.status, created_at: c.created_at }))}
         regions={regions}
         onNavigate={(v) => setView(v as View)}
         onOpenCampaign={openCampaign}
