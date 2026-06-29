@@ -10,7 +10,19 @@ import {
   ACCENT, PURPLE, PURPLE_LIGHT, ORANGE, AMBER, GRADIENT,
   S, Btn, Badge, Dot, ProgressBar,
 } from './theme'
-import type { AssetStats, CampaignHeader, Brief } from './types'
+import type { AssetStats, CampaignHeader, Brief, AgentActivity } from './types'
+
+// Friendly names for the live agent rows (spec §4 Active AI Agents).
+const AGENT_NAMES: Record<string, string> = {
+  copywriter: 'Copywriter', 'prompt-optimizer': 'Creative Designer', router: 'Router',
+}
+function agentName(a: string): string { return AGENT_NAMES[a] ?? a.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }
+function agentStatus(s: string): { label: string; color: string } {
+  if (s === 'running') return { label: 'Working', color: AMBER }
+  if (s === 'succeeded') return { label: 'Done', color: ACCENT }
+  if (s === 'failed') return { label: 'Failed', color: '#DC2626' }
+  return { label: 'Queued', color: 'var(--text-faint)' }
+}
 
 // ── Local helpers ───────────────────────────────────────────────────────────────
 function BriefCard({ icon, tint, label, value, sub }: {
@@ -59,10 +71,11 @@ function StatTile({ icon, tint, label, value }: {
 const TABS = ['Plan', 'Create', 'Review', 'Publish', 'Analyze'] as const
 
 // ── Main component ───────────────────────────────────────────────────────────────
-export function CreationCanvas({ header, stats, brief, onShare, onExport, children }: {
+export function CreationCanvas({ header, stats, brief, agents = [], onShare, onExport, children }: {
   header: CampaignHeader
   stats: AssetStats
   brief: Brief
+  agents?: AgentActivity[]
   onShare?: () => void
   onExport?: () => void
   children?: React.ReactNode
@@ -130,13 +143,20 @@ export function CreationCanvas({ header, stats, brief, onShare, onExport, childr
         <div style={{
           ...S.inset, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0,
         }}>
-          <Dot color={ACCENT} size={8} />
+          <Dot color={agents.some(a => a.status === 'running') ? AMBER : ACCENT} size={8} />
           <div style={{ lineHeight: 1.2 }}>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-strong)' }}>Agent Activity</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>All systems active</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
+              {agents.length
+                ? `${agents.filter(a => a.status === 'running').length} working · ${agents.filter(a => a.status === 'succeeded').length} done`
+                : 'Standing by'}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Active AI Agents — live specialist roster (spec §4) */}
+      <AgentRoster agents={agents} reviewing={stats.in_progress > 0} />
 
       {/* Four brief summary cards */}
       <div style={{
@@ -185,6 +205,44 @@ export function CreationCanvas({ header, stats, brief, onShare, onExport, childr
       </div>
       </>
       )}
+    </div>
+  )
+}
+
+// Live "Active AI Agents" roster — the real sub-agent task statuses plus the review
+// gates that run during generation. Replaces the old static "All systems active" chip.
+function AgentRoster({ agents, reviewing }: { agents: AgentActivity[]; reviewing: boolean }) {
+  if (!agents.length && !reviewing) return null
+  const reviewState = reviewing ? 'running' : 'succeeded'
+  const gates = [
+    { id: 'gate-brand', name: 'Brand Guardian', status: reviewState },
+    { id: 'gate-compliance', name: 'Compliance', status: reviewState },
+    { id: 'gate-qa', name: 'QA Inspector', status: reviewState },
+  ]
+  const rows = [
+    ...agents.map(a => ({ id: a.id, name: agentName(a.agent), status: a.status })),
+    ...gates,
+  ]
+  return (
+    <div style={{ ...S.card, padding: 16, marginTop: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-strong)', marginBottom: 12 }}>Active AI Agents</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+        {rows.map(r => {
+          const st = agentStatus(r.status)
+          return (
+            <div key={r.id} style={{ ...S.inset, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{
+                width: 9, height: 9, borderRadius: 999, flexShrink: 0, background: st.color,
+                boxShadow: r.status === 'running' ? `0 0 8px ${st.color}` : 'none',
+              }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-strong)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
+              </div>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: st.color }}>{st.label}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

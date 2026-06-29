@@ -54,6 +54,15 @@ export interface DirectorRun {
   agents: { id: string; agent: string; status: string; outputs: Record<string, unknown> | null; error: string | null }[]
 }
 
+// A live specialist-agent row for the "Active AI Agents" panel (spec §4).
+export interface AgentActivity {
+  id: string
+  agent: string
+  status: string   // pending | running | succeeded | failed
+  outputs: Record<string, unknown> | null
+  error: string | null
+}
+
 // A turn in the left chat transcript.
 export interface ChatTurn {
   id: string

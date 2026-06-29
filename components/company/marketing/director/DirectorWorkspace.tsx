@@ -19,7 +19,7 @@ import { AnalyticsPanel } from './AnalyticsPanel'
 import { ContentCalendarPanel } from './ContentCalendarPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { DirectorKeyframes, ACCENT } from './theme'
-import type { AssetItem, AssetStats, Brief, CampaignHeader, NavItem } from './types'
+import type { AssetItem, AssetStats, Brief, CampaignHeader, NavItem, AgentActivity } from './types'
 import { buildBrief, type InterviewAnswers } from '@/lib/marketing/directorInterview'
 
 const NAV_ITEMS: NavItem[] = [
@@ -54,6 +54,7 @@ export function DirectorWorkspace({
   const [brandName, setBrandName] = React.useState('')
   const [assets, setAssets] = React.useState<AssetItem[]>([])
   const [stats, setStats] = React.useState<AssetStats>(EMPTY_STATS)
+  const [agents, setAgents] = React.useState<AgentActivity[]>([])
   const [runStatus, setRunStatus] = React.useState<string>('running')
   const [generatingId, setGeneratingId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -69,6 +70,7 @@ export function DirectorWorkspace({
     if (!r || r.error) return
     setAssets(r.assets ?? [])
     setStats(r.stats ?? EMPTY_STATS)
+    setAgents(Array.isArray(r.agents) ? r.agents : [])
     setRunStatus(r.run?.status ?? 'running')
   }, [])
 
@@ -212,6 +214,7 @@ export function DirectorWorkspace({
             header={header}
             stats={stats}
             brief={brief ?? emptyBrief}
+            agents={agents}
             onShare={() => campaignId && onOpenCampaign?.(campaignId)}
             onExport={onExport}
           >
