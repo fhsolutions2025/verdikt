@@ -23,22 +23,24 @@ export function AssetGrid({
   assets,
   onGenerateVideo,
   onSelectVariation,
+  onSelectAsset,
   generatingId,
 }: {
   assets: AssetItem[]
   onGenerateVideo: (taskId: string) => void
   onSelectVariation?: (taskId: string, url: string) => void
+  onSelectAsset?: (asset: AssetItem) => void
   generatingId?: string | null
 }): JSX.Element {
   const [filter, setFilter] = useState<FilterKey>('all')
   const [view, setView] = useState<ViewMode>('grid')
   const [menu, setMenu] = useState<{ asset: AssetItem; x: number; y: number } | null>(null)
+  const byId = (id: string) => assets.find(a => a.id === id)
 
   const onAssetAction = (asset: AssetItem, action: string) => {
     if (action === 'export' && asset.url) window.open(asset.url, '_blank', 'noopener,noreferrer')
     else if (action === 'regenerate' && asset.type === 'video') onGenerateVideo(asset.id)
-    // open / rename / duplicate / variants / approve / review / delete are wired in WS-5
-    // (persistent Inspector) — the menu is live; deeper actions land there.
+    else onSelectAsset?.(asset) // open / approve / review / rename / … happen in the Inspector
   }
 
   const counts = useMemo(() => {
@@ -112,9 +114,9 @@ export function AssetGrid({
           No assets in this view yet.
         </div>
       ) : view === 'timeline' ? (
-        <AssetTimelineView assets={visible} onSelect={() => { /* WS-5 inspector */ }} />
+        <AssetTimelineView assets={visible} onSelect={(id) => { const a = byId(id); if (a) onSelectAsset?.(a) }} />
       ) : view === 'kanban' ? (
-        <AssetKanbanView assets={visible} onSelect={() => { /* WS-5 inspector */ }} />
+        <AssetKanbanView assets={visible} onSelect={(id) => { const a = byId(id); if (a) onSelectAsset?.(a) }} />
       ) : (
         <div
           style={{

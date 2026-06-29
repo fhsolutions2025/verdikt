@@ -13,6 +13,7 @@ import { NavRail } from './NavRail'
 import { ChatPanel } from './ChatPanel'
 import { CreationCanvas } from './CreationCanvas'
 import { AssetGrid } from './AssetGrid'
+import { InspectorPanel } from './InspectorPanel'
 import { KnowledgePanel } from './KnowledgePanel'
 import { AssetLibraryPanel } from './AssetLibraryPanel'
 import { AnalyticsPanel } from './AnalyticsPanel'
@@ -65,6 +66,7 @@ export function DirectorWorkspace({
   const [agents, setAgents] = React.useState<AgentActivity[]>([])
   const [runStatus, setRunStatus] = React.useState<string>('running')
   const [generatingId, setGeneratingId] = React.useState<string | null>(null)
+  const [selectedAssetId, setSelectedAssetId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [showKnowledge, setShowKnowledge] = React.useState(false)
   const [showAssets, setShowAssets] = React.useState(false)
@@ -244,22 +246,36 @@ export function DirectorWorkspace({
         />
       </div>
 
-      {/* Right — creation canvas (flex) */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {started ? (
-          <CreationCanvas
-            header={header}
-            stats={stats}
-            brief={brief ?? emptyBrief}
-            agents={agents}
-            onShare={() => campaignId && onOpenCampaign?.(campaignId)}
-            onExport={onExport}
-          >
-            {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
-            <AssetGrid assets={assets} onGenerateVideo={onGenerateVideo} onSelectVariation={onSelectVariation} generatingId={generatingId} />
-          </CreationCanvas>
-        ) : (
-          <Placeholder error={error} />
+      {/* Right — creation canvas (flex) + persistent Inspector (docked, WS-5) */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {started ? (
+            <CreationCanvas
+              header={header}
+              stats={stats}
+              brief={brief ?? emptyBrief}
+              agents={agents}
+              onShare={() => campaignId && onOpenCampaign?.(campaignId)}
+              onExport={onExport}
+            >
+              {error && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+              <AssetGrid
+                assets={assets}
+                onGenerateVideo={onGenerateVideo}
+                onSelectVariation={onSelectVariation}
+                onSelectAsset={(a) => setSelectedAssetId(a.artifactId ?? a.id)}
+                generatingId={generatingId}
+              />
+            </CreationCanvas>
+          ) : (
+            <Placeholder error={error} />
+          )}
+        </div>
+        {started && (
+          <InspectorPanel
+            artifactId={selectedAssetId}
+            onChanged={() => { if (runId) void refresh(runId) }}
+          />
         )}
       </div>
     </div>
