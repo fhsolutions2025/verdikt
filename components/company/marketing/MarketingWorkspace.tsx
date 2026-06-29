@@ -50,6 +50,7 @@ export function MarketingWorkspace({
         regions={regions}
         onNavigate={(v) => setView(v as View)}
         onOpenCampaign={openCampaign}
+        onRefreshCampaigns={refreshCampaigns}
       />
     )
   }

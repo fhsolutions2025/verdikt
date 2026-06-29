@@ -40,7 +40,7 @@ const EMPTY_STATS: AssetStats = { total: 0, generated: 0, in_progress: 0, queued
 
 export function DirectorWorkspace({
   brands, regions, onNavigate, onOpenCampaign,
-  embedded = false, requestedPanel = null, onPanelHandled,
+  embedded = false, requestedPanel = null, onPanelHandled, loadCampaignId = null,
 }: {
   brands: { id: string; name: string }[]
   regions: { region: string; framing: string }[]
@@ -51,6 +51,8 @@ export function DirectorWorkspace({
   embedded?: boolean
   requestedPanel?: string | null
   onPanelHandled?: () => void
+  // When set, load an existing campaign into the center (WS-2: campaigns live in-shell).
+  loadCampaignId?: string | null
 }): React.JSX.Element {
   const [submitting, setSubmitting] = React.useState(false)
   const [started, setStarted] = React.useState(false)
@@ -163,6 +165,24 @@ export function DirectorWorkspace({
     a.href = url; a.download = `${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-plan.json`
     a.click(); URL.revokeObjectURL(url)
   }
+
+  // WS-2: load an existing campaign into the center when the explorer selects one.
+  React.useEffect(() => {
+    if (!loadCampaignId) return
+    let cancelled = false
+    void (async () => {
+      const r = await fetch(`/api/company/marketing/v2/campaigns/${loadCampaignId}`).then(x => x.json()).catch(() => null)
+      if (!r || r.error || cancelled) return
+      const c = (r.campaign ?? {}) as { brand_id?: string; goal?: string; region?: string; plan?: { brief?: Brief } }
+      const planBrief = c.plan?.brief
+      setCampaignId(loadCampaignId)
+      setBrandName((r.brand?.name as string) ?? brands.find(b => b.id === c.brand_id)?.name ?? '')
+      setBrief(planBrief ?? { brand_id: c.brand_id ?? '', vertical: '', goal: c.goal ?? '', audience: '', region: c.region ?? '', channels: [], tone: '', notes: '' })
+      setStarted(true)
+      setRunId((r.latest_run?.id as string) ?? null)
+    })()
+    return () => { cancelled = true }
+  }, [loadCampaignId, brands])
 
   // When embedded, the shell sidebar asks us to open a panel; honor + acknowledge it.
   React.useEffect(() => {

@@ -18,13 +18,14 @@ import { DirectorWorkspace } from '@/components/company/marketing/director/Direc
 const DIRECTOR_PANELS = new Set(['assets', 'knowledge', 'analytics', 'calendar', 'settings'])
 
 export function WorkspaceShell({
-  brands, campaigns, regions, onNavigate, onOpenCampaign,
+  brands, campaigns, regions, onNavigate, onOpenCampaign, onRefreshCampaigns,
 }: {
   brands: { id: string; name: string }[]
   campaigns: ExplorerCampaign[]
   regions: { region: string; framing: string }[]
   onNavigate: (view: string) => void
   onOpenCampaign?: (id: string) => void
+  onRefreshCampaigns?: () => void
 }): React.JSX.Element {
   const [selectedCampaign, setSelectedCampaign] = React.useState<string | null>(null)
   const [requestedPanel, setRequestedPanel] = React.useState<string | null>(null)
@@ -55,8 +56,9 @@ export function WorkspaceShell({
         <CampaignExplorer
           campaigns={campaigns}
           selectedId={selectedCampaign}
-          onSelect={(id) => { setSelectedCampaign(id); onOpenCampaign?.(id) }}
-          onNew={() => onNavigate('director')}
+          onSelect={(id) => setSelectedCampaign(id)}
+          onNew={() => setSelectedCampaign(null)}
+          onRefresh={onRefreshCampaigns}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <DirectorWorkspace
@@ -65,6 +67,7 @@ export function WorkspaceShell({
             embedded
             requestedPanel={requestedPanel}
             onPanelHandled={() => setRequestedPanel(null)}
+            loadCampaignId={selectedCampaign}
             onNavigate={onNavigate}
             onOpenCampaign={onOpenCampaign}
           />
