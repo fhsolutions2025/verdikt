@@ -21,7 +21,7 @@ export function LoginForm() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
     if (error) { setError(error.message || 'Sign-in failed. Please try again.'); return }
-    router.push('/company'); router.refresh()
+    router.push('/player'); router.refresh()
   }
 
   return (

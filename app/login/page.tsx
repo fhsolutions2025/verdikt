@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default async function SplashPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (user) redirect('/company')
+  if (user) redirect('/player')
 
   // Resolve the admin-designed splash hero (Design Splash module) or fall back to a placeholder.
   const slot = getSplashSlot('splash_hero')!
