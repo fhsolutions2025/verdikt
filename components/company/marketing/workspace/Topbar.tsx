@@ -7,13 +7,15 @@ import React from 'react'
 import { ACCENT, PURPLE } from '@/components/company/marketing/director/theme'
 
 export function Topbar({
-  campaignTitle, campaignStatus, activeAgents, favorite,
+  campaignTitle, campaignStatus, activeAgents, favorite, unread = 0, canCreate = true,
   onBreadcrumb, onToggleFavorite, onCreate, onOpenPalette, onOpenNotifications, onOpenHelp,
 }: {
   campaignTitle: string
   campaignStatus?: string
   activeAgents: number
   favorite?: boolean
+  unread?: number
+  canCreate?: boolean
   onBreadcrumb: () => void
   onToggleFavorite?: () => void
   onCreate: (type: string) => void
@@ -48,8 +50,10 @@ export function Topbar({
 
       {/* Create */}
       <div style={{ position: 'relative' }}>
-        <button onClick={() => setCreateOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: PURPLE, color: '#fff', border: 'none', borderRadius: 9, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Create</button>
-        {createOpen && (
+        <button onClick={() => canCreate && setCreateOpen(o => !o)} disabled={!canCreate}
+          title={canCreate ? undefined : "Your role can't create campaigns or assets."}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: canCreate ? PURPLE : 'var(--bg-inset)', color: canCreate ? '#fff' : 'var(--text-faint)', border: 'none', borderRadius: 9, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: canCreate ? 'pointer' : 'not-allowed' }}>+ Create</button>
+        {createOpen && canCreate && (
           <>
             <div onClick={() => setCreateOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
             <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 41, minWidth: 180, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 6, boxShadow: '0 12px 32px rgba(0,0,0,0.35)' }}>
@@ -66,7 +70,12 @@ export function Topbar({
         <span>🔍</span><span>Search</span><span style={{ fontFamily: 'monospace', fontSize: 11, opacity: 0.7 }}>⌘K</span>
       </button>
 
-      <button onClick={onOpenNotifications} title="Notifications" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-dim)' }}>🔔</button>
+      <button onClick={onOpenNotifications} title="Notifications" style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-dim)' }}>
+        🔔
+        {unread > 0 && (
+          <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 15, height: 15, padding: '0 3px', borderRadius: 999, background: '#DC2626', color: '#fff', fontSize: 9, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{unread > 9 ? '9+' : unread}</span>
+        )}
+      </button>
       <button onClick={onOpenHelp} title="Help" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: 'var(--text-dim)' }}>❓</button>
     </header>
   )

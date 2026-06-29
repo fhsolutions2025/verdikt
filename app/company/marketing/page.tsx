@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getAuthContext } from '@/lib/auth'
 import { MarketingWorkspace } from '@/components/company/marketing/MarketingWorkspace'
+import { toWorkspaceRole } from '@/lib/marketing/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,7 @@ export default async function MarketingWorkspacePage() {
       initialCampaigns={campaignsRes.data ?? []}
       initialAssets={assetsRes.data ?? []}
       regions={regionsRes.data ?? []}
+      role={toWorkspaceRole(role)}
     />
   )
 }

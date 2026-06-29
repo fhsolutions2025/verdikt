@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { WorkspaceShell } from './workspace/WorkspaceShell'
+import type { WorkspaceRole } from '@/lib/marketing/permissions'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 interface Brand { id: string; name: string; voice: Record<string, unknown>; regions: string[]; status: string }
@@ -20,9 +21,10 @@ const G = '#00C853'
 
 // ── Root ────────────────────────────────────────────────────────────────────
 export function MarketingWorkspace({
-  initialBrands, initialCampaigns, initialAssets, regions,
+  initialBrands, initialCampaigns, initialAssets, regions, role = 'owner',
 }: {
   initialBrands: Brand[]; initialCampaigns: Campaign[]; initialAssets: Asset[]; regions: Region[]
+  role?: WorkspaceRole
 }) {
   const [view, setView] = useState<View>('director')
   const [brands, setBrands] = useState<Brand[]>(initialBrands)
@@ -48,6 +50,7 @@ export function MarketingWorkspace({
         brands={brands.map(b => ({ id: b.id, name: b.name }))}
         campaigns={campaigns.map(c => ({ id: c.id, name: c.name, status: c.status, created_at: c.created_at }))}
         regions={regions}
+        role={role}
         onNavigate={(v) => setView(v as View)}
         onOpenCampaign={openCampaign}
         onRefreshCampaigns={refreshCampaigns}

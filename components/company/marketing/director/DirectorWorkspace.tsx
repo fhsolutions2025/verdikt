@@ -14,6 +14,7 @@ import { ChatPanel } from './ChatPanel'
 import { CreationCanvas } from './CreationCanvas'
 import { AssetGrid } from './AssetGrid'
 import { InspectorPanel } from './InspectorPanel'
+import { useViewport } from '@/components/company/marketing/workspace/useViewport'
 import { KnowledgePanel } from './KnowledgePanel'
 import { AssetLibraryPanel } from './AssetLibraryPanel'
 import { AnalyticsPanel } from './AnalyticsPanel'
@@ -68,6 +69,11 @@ export function DirectorWorkspace({
   const [generatingId, setGeneratingId] = React.useState<string | null>(null)
   const [selectedAssetId, setSelectedAssetId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  // WS-7 responsive: the Inspector docks open on desktop, collapses to a rail on
+  // tablet/mobile (it can still be opened on demand). Selecting an asset opens it.
+  const viewport = useViewport()
+  const [inspectorOpen, setInspectorOpen] = React.useState(true)
+  React.useEffect(() => { setInspectorOpen(viewport === 'desktop') }, [viewport])
   const [showKnowledge, setShowKnowledge] = React.useState(false)
   const [showAssets, setShowAssets] = React.useState(false)
   const [showAnalytics, setShowAnalytics] = React.useState(false)
@@ -263,7 +269,7 @@ export function DirectorWorkspace({
                 assets={assets}
                 onGenerateVideo={onGenerateVideo}
                 onSelectVariation={onSelectVariation}
-                onSelectAsset={(a) => setSelectedAssetId(a.artifactId ?? a.id)}
+                onSelectAsset={(a) => { setSelectedAssetId(a.artifactId ?? a.id); setInspectorOpen(true) }}
                 generatingId={generatingId}
               />
             </CreationCanvas>
@@ -271,12 +277,25 @@ export function DirectorWorkspace({
             <Placeholder error={error} />
           )}
         </div>
-        {started && (
-          <InspectorPanel
-            artifactId={selectedAssetId}
-            onChanged={() => { if (runId) void refresh(runId) }}
-          />
-        )}
+        {started && (inspectorOpen ? (
+          <div style={{ position: 'relative', flexShrink: 0, height: '100%' }}>
+            <button
+              onClick={() => setInspectorOpen(false)}
+              title="Collapse inspector"
+              style={{ position: 'absolute', top: 14, left: -12, zIndex: 5, width: 24, height: 24, borderRadius: 999, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
+            >›</button>
+            <InspectorPanel
+              artifactId={selectedAssetId}
+              onChanged={() => { if (runId) void refresh(runId) }}
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => setInspectorOpen(true)}
+            title="Open inspector"
+            style={{ flexShrink: 0, width: 36, height: '100%', borderLeft: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 13, writingMode: 'vertical-rl' }}
+          >‹ Inspector</button>
+        ))}
       </div>
     </div>
   )

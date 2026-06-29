@@ -26,7 +26,8 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
   { id: 'video_studio', label: 'Video Studio', icon: '🎞️', soon: true },
   { id: 'brand', label: 'Brand Kit', icon: '🏷️' },
   { id: 'knowledge', label: 'Knowledge Base', icon: '📚' },
-  { id: 'publishing', label: 'Publishing', icon: '🚀', soon: true },
+  { id: 'publishing', label: 'Publishing', icon: '🚀' },
+  { id: 'approvals', label: 'Approvals', icon: '✅' },
   { id: 'analytics', label: 'Analytics', icon: '📊' },
   { id: 'calendar', label: 'Calendar', icon: '📅' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
@@ -36,17 +37,27 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
 const COLLAPSE_KEY = 'verdikt_ws_sidebar_collapsed'
 
 export function Sidebar({
-  active, onNavigate, org, user, credits,
+  active, onNavigate, org, user, credits, collapsed: collapsedProp, onToggleCollapse,
 }: {
   active: string
   onNavigate: (id: string) => void
   org?: { name: string; plan?: string }
   user?: { name: string; role?: string }
   credits?: { used: number; total: number; resetDays?: number }
+  // Optional controlled collapse (WS-6 ⌘B + WS-7 responsive). Falls back to internal state.
+  collapsed?: boolean
+  onToggleCollapse?: () => void
 }): React.JSX.Element {
-  const [collapsed, setCollapsed] = React.useState(false)
-  React.useEffect(() => { try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1') } catch { /* ignore */ } }, [])
-  const toggle = () => setCollapsed(c => { const n = !c; try { localStorage.setItem(COLLAPSE_KEY, n ? '1' : '0') } catch { /* ignore */ }; return n })
+  const [collapsedState, setCollapsedState] = React.useState(false)
+  React.useEffect(() => {
+    if (collapsedProp !== undefined) return
+    try { setCollapsedState(localStorage.getItem(COLLAPSE_KEY) === '1') } catch { /* ignore */ }
+  }, [collapsedProp])
+  const collapsed = collapsedProp ?? collapsedState
+  const toggle = () => {
+    if (onToggleCollapse) { onToggleCollapse(); return }
+    setCollapsedState(c => { const n = !c; try { localStorage.setItem(COLLAPSE_KEY, n ? '1' : '0') } catch { /* ignore */ }; return n })
+  }
 
   const width = collapsed ? 64 : 232
   const lowCredits = credits ? credits.used / Math.max(credits.total, 1) > 0.9 : false
