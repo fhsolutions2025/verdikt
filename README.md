@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Verdikt
 
-## Getting Started
+Play-money binary prediction market with a built-in autonomous AI Marketing Department.
 
-First, run the development server:
+Verdikt lets players trade YES/NO on real-world outcomes (sports, crypto, news/current
+affairs, finance, responsible-gaming) while an AI marketing team — a Campaign Director
+agent plus specialist sub-agents — plans, generates, checks compliance on, and publishes
+marketing content for the platform.
+
+## Portals
+
+| Portal | Path | Who |
+|---|---|---|
+| Player | `/player` | End users — trade markets, manage wallet/positions, view results |
+| MM Desk | `/mm-desk` | Market makers — review AI-proposed markets, seed liquidity |
+| Company | `/company` | Admins — market pipeline, API health, AI Marketing Workspace, CMS |
+
+Demo login: `demo@verdikt.io` / `verdikt2025` (admin role).
+
+## Stack
+
+- **Frontend:** Next.js 14 (App Router), TypeScript, React 18
+- **Backend:** Supabase — Postgres + Row-Level Security, Edge Functions (Deno), Storage,
+  `pg_cron`, `pgvector`
+- **AI/media:** Anthropic (Claude), OpenAI, Ideogram, fal.ai — reached only through thin
+  edge-function proxies that hold provider keys
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Other scripts: `npm run build`, `npm run start`, `npm run lint`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Documentation
 
-## Learn More
+- [`CLAUDE.md`](./CLAUDE.md) — working notes: market lifecycle, trading/RLS rules, LLM
+  routing, migrations/deploy workflow, and the gotchas catalogue. Read before changing
+  anything in that area.
+- [`docs/verdikt-marketing-agent/`](./docs/verdikt-marketing-agent/) — the AI Marketing
+  Department spec (18 files) plus the desktop workspace interaction map.
 
-To learn more about Next.js, take a look at the following resources:
+## Deployment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deployed on [Vercel](https://vercel.com). Database/edge functions live on Supabase
+(project migrations in `supabase/migrations/`, functions in `supabase/functions/`).
