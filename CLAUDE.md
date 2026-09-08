@@ -197,3 +197,13 @@ pending_ai ──normalize──> ai_ready ──┐
 8. MCP `execute_sql` returns only the last statement's result set.
 9. New/seeded users may lack a wallet row → trades skip wallet writes.
 10. Plan-mode/tool-permission hiccups can drop you mid-task → re-exit plan mode and resume.
+11. **Any new per-event/per-tick table (a `*_log`, `*_history`, `*_ticks`, activity/audit
+    table) must get a retention row added to `prune_operational_data()` (0050/0051) at
+    the same time it's created** — DB bloated to 656 MB once already because
+    `simulate-trading-every-minute` + `audit_log`/`price_ticks`/`ai_call_log`/
+    `cron_run_log`/`cron.job_run_details` had no retention. `select * from
+    db_size_status()` gives current size vs. the 400 MB precaution threshold (warns via
+    `db_size_alerts` after the nightly 3am prune, before it reaches the plan cap); check
+    it before assuming "DB is slow/full" is something else. `DELETE` alone does not
+    reclaim disk space — `VACUUM FULL <table>` (each as its own statement, outside a
+    transaction) is required after a large purge to actually shrink the files.
