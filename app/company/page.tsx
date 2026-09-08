@@ -44,6 +44,8 @@ export default async function CompanyPage() {
     pipelineMarketsRes,
     pageAssetsRes,
     cmsPagesRes,
+    dbSizeRes,
+    dbSizeAlertsRes,
   ] = await Promise.all([
     supabase.from('v_platform_totals').select('*').single(),
     supabase.from('mm_config').select('*').eq('id', '20000000-0000-0000-0000-000000000001').single(),
@@ -79,6 +81,10 @@ export default async function CompanyPage() {
     service.from('cms_pages')
       .select('slug, title, body, is_published, updated_at')
       .order('slug'),
+    // DB size precaution (0051): current size vs. the 400 MB warn threshold.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (service as any).rpc('db_size_status'),
+    service.from('db_size_alerts').select('*').order('checked_at', { ascending: false }).limit(5),
   ])
 
   const totals      = totalsRes.data      as PlatformTotals | null
@@ -259,6 +265,13 @@ export default async function CompanyPage() {
     last_error:         openAiLastError,
   }
 
+  // db_size_status() returns a single-row table; the RPC client hands back an array.
+  const dbSizeRow = (Array.isArray(dbSizeRes.data) ? dbSizeRes.data[0] : dbSizeRes.data) as
+    { total_bytes: number; total_pretty: string; warn_threshold_mb: number; over_warn: boolean } | null
+  const dbSize = dbSizeRow ?? { total_bytes: 0, total_pretty: '—', warn_threshold_mb: 400, over_warn: false }
+  const dbSizeAlerts = (dbSizeAlertsRes.data ?? []) as
+    { id: number; checked_at: string; total_bytes: number; warn_threshold_bytes: number; message: string }[]
+
   return (
     <CompanyDashboard
       openaiStats={openaiStats}
@@ -279,6 +292,8 @@ export default async function CompanyPage() {
       tradeLiquidity={tradeLiquidity}
       pageAssets={pageAssets}
       cmsPages={cmsPages}
+      dbSize={dbSize}
+      dbSizeAlerts={dbSizeAlerts}
     />
   )
 }

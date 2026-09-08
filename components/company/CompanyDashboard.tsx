@@ -65,6 +65,21 @@ export interface OpenAiStats {
   last_error:        string | null
 }
 
+export interface DbSize {
+  total_bytes:       number
+  total_pretty:      string
+  warn_threshold_mb: number
+  over_warn:         boolean
+}
+
+export interface DbSizeAlert {
+  id:                    number
+  checked_at:            string
+  total_bytes:           number
+  warn_threshold_bytes:  number
+  message:               string
+}
+
 export interface CompanyDashboardProps {
   openaiStats:     OpenAiStats
   totals:          PlatformTotals | null
@@ -84,6 +99,8 @@ export interface CompanyDashboardProps {
   tradeLiquidity:  LiquidityRow[]
   pageAssets:      ActivePageAsset[]
   cmsPages:        CmsPage[]
+  dbSize:          DbSize
+  dbSizeAlerts:    DbSizeAlert[]
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -273,6 +290,7 @@ export function CompanyDashboard({
   allMarkets, pendingReview, apiSources,
   aiStats, aiDaily7d, ideogramStats, openaiStats, callsToday, spreadIncome,
   cronRunLog, pipelineMarkets, tradeLiquidity, pageAssets, cmsPages,
+  dbSize, dbSizeAlerts,
 }: CompanyDashboardProps) {
   const [tab, setTab] = useState<Tab>('overview')
 
@@ -592,7 +610,7 @@ export function CompanyDashboard({
               title="API Health"
               subtitle="Model engines (Claude · OpenAI · Ideogram) and external data sources"
             >
-              <ApiHealthMonitor sources={apiSources} callsToday={callsToday} aiStats={aiStats} aiDaily7d={aiDaily7d} ideogramStats={ideogramStats} openaiStats={openaiStats} defaultOpen />
+              <ApiHealthMonitor sources={apiSources} callsToday={callsToday} aiStats={aiStats} aiDaily7d={aiDaily7d} ideogramStats={ideogramStats} openaiStats={openaiStats} dbSize={dbSize} dbSizeAlerts={dbSizeAlerts} defaultOpen />
             </TabSection>
           )}
 

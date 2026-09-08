@@ -38,6 +38,21 @@ interface OpenAiStats {
   last_error:        string | null
 }
 
+interface DbSize {
+  total_bytes:       number
+  total_pretty:      string
+  warn_threshold_mb: number
+  over_warn:         boolean
+}
+
+interface DbSizeAlert {
+  id:                   number
+  checked_at:           string
+  total_bytes:          number
+  warn_threshold_bytes: number
+  message:              string
+}
+
 function fmtCost(usd: number): string {
   if (usd <= 0)   return '$0.00'
   if (usd < 0.01) return `$${usd.toFixed(4)}`
@@ -169,15 +184,18 @@ interface Props {
   aiDaily7d:     DailyCost[]
   ideogramStats: IdeogramStats
   openaiStats?:  OpenAiStats
+  dbSize?:       DbSize
+  dbSizeAlerts?: DbSizeAlert[]
   defaultOpen?:  boolean
 }
 
-export function ApiHealthMonitor({ sources, callsToday, aiStats, aiDaily7d, ideogramStats, openaiStats, defaultOpen = false }: Props) {
+export function ApiHealthMonitor({ sources, callsToday, aiStats, aiDaily7d, ideogramStats, openaiStats, dbSize, dbSizeAlerts, defaultOpen = false }: Props) {
   const [open, setOpen] = useState(defaultOpen)
 
   const externalSources = sources.filter(s => s.category !== 'ai' && s.category !== 'creative_ai')
   const aiSource        = sources.find(s => s.category === 'ai')
   const aiStatus        = aiStats.last_error ? 'degraded' : 'operational'
+  const dbOverWarn       = dbSize?.over_warn ?? false
 
   const HAIKU_INPUT_PRICE_PER_M  = 0.80
   const HAIKU_OUTPUT_PRICE_PER_M = 4.00
@@ -194,6 +212,12 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats, aiDaily7d, ideo
           <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
             — {externalSources.length} sources · Claude{' '}
             <span style={{ color: aiStats.last_error ? '#DC2626' : '#00C853' }}>{aiStatus}</span>
+            {dbSize && (
+              <>
+                {' · DB '}
+                <span style={{ color: dbOverWarn ? '#DC2626' : '#00C853' }}>{dbSize.total_pretty}</span>
+              </>
+            )}
           </span>
         </div>
         <Chevron open={open} />
@@ -292,6 +316,56 @@ export function ApiHealthMonitor({ sources, callsToday, aiStats, aiDaily7d, ideo
                   </div>
                 )}
               </ModelCard>
+
+              {/* Database — size precaution (0051): stays visible so this never clogs silently again */}
+              {dbSize && (
+                <ModelCard
+                  name="Supabase Database"
+                  statusLabel={dbOverWarn ? 'over threshold' : 'healthy'}
+                  statusColor={dbOverWarn ? '#DC2626' : '#00C853'}
+                  headline={dbSize.total_pretty}
+                  headlineLabel="size · precaution check"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs" style={{ color: 'var(--text-faintest)' }}>
+                        {dbSize.total_pretty} of {dbSize.warn_threshold_mb} MB precaution threshold
+                      </p>
+                      <p className="text-xs font-mono" style={{ color: dbOverWarn ? '#DC2626' : 'var(--text-faint)' }}>
+                        {Math.min(100, Math.round((dbSize.total_bytes / (dbSize.warn_threshold_mb * 1024 * 1024)) * 100))}%
+                      </p>
+                    </div>
+                    <div className="rounded-full overflow-hidden" style={{ height: 6, backgroundColor: 'var(--border-faint)' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${Math.min(100, (dbSize.total_bytes / (dbSize.warn_threshold_mb * 1024 * 1024)) * 100)}%`,
+                          backgroundColor: dbOverWarn ? '#DC2626' : '#00C853',
+                          transition: 'width 0.2s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--text-faintest)' }}>
+                    Nightly prune (3am) removes stale trades/logs; free-tier cap is 500 MB. Checked daily via <code>db_size_status()</code>.
+                  </p>
+                  {dbSizeAlerts && dbSizeAlerts.length > 0 ? (
+                    <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                      {dbSizeAlerts.map(a => (
+                        <div key={a.id} className="rounded-lg px-3 py-2" style={{ backgroundColor: '#DC262618', border: '1px solid #DC262633' }}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-mono" style={{ color: '#FCA5A5' }}>{new Date(a.checked_at).toLocaleString()}</span>
+                            <span className="text-xs font-mono font-bold" style={{ color: '#FCA5A5' }}>{Math.round(a.total_bytes / 1024 / 1024)} MB</span>
+                          </div>
+                          <p className="text-xs leading-snug" style={{ color: 'var(--text)', margin: '4px 0 0' }}>{a.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#00C85318', color: '#00C853' }}>No precaution alerts — DB has stayed under threshold.</p>
+                  )}
+                </ModelCard>
+              )}
             </div>
           </section>
 
